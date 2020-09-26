@@ -73,7 +73,7 @@ publishing {
 }
 
 application {
-    mainClassName = "li.cil.circuity.Main"
+    mainClassName = "li.cil.sedna.Main"
 }
 
 run {

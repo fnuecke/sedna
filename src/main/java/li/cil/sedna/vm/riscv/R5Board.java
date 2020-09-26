@@ -196,8 +196,8 @@ public final class R5Board implements Steppable, Resettable {
         root
                 .addProp(DeviceTreePropertyNames.NUM_ADDRESS_CELLS, 2)
                 .addProp(DeviceTreePropertyNames.NUM_SIZE_CELLS, 2)
-                .addProp(DeviceTreePropertyNames.COMPATIBLE, "riscv-circuity")
-                .addProp(DeviceTreePropertyNames.MODEL, "riscv-circuity,generic");
+                .addProp(DeviceTreePropertyNames.COMPATIBLE, "riscv-sedna")
+                .addProp(DeviceTreePropertyNames.MODEL, "riscv-sedna,generic");
 
         root.putChild(DeviceNames.CPUS, cpus -> cpus
                 .addProp(DeviceTreePropertyNames.NUM_ADDRESS_CELLS, 1)
