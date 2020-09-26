@@ -1,13 +1,13 @@
 package li.cil.sedna;
 
-import li.cil.sedna.api.vm.device.memory.PhysicalMemory;
-import li.cil.sedna.api.vm.device.memory.Sizes;
-import li.cil.sedna.vm.device.ByteBufferBlockDevice;
-import li.cil.sedna.vm.device.UART16550A;
-import li.cil.sedna.vm.device.memory.Memory;
-import li.cil.sedna.vm.device.virtio.VirtIOBlockDevice;
-import li.cil.sedna.vm.riscv.R5Board;
-import li.cil.sedna.vm.riscv.R5CPU;
+import li.cil.sedna.api.device.PhysicalMemory;
+import li.cil.sedna.api.Sizes;
+import li.cil.sedna.device.block.ByteBufferBlockDevice;
+import li.cil.sedna.device.serial.UART16550A;
+import li.cil.sedna.device.memory.Memory;
+import li.cil.sedna.device.virtio.VirtIOBlockDevice;
+import li.cil.sedna.riscv.R5Board;
+import li.cil.sedna.riscv.R5CPU;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
