@@ -6,27 +6,27 @@ plugins {
 
 def getGitRef() {
     try {
-        final def stdout = new ByteArrayOutputStream()
+        def stdout = new ByteArrayOutputStream()
         exec {
             commandLine 'git', 'rev-parse', '--short', 'HEAD'
             standardOutput = stdout
         }
         return stdout.toString().trim()
-    } catch (final Throwable ignored) {
+    } catch (Throwable ignored) {
         return "unknown"
     }
 }
 
-final String semver = "${version_major}.${version_minor}.${version_patch}"
+String semver = "${version_major}.${version_minor}.${version_patch}"
 
-String build_number = System.getenv("PROMOTED_NUMBER");
+String build_number = System.getenv("PROMOTED_NUMBER")
 if (build_number == null)
     build_number = System.getenv("BUILD_NUMBER")
 if (build_number == null)
     build_number = getGitRef()
 
-version "${semver}+${build_number}"
-group 'li.cil.sedna'
+version = "${semver}+${build_number}"
+group = 'li.cil.sedna'
 
 sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
 compileJava {
