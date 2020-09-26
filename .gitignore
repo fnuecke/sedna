@@ -1,26 +1,43 @@
 # eclipse
-bin
+bin/
+tmp/
 *.launch
-.settings
+*.tmp
+*.bak
+*.swp
+*.launch
+.settings/
 .metadata
 .classpath
 .project
+local.properties
 
 # idea
-out
+out/
 *.ipr
 *.iws
 *.iml
 .idea
 
 # gradle
-build
+build/
 .gradle
 
-# other
-eclipse
-run
-logs
+# Java
+*.class
+*.log
+hs_err_pid*
 
-# Files from Forge MDK
-forge*changelog.txt
+# Windows
+Thumbs.db
+[Dd]esktop.ini
+*.lnk
+
+# Linux
+*~
+
+# OSX
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
