@@ -116,7 +116,7 @@ public final class Main {
 
         final long cyclesPerRun = 300_000_000;
         final int cyclesPerStep = 1_000;
-        final int hz = 50_000_000;
+        final int hz = board.getCpu().getFrequency();
 
         final int samples = 10;
         int minRunDuration = Integer.MAX_VALUE;
