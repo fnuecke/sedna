@@ -1,12 +1,13 @@
 package li.cil.sedna.device.virtio;
 
 import li.cil.sedna.api.Interrupt;
-import li.cil.sedna.api.memory.MemoryMap;
+import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.InterruptSource;
+import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.Resettable;
 import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.api.device.MemoryMappedDevice;
-import li.cil.sedna.api.Sizes;
+import li.cil.sedna.api.memory.MemoryMap;
+import li.cil.sedna.memory.MemoryMaps;
 
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
@@ -1168,21 +1169,6 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
             }
 
             @Override
-            public void get(final byte[] dst, final int offset, final int length) throws VirtIODeviceException, MemoryAccessException {
-                if (isUsed) {
-                    throw new IllegalStateException();
-                }
-                if (length > readableBytes()) {
-                    throw new IndexOutOfBoundsException();
-                }
-
-                // TODO Optimize
-                for (int i = 0; i < length; i++) {
-                    dst[offset + i] = get();
-                }
-            }
-
-            @Override
             public void get(final ByteBuffer dst) throws VirtIODeviceException, MemoryAccessException {
                 if (isUsed) {
                     throw new IllegalStateException();
@@ -1191,10 +1177,20 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                     throw new IndexOutOfBoundsException();
                 }
 
-                // TODO Optimize
-                while (dst.hasRemaining()) {
-                    dst.put(get());
+                final int limit = dst.limit();
+                while (dst.position() < limit) {
+                    assert position < length;
+                    final int count = length - position;
+                    dst.limit(dst.position() + count);
+                    MemoryMaps.load(memoryMap, address + position, dst);
+                    readByteCount += count;
+                    position += count;
+                    if (position >= length) {
+                        nextDescriptor();
+                    }
                 }
+
+                assert dst.position() == dst.limit();
             }
 
             @Override
@@ -1219,24 +1215,6 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
             }
 
             @Override
-            public void put(final byte[] src, final int offset, final int length) throws VirtIODeviceException, MemoryAccessException {
-                if (isUsed) {
-                    throw new IllegalStateException();
-                }
-                if (readableBytes() > 0) {
-                    throw new IllegalStateException();
-                }
-                if (length > writableBytes()) {
-                    throw new IndexOutOfBoundsException();
-                }
-
-                // TODO Optimize
-                for (int i = 0; i < length; i++) {
-                    put(src[offset + i]);
-                }
-            }
-
-            @Override
             public void put(final ByteBuffer src) throws VirtIODeviceException, MemoryAccessException {
                 if (isUsed) {
                     throw new IllegalStateException();
@@ -1248,10 +1226,20 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                     throw new IndexOutOfBoundsException();
                 }
 
-                // TODO Optimize
-                while (src.hasRemaining()) {
-                    put(src.get());
+                final int limit = src.limit();
+                while (src.position() < limit) {
+                    assert position < length;
+                    final int count = length - position;
+                    src.limit(src.position() + count);
+                    MemoryMaps.store(memoryMap, address + position, src);
+                    writtenByteCount += count;
+                    position += count;
+                    if (position >= length) {
+                        nextDescriptor();
+                    }
                 }
+
+                assert src.position() == src.limit();
             }
 
             void setDescriptor(final int descIdx) throws VirtIODeviceException, MemoryAccessException {

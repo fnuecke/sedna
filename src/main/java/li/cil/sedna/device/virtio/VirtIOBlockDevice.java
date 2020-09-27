@@ -274,7 +274,9 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
                 final long offset = sector * VIRTIO_BLK_SECTOR_SIZE;
                 int status = VIRTIO_BLK_S_OK;
                 try {
-                    chain.put(block.getView(offset, chain.writableBytes() - 1));
+                    final ByteBuffer buffer = block.getView(offset, chain.writableBytes() - 1);
+                    buffer.order(ByteOrder.LITTLE_ENDIAN);
+                    chain.put(buffer);
                 } catch (final IllegalArgumentException e) {
                     chain.skip(chain.writableBytes() - 1);
                     status = VIRTIO_BLK_S_IOERR;
@@ -304,7 +306,9 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
                 final long offset = sector * VIRTIO_BLK_SECTOR_SIZE;
                 int status = VIRTIO_BLK_S_OK;
                 try {
-                    chain.get(block.getView(offset, chain.readableBytes()));
+                    final ByteBuffer buffer = block.getView(offset, chain.readableBytes());
+                    buffer.order(ByteOrder.LITTLE_ENDIAN);
+                    chain.get(buffer);
                 } catch (final IllegalArgumentException | ReadOnlyBufferException e) {
                     chain.skip(chain.readableBytes());
                     status = VIRTIO_BLK_S_IOERR;

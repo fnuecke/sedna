@@ -1,14 +1,16 @@
 package li.cil.sedna.device.memory;
 
-import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.Sizes;
-import li.cil.sedna.utils.UnsafeGetter;
+import li.cil.sedna.api.device.PhysicalMemory;
+import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.memory.exception.LoadFaultException;
 import li.cil.sedna.memory.exception.StoreFaultException;
+import li.cil.sedna.utils.UnsafeGetter;
 import sun.misc.Cleaner;
 import sun.misc.Unsafe;
 import sun.misc.VM;
+
+import java.nio.ByteBuffer;
 
 // Tends to be around 10% faster than ByteBufferMemory during regular emulation.
 public final class UnsafeMemory implements PhysicalMemory {
@@ -85,6 +87,26 @@ public final class UnsafeMemory implements PhysicalMemory {
                 break;
             default:
                 throw new IllegalArgumentException();
+        }
+    }
+
+    @Override
+    public void load(int offset, final ByteBuffer dst) throws MemoryAccessException {
+        if (offset < 0 || offset > size - dst.remaining()) {
+            throw new LoadFaultException(offset);
+        }
+        while (dst.hasRemaining()) {
+            dst.put(UNSAFE.getByte(address + offset++));
+        }
+    }
+
+    @Override
+    public void store(int offset, final ByteBuffer src) throws MemoryAccessException {
+        if (offset < 0 || offset > size - src.remaining()) {
+            throw new StoreFaultException(offset);
+        }
+        while (src.hasRemaining()) {
+            UNSAFE.putByte(address + offset++, src.get());
         }
     }
 

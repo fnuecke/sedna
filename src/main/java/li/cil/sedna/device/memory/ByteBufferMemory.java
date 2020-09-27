@@ -1,8 +1,8 @@
 package li.cil.sedna.device.memory;
 
-import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.Sizes;
+import li.cil.sedna.api.device.PhysicalMemory;
+import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.memory.exception.LoadFaultException;
 import li.cil.sedna.memory.exception.StoreFaultException;
 
@@ -62,5 +62,21 @@ public class ByteBufferMemory implements PhysicalMemory {
             default:
                 throw new IllegalArgumentException();
         }
+    }
+
+    @Override
+    public void load(final int offset, final ByteBuffer dst) {
+        final ByteBuffer slice = data.slice();
+        slice.position(offset);
+        slice.limit(offset + dst.remaining());
+        dst.put(slice);
+    }
+
+    @Override
+    public void store(final int offset, final ByteBuffer src) {
+        final ByteBuffer slice = data.slice();
+        slice.position(offset);
+        slice.limit(offset + src.remaining());
+        slice.put(src);
     }
 }

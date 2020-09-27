@@ -102,7 +102,9 @@ public interface DescriptorChain {
      * @throws IndexOutOfBoundsException if {@link #readableBytes()} is smaller than {@code length}.
      * @throws IllegalStateException     when called after {@link #use()} has been called.
      */
-    void get(byte[] dst, int offset, int length) throws VirtIODeviceException, MemoryAccessException;
+    default void get(final byte[] dst, final int offset, final int length) throws VirtIODeviceException, MemoryAccessException {
+        get(ByteBuffer.wrap(dst, offset, length));
+    }
 
     /**
      * Fills the specified buffer with bytes read from the descriptor chain.
@@ -139,7 +141,9 @@ public interface DescriptorChain {
      * @throws IllegalStateException     when called after {@link #use()} has been called or while
      *                                   {@link #readableBytes()} is non-zero.
      */
-    void put(byte[] src, int offset, int length) throws VirtIODeviceException, MemoryAccessException;
+    default void put(final byte[] src, final int offset, final int length) throws VirtIODeviceException, MemoryAccessException {
+        put(ByteBuffer.wrap(src, offset, length));
+    }
 
     /**
      * Writes all bytes from the specified buffer into the descriptor chain.
