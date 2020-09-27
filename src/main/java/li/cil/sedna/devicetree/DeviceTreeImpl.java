@@ -4,9 +4,9 @@ import it.unimi.dsi.fastutil.ints.IntArraySet;
 import it.unimi.dsi.fastutil.ints.IntSet;
 import it.unimi.dsi.fastutil.objects.Object2IntArrayMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
-import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.device.Device;
 import li.cil.sedna.api.devicetree.DeviceTree;
+import li.cil.sedna.api.memory.MemoryMap;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;

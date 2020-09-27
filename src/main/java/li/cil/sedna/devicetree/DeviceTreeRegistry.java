@@ -1,12 +1,12 @@
 package li.cil.sedna.devicetree;
 
-import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.device.Device;
 import li.cil.sedna.api.device.InterruptSource;
 import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.devicetree.DeviceTree;
 import li.cil.sedna.api.devicetree.DeviceTreeProvider;
+import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.device.serial.UART16550A;
 import li.cil.sedna.device.virtio.AbstractVirtIODevice;
 import li.cil.sedna.devicetree.provider.*;

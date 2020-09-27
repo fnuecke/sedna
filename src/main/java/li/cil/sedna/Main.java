@@ -1,10 +1,10 @@
 package li.cil.sedna;
 
-import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.Sizes;
+import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.device.block.ByteBufferBlockDevice;
-import li.cil.sedna.device.serial.UART16550A;
 import li.cil.sedna.device.memory.Memory;
+import li.cil.sedna.device.serial.UART16550A;
 import li.cil.sedna.device.virtio.VirtIOBlockDevice;
 import li.cil.sedna.riscv.R5Board;
 import li.cil.sedna.riscv.R5CPU;

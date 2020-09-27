@@ -1,10 +1,10 @@
 package li.cil.sedna.riscv.device;
 
 import li.cil.sedna.api.Interrupt;
+import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.InterruptController;
 import li.cil.sedna.api.device.InterruptSource;
 import li.cil.sedna.api.device.MemoryMappedDevice;
-import li.cil.sedna.api.Sizes;
 import li.cil.sedna.riscv.R5;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

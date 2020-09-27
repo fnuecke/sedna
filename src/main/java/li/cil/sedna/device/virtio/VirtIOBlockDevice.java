@@ -1,9 +1,9 @@
 package li.cil.sedna.device.virtio;
 
-import li.cil.sedna.api.memory.MemoryMap;
+import li.cil.sedna.api.device.BlockDevice;
 import li.cil.sedna.api.device.Steppable;
 import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.api.device.BlockDevice;
+import li.cil.sedna.api.memory.MemoryMap;
 
 import java.io.Closeable;
 import java.io.IOException;

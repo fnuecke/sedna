@@ -1,14 +1,14 @@
 package li.cil.sedna.riscv.dbt;
 
-import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.Sizes;
-import li.cil.sedna.utils.BitUtils;
-import li.cil.sedna.utils.UnsafeGetter;
+import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.riscv.R5CPU;
 import li.cil.sedna.riscv.exception.R5BreakpointException;
 import li.cil.sedna.riscv.exception.R5ECallException;
 import li.cil.sedna.riscv.exception.R5Exception;
 import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
+import li.cil.sedna.utils.BitUtils;
+import li.cil.sedna.utils.UnsafeGetter;
 import org.apache.commons.lang3.ClassUtils;
 import org.objectweb.asm.*;
 import sun.misc.Unsafe;

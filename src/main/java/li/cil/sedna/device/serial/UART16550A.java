@@ -3,11 +3,11 @@ package li.cil.sedna.device.serial;
 import it.unimi.dsi.fastutil.bytes.ByteArrayFIFOQueue;
 import it.unimi.dsi.fastutil.bytes.BytePriorityQueue;
 import li.cil.sedna.api.Interrupt;
+import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.InterruptSource;
+import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.Resettable;
 import li.cil.sedna.api.device.Steppable;
-import li.cil.sedna.api.device.MemoryMappedDevice;
-import li.cil.sedna.api.Sizes;
 
 import java.util.Collections;
 

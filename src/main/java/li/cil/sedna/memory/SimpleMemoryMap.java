@@ -1,9 +1,9 @@
 package li.cil.sedna.memory;
 
+import li.cil.sedna.api.device.MemoryMappedDevice;
+import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MemoryRange;
-import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.api.device.MemoryMappedDevice;
 
 import javax.annotation.Nullable;
 import java.util.HashMap;

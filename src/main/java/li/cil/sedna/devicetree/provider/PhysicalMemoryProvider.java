@@ -1,11 +1,11 @@
 package li.cil.sedna.devicetree.provider;
 
-import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.device.Device;
 import li.cil.sedna.api.devicetree.DeviceNames;
-import li.cil.sedna.api.devicetree.DeviceTree;
 import li.cil.sedna.api.devicetree.DevicePropertyNames;
+import li.cil.sedna.api.devicetree.DeviceTree;
 import li.cil.sedna.api.devicetree.DeviceTreeProvider;
+import li.cil.sedna.api.memory.MemoryMap;
 
 import java.util.Optional;
 

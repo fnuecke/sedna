@@ -1,7 +1,7 @@
 package li.cil.sedna.device.virtio;
 
-import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MemoryAccessException;
+import li.cil.sedna.api.memory.MemoryMap;
 
 @SuppressWarnings("PointlessBitwiseExpression")
 public final class VirtIOConsoleDevice extends AbstractVirtIODevice {

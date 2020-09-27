@@ -1,9 +1,9 @@
 package li.cil.sedna.api.device;
 
+import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MemoryRange;
-import li.cil.sedna.api.Sizes;
 
 /**
  * {@link MemoryMappedDevice}s can be registered with a {@link MemoryMap}

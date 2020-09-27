@@ -1,7 +1,7 @@
 package li.cil.sedna.api.devicetree;
 
-import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.device.Device;
+import li.cil.sedna.api.memory.MemoryMap;
 
 import java.util.Optional;
 

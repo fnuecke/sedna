@@ -1,21 +1,17 @@
 package li.cil.sedna.riscv;
 
-import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.api.device.InterruptController;
-import li.cil.sedna.api.device.Resettable;
-import li.cil.sedna.api.device.Steppable;
-import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.api.device.MemoryMappedDevice;
-import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.Sizes;
+import li.cil.sedna.api.device.*;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.devicetree.DeviceNames;
-import li.cil.sedna.api.devicetree.DeviceTree;
 import li.cil.sedna.api.devicetree.DevicePropertyNames;
-import li.cil.sedna.memory.SimpleMemoryMap;
+import li.cil.sedna.api.devicetree.DeviceTree;
+import li.cil.sedna.api.memory.MemoryAccessException;
+import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.device.memory.Memory;
 import li.cil.sedna.devicetree.DeviceTreeRegistry;
 import li.cil.sedna.devicetree.FlattenedDeviceTree;
+import li.cil.sedna.memory.SimpleMemoryMap;
 import li.cil.sedna.riscv.device.R5CoreLocalInterrupter;
 import li.cil.sedna.riscv.device.R5PlatformLevelInterruptController;
 import org.apache.logging.log4j.LogManager;
