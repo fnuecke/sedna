@@ -1,9 +1,11 @@
 package li.cil.sedna.device.block;
 
 import li.cil.sedna.api.device.BlockDevice;
+import org.apache.commons.io.IOUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -15,6 +17,10 @@ public class ByteBufferBlockDevice implements BlockDevice {
 
     public static ByteBufferBlockDevice create(final int size, final boolean readonly) {
         return new ByteBufferBlockDevice(ByteBuffer.allocate(size), readonly);
+    }
+
+    public static ByteBufferBlockDevice createFromStream(final InputStream stream, final boolean readonly) throws IOException {
+        return new ByteBufferBlockDevice(ByteBuffer.wrap(IOUtils.toByteArray(stream)), readonly);
     }
 
     public static ByteBufferBlockDevice createFromFile(final File file, final boolean readonly) throws IOException {
