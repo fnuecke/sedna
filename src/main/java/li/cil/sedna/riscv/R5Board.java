@@ -198,7 +198,7 @@ public final class R5Board implements Steppable, Resettable {
         root.putChild(DeviceNames.CPUS, cpus -> cpus
                 .addProp(DevicePropertyNames.NUM_ADDRESS_CELLS, 1)
                 .addProp(DevicePropertyNames.NUM_SIZE_CELLS, 0)
-                .addProp("timebase-frequency", rtc.getFrequency())
+                .addProp(DevicePropertyNames.TIMEBASE_FREQUENCY, rtc.getFrequency())
 
                 .putChild(DeviceNames.CPU, 0, cpuNode -> cpuNode
                         .addProp(DevicePropertyNames.DEVICE_TYPE, DeviceNames.CPU)
@@ -207,11 +207,11 @@ public final class R5Board implements Steppable, Resettable {
                         .addProp(DevicePropertyNames.COMPATIBLE, "riscv")
                         .addProp("riscv,isa", "rv32imacsu")
 
-                        .addProp("mmu-type", "riscv,sv32")
-                        .addProp("clock-frequency", cpu.getFrequency())
+                        .addProp(DevicePropertyNames.MMU_TYPE, "riscv,sv32")
+                        .addProp(DevicePropertyNames.CLOCK_FREQUENCY, cpu.getFrequency())
 
                         .putChild(DeviceNames.INTERRUPT_CONTROLLER, ic -> ic
-                                .addProp("#interrupt-cells", 1)
+                                .addProp(DevicePropertyNames.NUM_INTERRUPT_CELLS, 1)
                                 .addProp(DevicePropertyNames.INTERRUPT_CONTROLLER)
                                 .addProp(DevicePropertyNames.COMPATIBLE, "riscv,cpu-intc")
                                 .addProp(DevicePropertyNames.PHANDLE, ic.createPHandle(cpu)))));

@@ -28,4 +28,7 @@ public final class DevicePropertyNames {
     public static final String INTERRUPT_CONTROLLER = "interrupt-controller";
     public static final String INTERRUPT_MAP = "interrupt-map";
     public static final String INTERRUPT_MAP_MASK = "interrupt-map-mask";
+    public static final String TIMEBASE_FREQUENCY = "timebase-frequency";
+    public static final String CLOCK_FREQUENCY = "clock-frequency";
+    public static final String MMU_TYPE = "mmu-type";
 }
