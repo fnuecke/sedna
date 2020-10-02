@@ -35,20 +35,20 @@ public final class DeviceTreeRegistry {
         addProvider(AbstractVirtIODevice.class, VirtIOProvider.INSTANCE);
     }
 
-    public static void addProvider(final Class<? extends Device> clazz, final DeviceTreeProvider provider) {
-        providers.put(clazz, provider);
+    public static void addProvider(final Class<? extends Device> type, final DeviceTreeProvider provider) {
+        providers.put(type, provider);
         providerCache.clear();
     }
 
-    private static void visitBaseTypes(@Nullable final Class<?> clazz, final Consumer<Class<?>> visitor) {
-        if (clazz == null) {
+    private static void visitBaseTypes(@Nullable final Class<?> type, final Consumer<Class<?>> visitor) {
+        if (type == null) {
             return;
         }
 
-        visitor.accept(clazz);
-        visitBaseTypes(clazz.getSuperclass(), visitor);
+        visitor.accept(type);
+        visitBaseTypes(type.getSuperclass(), visitor);
 
-        final Class<?>[] interfaces = clazz.getInterfaces();
+        final Class<?>[] interfaces = type.getInterfaces();
         for (final Class<?> iface : interfaces) {
             visitor.accept(iface);
             visitBaseTypes(iface, visitor);
