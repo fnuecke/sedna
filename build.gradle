@@ -46,6 +46,7 @@ repositories {
 
 dependencies {
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
+    testCompileOnly 'com.google.code.findbugs:jsr305:3.0.2'
 
     implementation 'it.unimi.dsi:fastutil:8.2.1'
     implementation 'commons-io:commons-io:2.5'
