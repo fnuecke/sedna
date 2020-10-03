@@ -149,14 +149,6 @@ public final class R5Board implements Steppable, Resettable {
         cpu.reset();
 
         try {
-            for (final MemoryMappedDevice device : devices) {
-                if (device instanceof PhysicalMemory) {
-                    for (int offset = 0; offset < device.getLength(); offset += 4) {
-                        device.store(offset, 0, Sizes.SIZE_32_LOG2);
-                    }
-                }
-            }
-
             final FlattenedDeviceTree fdt = buildDeviceTree().flatten();
             final byte[] dtb = fdt.toDTB();
             for (int i = 0; i < dtb.length; i++) {
