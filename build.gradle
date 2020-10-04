@@ -1,7 +1,6 @@
 plugins {
     id 'java'
     id 'maven-publish'
-    id 'application'
 }
 
 def getGitRef() {
@@ -73,14 +72,6 @@ publishing {
             url System.getenv("MAVEN_PATH")
         }
     }
-}
-
-application {
-    mainClassName = "li.cil.sedna.Main"
-}
-
-run {
-    standardInput = System.in
 }
 
 test {
