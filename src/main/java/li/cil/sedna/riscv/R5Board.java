@@ -1,6 +1,6 @@
 package li.cil.sedna.riscv;
 
-import li.cil.sedna.api.Sizes;
+import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.device.*;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.devicetree.DeviceNames;
@@ -39,19 +39,20 @@ public final class R5Board implements Steppable, Resettable {
 
     private final RealTimeCounter rtc;
     private final MemoryMap memoryMap;
-    private final R5CPU cpu;
-    private final R5PlatformLevelInterruptController plic;
     private final List<MemoryMappedDevice> devices = new ArrayList<>();
     private final List<Steppable> steppableDevices = new ArrayList<>();
 
-    private String bootargs;
+    @Serialized private final R5CPU cpu;
+    @Serialized private final R5CoreLocalInterrupter clint;
+    @Serialized private final R5PlatformLevelInterruptController plic;
+    @Serialized private String bootargs;
 
     public R5Board() {
         memoryMap = new SimpleMemoryMap();
         rtc = cpu = new R5CPU(memoryMap);
 
         final PhysicalMemory flash = Memory.create(LOW_MEMORY_SIZE);
-        final R5CoreLocalInterrupter clint = new R5CoreLocalInterrupter(rtc);
+        clint = new R5CoreLocalInterrupter(rtc);
         plic = new R5PlatformLevelInterruptController();
 
         steppableDevices.add(cpu);

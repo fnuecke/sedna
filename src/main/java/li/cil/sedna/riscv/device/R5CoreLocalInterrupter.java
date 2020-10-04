@@ -1,9 +1,9 @@
 package li.cil.sedna.riscv.device;
 
 import it.unimi.dsi.fastutil.ints.Int2LongArrayMap;
-import it.unimi.dsi.fastutil.ints.Int2LongMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectArrayMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Interrupt;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.InterruptController;
@@ -34,7 +34,7 @@ public final class R5CoreLocalInterrupter implements Steppable, InterruptSource,
 
     private final Int2ObjectMap<Interrupt> msips = new Int2ObjectArrayMap<>();
     private final Int2ObjectMap<Interrupt> mtips = new Int2ObjectArrayMap<>();
-    private final Int2LongMap mtimecmps = new Int2LongArrayMap();
+    @Serialized private final Int2LongArrayMap mtimecmps = new Int2LongArrayMap();
 
     public R5CoreLocalInterrupter(final RealTimeCounter rtc) {
         this.rtc = rtc;
@@ -49,7 +49,9 @@ public final class R5CoreLocalInterrupter implements Steppable, InterruptSource,
         mtip.controller = interruptController;
         mtips.put(id, mtip);
 
-        mtimecmps.put(id, -1);
+        if (!mtimecmps.containsKey(id)) {
+            mtimecmps.put(id, -1);
+        }
     }
 
     @Override

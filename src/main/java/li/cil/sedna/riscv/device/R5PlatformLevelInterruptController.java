@@ -1,5 +1,6 @@
 package li.cil.sedna.riscv.device;
 
+import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Interrupt;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.InterruptController;
@@ -19,6 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * See: https://github.com/riscv/riscv-plic-spec/blob/master/riscv-plic.adoc
  * See: https://github.com/riscv/opensbi/blob/master/lib/utils/irqchip/plic.c
  */
+@Serialized
 public class R5PlatformLevelInterruptController implements MemoryMappedDevice, InterruptController, InterruptSource {
     private static final Logger LOGGER = LogManager.getLogger();
 
@@ -34,13 +36,13 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
     private static final int PLIC_CONTEXT_COUNT = 2; // MEIP and SEIP for one hart.
     private static final int PLIC_MAX_PRIORITY = 7; // Number of priority level supported. Must have all bits set.
 
-    private final Interrupt meip = new Interrupt(R5.MEIP_SHIFT);
-    private final Interrupt seip = new Interrupt(R5.SEIP_SHIFT);
+    private final transient Interrupt meip = new Interrupt(R5.MEIP_SHIFT);
+    private final transient Interrupt seip = new Interrupt(R5.SEIP_SHIFT);
+    private final transient Interrupt[] interruptByContext = {meip, seip};
 
     private final int sourceWords; // Size of blocks holding flags for sources in words.
     private final int[] priorityBySource;
     private final int[] thresholdByContext;
-    private final Interrupt[] interruptByContext = {meip, seip};
     private final AtomicInteger[] pending;
     private final AtomicInteger[] claimed;
     private final int[] enabled; // Contiguous words for all sources and all contexts (c0:s0...c0:sN,...,cM:s0...cM:N)

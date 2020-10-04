@@ -1,7 +1,7 @@
 package li.cil.sedna.device.serial;
 
 import it.unimi.dsi.fastutil.bytes.ByteArrayFIFOQueue;
-import it.unimi.dsi.fastutil.bytes.BytePriorityQueue;
+import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Interrupt;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.InterruptSource;
@@ -20,6 +20,7 @@ import java.util.Collections;
  * See: https://web.archive.org/web/20200207194832/https://www.lammertbies.nl/comm/info/serial-uart
  */
 @SuppressWarnings("PointlessBitwiseExpression")
+@Serialized
 public final class UART16550A implements Resettable, Steppable, MemoryMappedDevice, InterruptSource {
     private static final int UART_RBR_OFFSET = 0; // Receive buffer register (Read-only)
     private static final int UART_THR_OFFSET = 0; // Transmitter holding register (Write-only)
@@ -123,15 +124,15 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
     private short dl;
 
     private int triggerLevel;
-    private final BytePriorityQueue receiveFifo = new ByteArrayFIFOQueue(FIFO_QUEUE_CAPACITY);
-    private final BytePriorityQueue transmitFifo = new ByteArrayFIFOQueue(FIFO_QUEUE_CAPACITY);
+    private final ByteArrayFIFOQueue receiveFifo = new ByteArrayFIFOQueue(FIFO_QUEUE_CAPACITY);
+    private final ByteArrayFIFOQueue transmitFifo = new ByteArrayFIFOQueue(FIFO_QUEUE_CAPACITY);
 
     private boolean interruptUpdatePending;
     private boolean transmitInterruptPending;
     private boolean timeoutInterruptPending;
-    private final Interrupt interrupt = new Interrupt();
 
-    private final Object lock = new Object();
+    private final transient Interrupt interrupt = new Interrupt();
+    private final transient Object lock = new Object();
 
     public UART16550A() {
         reset();

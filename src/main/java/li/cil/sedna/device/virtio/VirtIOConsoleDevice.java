@@ -1,5 +1,7 @@
 package li.cil.sedna.device.virtio;
 
+import it.unimi.dsi.fastutil.bytes.ByteArrayFIFOQueue;
+import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 
@@ -31,7 +33,9 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice {
     private static final int VIRTQ_RECEIVE_CONTROL = 2; // control receiveq
     private static final int VIRTQ_TRANSMIT_CONTROL = 2; // control transmitq
 
-    private DescriptorChain receive, transmit;
+    // Store input and output in own buffers to avoid storing chains for serialization.
+    @Serialized private final ByteArrayFIFOQueue transmitBuffer = new ByteArrayFIFOQueue(32);
+    @Serialized private final ByteArrayFIFOQueue receiveBuffer = new ByteArrayFIFOQueue(32);
 
     public VirtIOConsoleDevice(final MemoryMap memoryMap) {
         super(memoryMap, VirtIODeviceSpec
@@ -47,18 +51,27 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice {
             return -1;
         }
 
-        try {
-            // 5.3.6.1: The driver MUST NOT put a device-writable buffer in a transmitq.
-            transmit = validateReadOnlyDescriptorChain(VIRTQ_TRANSMIT, transmit);
-            if (transmit != null) {
-                return transmit.get() & 0xFF;
-            } else {
+        if (transmitBuffer.isEmpty()) {
+            try {
+                // 5.3.6.1: The driver MUST NOT put a device-writable buffer in a transmitq.
+                final DescriptorChain transmit = validateReadOnlyDescriptorChain(VIRTQ_TRANSMIT, null);
+                if (transmit != null) {
+                    while (transmit.readableBytes() > 0) {
+                        transmitBuffer.enqueue(transmit.get());
+                    }
+                    transmit.use();
+                }
+            } catch (final VirtIODeviceException | MemoryAccessException e) {
+                error();
                 return -1;
             }
-        } catch (final VirtIODeviceException | MemoryAccessException e) {
-            error();
+        }
+
+        if (transmitBuffer.isEmpty()) {
             return -1;
         }
+
+        return transmitBuffer.dequeueByte() & 0xFF;
     }
 
     public boolean canPutByte() {
@@ -66,14 +79,7 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice {
             return false;
         }
 
-        try {
-            // 5.3.6.1: The driver MUST NOT put a device-readable in a receiveq.
-            receive = validateWriteOnlyDescriptorChain(VIRTQ_RECEIVE, receive);
-            return receive != null;
-        } catch (final VirtIODeviceException | MemoryAccessException e) {
-            error();
-            return false;
-        }
+        return receiveBuffer.size() < 32;
     }
 
     public void putByte(final byte value) {
@@ -81,14 +87,12 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice {
             return;
         }
 
-        try {
-            // 5.3.6.1: The driver MUST NOT put a device-readable in a receiveq.
-            receive = validateWriteOnlyDescriptorChain(VIRTQ_RECEIVE, receive);
-            if (receive != null) {
-                receive.put(value);
-            }
-        } catch (final VirtIODeviceException | MemoryAccessException e) {
-            error();
+        if (receiveBuffer.size() < 32) {
+            receiveBuffer.enqueue(value);
+        }
+
+        if (receiveBuffer.size() >= 32) {
+            flush();
         }
     }
 
@@ -97,14 +101,22 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice {
             return;
         }
 
-        try {
-            // 5.3.6.1: The driver MUST NOT put a device-readable in a receiveq.
-            receive = validateWriteOnlyDescriptorChain(VIRTQ_RECEIVE, receive);
-            if (receive != null) {
+        while (!receiveBuffer.isEmpty()) {
+            try {
+                // 5.3.6.1: The driver MUST NOT put a device-readable in a receiveq.
+                final DescriptorChain receive = validateWriteOnlyDescriptorChain(VIRTQ_RECEIVE, null);
+                if (receive == null) {
+                    return;
+                }
+
+                while (receive.writableBytes() > 0 && !receiveBuffer.isEmpty()) {
+                    receive.put(receiveBuffer.dequeueByte());
+                }
                 receive.use();
+            } catch (final VirtIODeviceException | MemoryAccessException e) {
+                error();
+                return;
             }
-        } catch (final VirtIODeviceException | MemoryAccessException e) {
-            error();
         }
     }
 

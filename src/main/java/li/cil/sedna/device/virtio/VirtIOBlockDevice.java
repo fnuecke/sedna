@@ -1,5 +1,6 @@
 package li.cil.sedna.device.virtio;
 
+import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.device.BlockDevice;
 import li.cil.sedna.api.device.Steppable;
 import li.cil.sedna.api.memory.MemoryAccessException;
@@ -96,8 +97,8 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     private static final ThreadLocal<ByteBuffer> requestHeaderBuffer = new ThreadLocal<>();
 
     private final BlockDevice block;
-    private boolean hasPendingRequest;
     private int remainingByteProcessingQuota;
+    @Serialized private boolean hasPendingRequest;
 
     public VirtIOBlockDevice(final MemoryMap memoryMap, final BlockDevice block) {
         super(memoryMap, VirtIODeviceSpec.builder(VirtIODeviceType.VIRTIO_DEVICE_ID_BLOCK_DEVICE)

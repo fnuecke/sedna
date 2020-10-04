@@ -1,5 +1,6 @@
 package li.cil.sedna.device.virtio;
 
+import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Interrupt;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.InterruptSource;
@@ -12,7 +13,6 @@ import li.cil.sedna.memory.MemoryMaps;
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.NoSuchElementException;
 
@@ -37,6 +37,7 @@ import java.util.NoSuchElementException;
  * Queue notifications are forwarded to {@link #handleQueueNotification(int)}, except for virtqueues
  * where this has been explicitly disabled by calling {@link #setQueueNotifications(int, boolean)}.
  */
+@Serialized
 public abstract class AbstractVirtIODevice implements MemoryMappedDevice, InterruptSource, Resettable {
     protected static final int VIRTIO_VENDOR_ID_GENERIC = 0xFFFF;
 
@@ -91,11 +92,11 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
     private static final int VIRTQ_MAX_QUEUE_SIZE = 16; // Size of descriptor rings.
     private static final int VIRTQ_MAX_CHAIN_LENGTH = 128; // Max chain length because we don't trust drivers.
 
-    private final MemoryMap memoryMap;
-    private final VirtIODeviceSpec spec;
+    private final transient MemoryMap memoryMap;
+    private final transient VirtIODeviceSpec spec;
+    private final transient Interrupt interrupt = new Interrupt();
     private final ByteBuffer configuration;
-    private final Interrupt interrupt = new Interrupt();
-    private final AbstractVirtqueue[] queues;
+    private final SplitVirtqueue[] queues;
 
     private int status = 0;
     private int interruptStatus = 0;
@@ -110,7 +111,10 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         this.spec = spec;
         this.configuration = ByteBuffer.allocate(spec.configSpaceSizeInBytes);
         configuration.order(ByteOrder.LITTLE_ENDIAN);
-        queues = new AbstractVirtqueue[spec.virtQueueCount];
+        queues = new SplitVirtqueue[spec.virtQueueCount];
+        for (int i = 0; i < queues.length; i++) {
+            queues[i] = new SplitVirtqueue();
+        }
 
         reset();
     }
@@ -465,7 +469,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
      * @throws MemoryAccessException when an exception is thrown while accessing physical memory.
      */
     @Nullable
-    protected final DescriptorChain validateReadOnlyDescriptorChain(final int queueIndex, final DescriptorChain chain) throws VirtIODeviceException, MemoryAccessException {
+    protected final DescriptorChain validateReadOnlyDescriptorChain(final int queueIndex, @Nullable final DescriptorChain chain) throws VirtIODeviceException, MemoryAccessException {
         if (chain != null) {
             if (chain.readableBytes() > 0) {
                 return chain;
@@ -518,7 +522,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
      * @throws MemoryAccessException when an exception is thrown while accessing physical memory.
      */
     @Nullable
-    protected final DescriptorChain validateWriteOnlyDescriptorChain(final int queueIndex, final DescriptorChain chain) throws VirtIODeviceException, MemoryAccessException {
+    protected final DescriptorChain validateWriteOnlyDescriptorChain(final int queueIndex, @Nullable final DescriptorChain chain) throws VirtIODeviceException, MemoryAccessException {
         if (chain != null) {
             if (chain.writableBytes() > 0) {
                 return chain;
@@ -709,10 +713,6 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                     } else {
                         if ((status & VIRTIO_F_RING_PACKED) != 0) {
                             throw new AssertionError("Packed queues not implemented");
-                        } else {
-                            for (int i = 0; i < queues.length; i++) {
-                                queues[i] = new SplitVirtqueue();
-                            }
                         }
 
                         handleFeaturesNegotiated();
@@ -785,7 +785,9 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         driverFeaturesSel = 0;
         queueSel = 0;
         configGeneration = 0;
-        Arrays.fill(queues, null);
+        for (int i = 0; i < queues.length; i++) {
+            queues[i].reset();
+        }
         interrupt.lowerInterrupt();
 
         initializeConfig();
@@ -807,7 +809,8 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
      * <p>
      * Actual implementations are {@link SplitVirtqueue}s and <em>Packed Virtqueues</em>.
      */
-    private static abstract class AbstractVirtqueue implements VirtqueueIterator {
+    @Serialized
+    public static abstract class AbstractVirtqueue implements VirtqueueIterator { // Must be public for serialization.
         int ready;
         int num = VIRTQ_MAX_QUEUE_SIZE; // Guaranteed to be a power of two.
         long desc; // Descriptor Area - used for describing buffers.
@@ -830,7 +833,8 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
     /**
      * Implementation of Split Virtqueues as defined in chapter 2.6 of the VirtIO spec.
      */
-    private final class SplitVirtqueue extends AbstractVirtqueue {
+    @Serialized
+    public final class SplitVirtqueue extends AbstractVirtqueue { // Must be public for serialization.
         private static final int VIRTQ_DESC_TABLE_STRIDE = 16;
         private static final int VIRTQ_DESC_ADDR = 0;
         private static final int VIRTQ_DESC_LEN = 8;

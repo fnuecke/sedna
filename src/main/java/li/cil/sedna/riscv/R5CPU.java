@@ -4,6 +4,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
+import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.InterruptController;
 import li.cil.sedna.api.device.MemoryMappedDevice;
@@ -53,6 +54,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <li>"C" Standard Extension for Compressed Instructions, Version 2.0</li>
  * </ul>
  */
+@Serialized
 public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
     private static final Logger LOGGER = LogManager.getLogger();
 
@@ -133,19 +135,19 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
     // Memory access
 
     // Translation look-aside buffers.
-    private final TLBEntry[] fetchTLB = new TLBEntry[TLB_SIZE];
-    private final TLBEntry[] loadTLB = new TLBEntry[TLB_SIZE];
-    private final TLBEntry[] storeTLB = new TLBEntry[TLB_SIZE];
+    private final transient TLBEntry[] fetchTLB = new TLBEntry[TLB_SIZE];
+    private final transient TLBEntry[] loadTLB = new TLBEntry[TLB_SIZE];
+    private final transient TLBEntry[] storeTLB = new TLBEntry[TLB_SIZE];
 
     // Access to physical memory for load/store operations.
-    private final MemoryMap physicalMemory;
+    private final transient MemoryMap physicalMemory;
 
     ///////////////////////////////////////////////////////////////////
     // Dynamic binary translation
-    private final WatchedTrace[] watchedTraces = new WatchedTrace[HOT_TRACE_COUNT];
-    private final Int2ObjectMap<Trace> traces = new Int2ObjectOpenHashMap<>(EXPECTED_MAX_TRACE_COUNT);
-    private final IntSet tracesRequested = new IntOpenHashSet(EXPECTED_MAX_TRACE_COUNT);
-    private volatile TranslatorDataExchange translatorDataExchange = new TranslatorDataExchange();
+    private final transient WatchedTrace[] watchedTraces = new WatchedTrace[HOT_TRACE_COUNT];
+    private final transient Int2ObjectMap<Trace> traces = new Int2ObjectOpenHashMap<>(EXPECTED_MAX_TRACE_COUNT);
+    private final transient IntSet tracesRequested = new IntOpenHashSet(EXPECTED_MAX_TRACE_COUNT);
+    private volatile transient TranslatorDataExchange translatorDataExchange = new TranslatorDataExchange();
     private static final ExecutorService translators = Executors.newFixedThreadPool(
             Math.min(4, Runtime.getRuntime().availableProcessors()), r -> {
                 final Thread thread = new Thread(r, "RISC-V Translator Thread");
@@ -157,7 +159,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
     // Real time counter -- at least in RISC-V Linux 5.1 the mtime CSR is needed in add_device_randomness
     // where it doesn't use the SBI. Not implementing it would cause an illegal instruction exception
     // halting the system.
-    private final RealTimeCounter rtc;
+    private final transient RealTimeCounter rtc;
 
     public R5CPU(final MemoryMap physicalMemory, @Nullable final RealTimeCounter rtc) {
         this.rtc = rtc != null ? rtc : this;
