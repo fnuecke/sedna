@@ -5,6 +5,7 @@ import li.cil.sedna.api.device.PhysicalMemory;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
 public final class PhysicalMemoryOutputStream extends OutputStream {
     private final PhysicalMemory memory;
@@ -19,5 +20,24 @@ public final class PhysicalMemoryOutputStream extends OutputStream {
         memory.store(offset++, b, Sizes.SIZE_8_LOG2);
     }
 
-    // TODO write(byte[], ...)
+    @Override
+    public void write(final byte[] b, final int off, final int len) throws IOException {
+        if (b == null) {
+            throw new NullPointerException();
+        } else if ((off < 0) || (off > b.length) || (len < 0) ||
+                   ((off + len) > b.length) || ((off + len) < 0)) {
+            throw new IndexOutOfBoundsException();
+        } else if (len == 0) {
+            return;
+        }
+
+
+        final int count = Math.min(len, memory.getLength() - offset);
+        if (count <= 0) {
+            return;
+        }
+
+        memory.store(offset, ByteBuffer.wrap(b, off, count));
+        offset += count;
+    }
 }
