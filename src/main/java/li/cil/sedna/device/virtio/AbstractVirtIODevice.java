@@ -36,6 +36,8 @@ import java.util.NoSuchElementException;
  * <p>
  * Queue notifications are forwarded to {@link #handleQueueNotification(int)}, except for virtqueues
  * where this has been explicitly disabled by calling {@link #setQueueNotifications(int, boolean)}.
+ * <p>
+ * Specification: https://docs.oasis-open.org/virtio/virtio/v1.1/csprd01/virtio-v1.1-csprd01.html
  */
 @Serialized
 public abstract class AbstractVirtIODevice implements MemoryMappedDevice, InterruptSource, Resettable {
