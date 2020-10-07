@@ -117,8 +117,6 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         for (int i = 0; i < queues.length; i++) {
             queues[i] = new SplitVirtqueue();
         }
-
-        reset();
     }
 
     public Interrupt getInterrupt() {
