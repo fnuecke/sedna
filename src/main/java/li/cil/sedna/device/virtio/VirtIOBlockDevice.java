@@ -94,7 +94,7 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     private static final int MAX_SEGMENT_COUNT = 64;
     private static final int BYTES_PER_THOUSAND_CYCLES = 32;
 
-    private static final ThreadLocal<ByteBuffer> requestHeaderBuffer = new ThreadLocal<>();
+    private static final ThreadLocal<ByteBuffer> REQUEST_HEADER_BUFFER = new ThreadLocal<>();
 
     private final BlockDevice block;
     private int remainingByteProcessingQuota;
@@ -125,16 +125,16 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
 
     @Override
     public void step(final int cycles) {
+        if (remainingByteProcessingQuota <= 0) {
+            remainingByteProcessingQuota += Math.max(1, cycles * BYTES_PER_THOUSAND_CYCLES / 1000);
+        }
+
         if (!hasPendingRequest) {
             return;
         }
 
         if ((getStatus() & VIRTIO_STATUS_FAILED) != 0) {
             return;
-        }
-
-        if (remainingByteProcessingQuota <= 0) {
-            remainingByteProcessingQuota += Math.max(1, cycles * BYTES_PER_THOUSAND_CYCLES / 1000);
         }
 
         try {
@@ -145,7 +145,7 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
                 }
                 remainingByteProcessingQuota -= processedBytes;
             }
-        } catch (final VirtIODeviceException | MemoryAccessException e) {
+        } catch (final Throwable e) {
             error();
         }
     }
@@ -355,11 +355,11 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     }
 
     private static ByteBuffer getRequestHeaderBuffer() {
-        ByteBuffer buffer = requestHeaderBuffer.get();
+        ByteBuffer buffer = REQUEST_HEADER_BUFFER.get();
         if (buffer == null) {
             buffer = ByteBuffer.allocate(16);
             buffer.order(ByteOrder.LITTLE_ENDIAN);
-            requestHeaderBuffer.set(buffer);
+            REQUEST_HEADER_BUFFER.set(buffer);
         }
         buffer.clear();
         return buffer;
