@@ -30,10 +30,13 @@ import java.util.List;
  *     <li>http://9p.io/magic/man2html/5</li>
  * </ul>
  */
+@SuppressWarnings("PointlessBitwiseExpression")
 public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implements Steppable {
     private static final int VIRTIO_9P_MAX_MESSAGE_SIZE = 8 * 1024;
     private static final String VIRTIO_9P_VERSION = "9P2000.L";
     private static final int BYTES_PER_THOUSAND_CYCLES = 32;
+
+    private static final long VIRTIO_9P_F_MOUNT_TAG = 1L << 0; // We have a tag name that can be used to mount us.
 
     private static final byte P9_MSG_TLERROR = 6; // only used in reply; RLERROR: response for any failed request for 9P2000.L
     private static final byte P9_MSG_TSTATFS = 8; // file system status request
@@ -151,6 +154,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
     public VirtIOFileSystemDevice(final MemoryMap memoryMap, final String tag, final FileSystem fileSystem) {
         super(memoryMap, VirtIODeviceSpec
                 .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_9P_TRANSPORT)
+                .features(VIRTIO_9P_F_MOUNT_TAG)
                 .queueCount(1)
                 .configSpaceSize(2 + Math.min(tag.length(), 0xFFFF))
                 .build());
