@@ -13,6 +13,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.NotDirectoryException;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.List;
@@ -404,14 +408,25 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
                 }
 
                 default: {
-                    lerror(chain, tag, LINUX_ERRNO_ENOTSUPP);
-                    break;
+                    throw new UnsupportedOperationException();
                 }
             }
         } catch (final MemoryAccessException e) {
             throw e;
+        } catch (final SecurityException e) {
+            lerror(chain, tag, LINUX_ERRNO_EPERM);
+        } catch (final NoSuchFileException e) {
+            lerror(chain, tag, LINUX_ERRNO_ENOENT);
+        } catch (final FileAlreadyExistsException e) {
+            lerror(chain, tag, LINUX_ERRNO_EEXIST);
+        } catch (final NotDirectoryException e) {
+            lerror(chain, tag, LINUX_ERRNO_ENOTDIR);
+        } catch (final DirectoryNotEmptyException e) {
+            lerror(chain, tag, LINUX_ERRNO_ENOTEMPTY);
         } catch (final IOException e) {
-            lerror(chain, tag);
+            lerror(chain, tag, LINUX_ERRNO_EIO);
+        } catch (final UnsupportedOperationException e) {
+            lerror(chain, tag, LINUX_ERRNO_ENOTSUPP);
         }
 
         chain.use();
