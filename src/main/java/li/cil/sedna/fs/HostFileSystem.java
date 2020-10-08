@@ -56,12 +56,13 @@ public final class HostFileSystem implements FileSystem {
     @Override
     public FileHandle open(final Path path, final int flags) throws IOException {
         final File file = toFile(path);
-        String mode = "";
-        if ((flags & FileMode.READ) != 0) {
-            mode += "r";
-        }
+        final String mode;
         if ((flags & FileMode.WRITE) != 0) {
-            mode += "w";
+            mode = "rw";
+        } else if ((flags & FileMode.READ) != 0) {
+            mode = "r";
+        } else {
+            throw new IOException();
         }
 
         if (file.isDirectory()) {
