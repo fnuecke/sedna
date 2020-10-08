@@ -13,8 +13,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -146,7 +146,6 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
     private int remainingByteProcessingQuota;
 
     @Serialized private final Int2ObjectArrayMap<FileSystemFile> files = new Int2ObjectArrayMap<>();
-    @Serialized private int nextDescriptorId;
     @Serialized private boolean hasPendingRequest;
 
     public VirtIOFileSystemDevice(final MemoryMap memoryMap, final String tag, final FileSystem fileSystem) {
@@ -320,7 +319,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
                     final int count = request.getInt();
 
                     final FileSystemFile dir = getFile(fid);
-                    final Path path = dir.getPath(fileSystem);
+                    final Path path = dir.getPath();
                     final List<DirectoryEntry> entries = dir.readdir(fileSystem);
 
                     reply.putInt(0); // count, filled in later.
@@ -449,7 +448,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
         // walk(5): the walk will return an Rwalk message containing nwqid qids corresponding, in order, to the files
         // that are visited by the nwqid successful elementwise walks; nwqid is therefore either nwname or the index
         // of the first elementwise walk that failed.
-        Path path = file.getPath(fileSystem);
+        Path path = file.getPath();
         final byte[] wname = new byte[256]; // We don't support names longer than 256 chars.
         int i = 0;
         for (; i < nwname; i++) {
@@ -577,7 +576,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
         final FileSystemFile file = getFile(fid);
         file.close();
 
-        final Path path = file.getPath(fileSystem);
+        final Path path = file.getPath();
         final int convertedFlags = convertFlags(flags);
         final FileHandle handle = fileSystem.open(path, convertedFlags);
         file.setHandle(handle, convertedFlags);
@@ -598,7 +597,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
         request.getInt(); // gid, ignored.
 
         final FileSystemFile file = getFile(fid);
-        final Path path = file.getPath(fileSystem).resolve(name);
+        final Path path = file.getPath().resolve(name);
         final int convertedFlags = convertFlags(flags);
         final FileHandle handle = fileSystem.create(path, convertedFlags);
 
@@ -623,7 +622,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
         final long request_mask = request.getLong();
 
         final FileSystemFile file = getFile(fid);
-        final BasicFileAttributes attributes = fileSystem.getAttributes(file.getPath(fileSystem));
+        final BasicFileAttributes attributes = fileSystem.getAttributes(file.getPath());
 
         reply.putLong(request_mask & (P9_GETATTR_ATIME | P9_GETATTR_MTIME | P9_GETATTR_CTIME | P9_GETATTR_SIZE));
         putQID(reply, getQID(file));
@@ -668,7 +667,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
         request.getInt(); // gid, unused.
 
         final FileSystemFile dir = getFile(dfid);
-        final Path path = dir.getPath(fileSystem).resolve(name);
+        final Path path = dir.getPath().resolve(name);
         fileSystem.mkdir(path);
 
         final QID qid = getQID(path);
@@ -687,8 +686,8 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
 
         final FileSystemFile olddir = getFile(olddirfid);
         final FileSystemFile newdir = getFile(newdirfid);
-        final Path oldpath = olddir.getPath(fileSystem).resolve(oldname);
-        final Path newpath = newdir.getPath(fileSystem).resolve(newname);
+        final Path oldpath = olddir.getPath().resolve(oldname);
+        final Path newpath = newdir.getPath().resolve(newname);
         fileSystem.rename(oldpath, newpath);
 
         putReply(chain, id, tag);
@@ -702,7 +701,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
         request.getInt(); // flags, unused.
 
         final FileSystemFile dir = getFile(dirfd);
-        final Path path = dir.getPath(fileSystem).resolve(name);
+        final Path path = dir.getPath().resolve(name);
         fileSystem.unlink(path);
 
         putReply(chain, id, tag);
@@ -729,7 +728,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
     }
 
     private QID getQID(final FileSystemFile file) throws IOException {
-        return getQID(file.getPath(fileSystem));
+        return getQID(file.getPath());
     }
 
     private QID getQID(final Path path) throws IOException {
@@ -843,7 +842,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
      */
     public static final class FileSystemFile implements Closeable {
         @Serialized public int id;
-        @Serialized public String pathString;
+        @Serialized public String[] pathParts;
         @Serialized public boolean isOpen;
         @Serialized public int openFlags;
 
@@ -853,7 +852,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
         public FileSystemFile(final int id, final Path path) {
             this.id = id;
             this.path = path;
-            this.pathString = path.toString();
+            this.pathParts = path.getParts();
         }
 
         @Override
@@ -871,7 +870,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
 
         public FileHandle getHandle(final FileSystem fileSystem) throws IOException {
             if (isOpen && handle == null) {
-                handle = fileSystem.open(getPath(fileSystem), openFlags);
+                handle = fileSystem.open(getPath(), openFlags);
             }
             if (handle == null) {
                 throw new IOException();
@@ -890,9 +889,9 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
             return isOpen;
         }
 
-        public Path getPath(final FileSystem fileSystem) {
+        public Path getPath() {
             if (path == null) {
-                path = fileSystem.getRoot().resolve(pathString);
+                path = new Path(Arrays.asList(pathParts));
             }
             return path;
         }
@@ -900,7 +899,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
         public void setPath(final Path path) {
             close();
             this.path = path;
-            this.pathString = path.toString();
+            this.pathParts = path.getParts();
         }
 
         public int read(final FileSystem fileSystem, final long offset, final ByteBuffer buffer) throws IOException {

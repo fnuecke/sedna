@@ -1,13 +1,14 @@
 package li.cil.sedna.fs;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 
 public interface FileSystem {
     FileSystemStats statfs() throws IOException;
 
-    Path getRoot();
+    default Path getRoot() {
+        return new Path();
+    }
 
     long getUniqueId(final Path path) throws IOException;
 

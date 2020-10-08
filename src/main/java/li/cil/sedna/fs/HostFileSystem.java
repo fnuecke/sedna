@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.List;
@@ -25,11 +24,6 @@ public final class HostFileSystem implements FileSystem {
         result.freeBlockCount = root.getFreeSpace() / result.blockSize;
         result.availableBlockCount = root.getUsableSpace() / result.blockSize;
         return result;
-    }
-
-    @Override
-    public Path getRoot() {
-        return root.toPath().relativize(root.toPath());
     }
 
     @Override
@@ -148,6 +142,10 @@ public final class HostFileSystem implements FileSystem {
     }
 
     private File toFile(final Path path) {
-        return root.toPath().resolve(root.toPath().getRoot().relativize(path)).toFile();
+        java.nio.file.Path result = root.toPath();
+        for (final String part : path.getParts()) {
+            result = result.resolve(part);
+        }
+        return result.toFile();
     }
 }
