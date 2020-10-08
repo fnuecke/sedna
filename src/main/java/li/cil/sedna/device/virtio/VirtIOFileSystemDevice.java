@@ -73,6 +73,21 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
     private static final byte P9_MSG_TSTAT = 124;    // request file entity attributes
     private static final byte P9_MSG_TWSTAT = 126;   // request to update file entity attributes
 
+    // file modes for getattr.
+    private static final int P9_S_IRWXUGO = 0x01FF;
+    private static final int P9_S_ISVTX = 0x0200;
+    private static final int P9_S_ISGID = 0x0400;
+    private static final int P9_S_ISUID = 0x0800;
+
+    private static final int P9_S_IFMT = 0xF000;
+    private static final int P9_S_IFIFO = 0x1000;
+    private static final int P9_S_IFCHR = 0x2000;
+    private static final int P9_S_IFDIR = 0x4000;
+    private static final int P9_S_IFBLK = 0x6000;
+    private static final int P9_S_IFREG = 0x8000;
+    private static final int P9_S_IFLNK = 0xA000;
+    private static final int P9_S_IFSOCK = 0xC000;
+
     // flags for open/create.
     private static final int P9_OPEN_RDONLY = 0x00000000;
     private static final int P9_OPEN_WRONLY = 0x00000001;
@@ -628,9 +643,16 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
         final FileSystemFile file = getFile(fid);
         final BasicFileAttributes attributes = fileSystem.getAttributes(file.getPath());
 
-        reply.putLong(request_mask & (P9_GETATTR_ATIME | P9_GETATTR_MTIME | P9_GETATTR_CTIME | P9_GETATTR_SIZE));
+        reply.putLong(request_mask & (
+                P9_GETATTR_MODE |
+                P9_GETATTR_SIZE |
+                P9_GETATTR_ATIME |
+                P9_GETATTR_MTIME |
+                P9_GETATTR_CTIME
+        ));
         putQID(reply, getQID(file));
-        reply.putInt(0); // mode, not supported.
+        final int modeType = fileSystem.isDirectory(file.getPath()) ? P9_S_IFDIR : P9_S_IFREG;
+        reply.putInt(P9_S_IRWXUGO | modeType); // mode, always pretend we have max rights.
         reply.putInt(0); // uid, not supported.
         reply.putInt(0); // gid, not supported.
         reply.putLong(0); // nlink, not supported.
