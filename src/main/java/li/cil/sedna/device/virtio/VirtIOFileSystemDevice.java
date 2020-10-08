@@ -774,7 +774,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
     }
 
     private void lerror(final DescriptorChain chain, final short tag, final int error) throws MemoryAccessException, VirtIODeviceException {
-        putReply(chain, P9_MSG_TLERROR, tag, ByteBuffer.allocate(4).putInt(error));
+        putReply(chain, P9_MSG_TLERROR, tag, ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(error));
     }
 
     private void putReply(final DescriptorChain chain, final byte messageId, final short tag) throws MemoryAccessException, VirtIODeviceException {
@@ -784,7 +784,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
     private void putReply(final DescriptorChain chain, final byte messageId, final short tag, @Nullable final ByteBuffer data) throws MemoryAccessException, VirtIODeviceException {
         if (data != null) data.flip();
         final int dataLength = data != null ? data.remaining() : 0;
-        final ByteBuffer message = ByteBuffer.allocate(4 + 1 + 2 + dataLength);
+        final ByteBuffer message = ByteBuffer.allocate(4 + 1 + 2 + dataLength).order(ByteOrder.LITTLE_ENDIAN);
         message.putInt(message.remaining());
         message.put((byte) (messageId + 1)); // Reply message type is always message type + 1.
         message.putShort(tag);
