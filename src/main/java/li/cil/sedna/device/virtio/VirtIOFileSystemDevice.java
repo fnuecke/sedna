@@ -18,6 +18,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.Arrays;
 import java.util.List;
 
@@ -659,13 +660,21 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
         final Path path = file.getPath();
         final BasicFileAttributes attributes = fileSystem.getAttributes(path);
 
-        reply.putLong(request_mask & (
-                P9_GETATTR_MODE |
-                P9_GETATTR_SIZE |
-                P9_GETATTR_ATIME |
-                P9_GETATTR_MTIME |
-                P9_GETATTR_CTIME
-        ));
+        long replyMask = request_mask & (P9_GETATTR_MODE | P9_GETATTR_SIZE);
+        final FileTime lastAccessTime = attributes.lastAccessTime();
+        if (lastAccessTime != null) {
+            replyMask |= P9_GETATTR_ATIME;
+        }
+        final FileTime lastModifiedTime = attributes.lastModifiedTime();
+        if (lastModifiedTime != null) {
+            replyMask |= P9_GETATTR_MTIME;
+        }
+        final FileTime creationTime = attributes.creationTime();
+        if (creationTime != null) {
+            replyMask |= P9_GETATTR_CTIME;
+        }
+
+        reply.putLong(replyMask);
         putQID(reply, getQID(file));
         int mode = fileSystem.isDirectory(path) ? P9_S_IFDIR : P9_S_IFREG;
         if (fileSystem.isExecutable(path)) {
@@ -685,11 +694,23 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
         reply.putLong(attributes.size()); // size
         reply.putLong(0); // blksize, not supported.
         reply.putLong(0); // blocks, not supported.
-        reply.putLong(attributes.lastAccessTime().toInstant().getEpochSecond()); // atime_sec
+        if (lastAccessTime != null) { // atime_sec
+            reply.putLong(lastAccessTime.toInstant().getEpochSecond());
+        } else {
+            reply.putLong(0);
+        }
         reply.putLong(0); // atime_nsec
-        reply.putLong(attributes.lastModifiedTime().toInstant().getEpochSecond()); // mtime_sec
+        if (lastModifiedTime != null) { // mtime_sec
+            reply.putLong(lastModifiedTime.toInstant().getEpochSecond());
+        } else {
+            reply.putLong(0);
+        }
         reply.putLong(0); // mtime_nsec
-        reply.putLong(attributes.creationTime().toInstant().getEpochSecond()); // ctime_sec
+        if (creationTime != null) { // ctime_sec
+            reply.putLong(creationTime.toInstant().getEpochSecond());
+        } else {
+            reply.putLong(0);
+        }
         reply.putLong(0); // ctime_nsec
         reply.putLong(0); // btime_sec, reserved.
         reply.putLong(0); // btime_nsec, reserved.
@@ -814,10 +835,6 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
         buffer.put(qid.type);
         buffer.putInt(qid.version);
         buffer.putLong(qid.path);
-    }
-
-    private void lerror(final DescriptorChain chain, final short tag) throws MemoryAccessException, VirtIODeviceException {
-        lerror(chain, tag, LINUX_ERRNO_EPROTO);
     }
 
     private void lerror(final DescriptorChain chain, final short tag, final int error) throws MemoryAccessException, VirtIODeviceException {
