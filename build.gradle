@@ -41,6 +41,7 @@ compileJava {
 
 repositories {
     mavenCentral()
+    maven { url "http://maven.cil.li/" } // Ceres
 }
 
 dependencies {
