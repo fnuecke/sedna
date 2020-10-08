@@ -789,6 +789,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
         message.put((byte) (messageId + 1)); // Reply message type is always message type + 1.
         message.putShort(tag);
         if (data != null) message.put(data);
+        message.flip();
         chain.skip(chain.readableBytes());
         chain.put(message);
     }
