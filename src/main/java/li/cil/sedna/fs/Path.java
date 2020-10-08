@@ -37,4 +37,18 @@ public final class Path {
     public String[] getParts() {
         return parts.toArray(new String[0]);
     }
+
+    @Override
+    public String toString() {
+        return toString("/");
+    }
+
+    public String toString(final String pathSeparator) {
+        final StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < parts.size(); i++) {
+            if (i > 0) sb.append(pathSeparator);
+            sb.append(parts.get(i));
+        }
+        return sb.toString();
+    }
 }
