@@ -18,45 +18,45 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     /**
      * Maximum size of any single segment is in {@code size_max}.
      */
-    private static final int VIRTIO_BLK_F_SIZE_MAX = 1;
+    private static final int VIRTIO_BLK_F_SIZE_MAX = 1 << 1;
     /**
      * Maximum number of segments in a request is in {@code seg_max}.
      */
-    private static final int VIRTIO_BLK_F_SEG_MAX = 2;
+    private static final int VIRTIO_BLK_F_SEG_MAX = 1 << 2;
     /**
      * Disk-style geometry specified in {@code geometry}.
      */
-    private static final int VIRTIO_BLK_F_GEOMETRY = 4;
+    private static final int VIRTIO_BLK_F_GEOMETRY = 1 << 4;
     /**
      * Device is read-only.
      */
-    private static final int VIRTIO_BLK_F_RO = 5;
+    private static final int VIRTIO_BLK_F_RO = 1 << 5;
     /**
      * Block size of disk is in {@code blk_size}.
      */
-    private static final int VIRTIO_BLK_F_BLK_SIZE = 6;
+    private static final int VIRTIO_BLK_F_BLK_SIZE = 1 << 6;
     /**
      * Cache flush command support.
      */
-    private static final int VIRTIO_BLK_F_FLUSH = 9;
+    private static final int VIRTIO_BLK_F_FLUSH = 1 << 9;
     /**
      * Device exports information on optimal I/O alignment.
      */
-    private static final int VIRTIO_BLK_F_TOPOLOGY = 10;
+    private static final int VIRTIO_BLK_F_TOPOLOGY = 1 << 10;
     /**
      * Device can toggle its cache between writeback and writethrough modes.
      */
-    private static final int VIRTIO_BLK_F_CONFIG_WCE = 11;
+    private static final int VIRTIO_BLK_F_CONFIG_WCE = 1 << 11;
     /**
      * Device can support discard command, maximum discard sectors size in {@code max_discard_sectors} and
      * maximum discard segment number in {@code max_discard_seg}.
      */
-    private static final int VIRTIO_BLK_F_DISCARD = 13;
+    private static final int VIRTIO_BLK_F_DISCARD = 1 << 13;
     /**
      * Device can support write zeroes command, maximum write zeroes sectors size in {@code max_write_zeroes_sectors}
      * and maximum write zeroes segment number in {@code max_write_zeroes_seg}.
      */
-    private static final int VIRTIO_BLK_F_WRITE_ZEROES = 14;
+    private static final int VIRTIO_BLK_F_WRITE_ZEROES = 1 << 14;
 
     private static final int VIRTIO_BLK_CFG_CAPACITY_OFFSET = 0;
     private static final int VIRTIO_BLK_CFG_CAPACITYH_OFFSET = 4;
