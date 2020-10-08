@@ -736,7 +736,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
     }
 
     private QID getQID(final Path path) throws IOException {
-        if (fileSystem.exists(path)) {
+        if (!fileSystem.exists(path)) {
             throw new IOException();
         }
         final QID qid = new QID();
