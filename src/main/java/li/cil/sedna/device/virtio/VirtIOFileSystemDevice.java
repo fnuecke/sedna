@@ -354,7 +354,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
 
                         // qid[13] offset[8] type[1] name[s]
                         putQID(reply, getQID(path.resolve(entry.name)));
-                        reply.putLong(i);
+                        reply.putLong(i + 1);
                         reply.put(d_type);
                         putString(reply, entry.name);
                     }
