@@ -19,7 +19,7 @@ public final class HostFileSystem implements FileSystem {
     @Override
     public FileSystemStats statfs() {
         final FileSystemStats result = new FileSystemStats();
-        result.blockCount = root.getTotalSpace() / result.blockSize;
+        result.blockCount = root.getTotalSpace() / result.blockSize + 1;
         result.freeBlockCount = root.getFreeSpace() / result.blockSize;
         result.availableBlockCount = root.getUsableSpace() / result.blockSize;
         return result;
