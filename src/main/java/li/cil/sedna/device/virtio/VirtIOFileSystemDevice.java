@@ -656,7 +656,8 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
         final long request_mask = request.getLong();
 
         final FileSystemFile file = getFile(fid);
-        final BasicFileAttributes attributes = fileSystem.getAttributes(file.getPath());
+        final Path path = file.getPath();
+        final BasicFileAttributes attributes = fileSystem.getAttributes(path);
 
         reply.putLong(request_mask & (
                 P9_GETATTR_MODE |
@@ -666,8 +667,17 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
                 P9_GETATTR_CTIME
         ));
         putQID(reply, getQID(file));
-        final int modeType = fileSystem.isDirectory(file.getPath()) ? P9_S_IFDIR : P9_S_IFREG;
-        reply.putInt(P9_S_IRWXUGO | modeType); // mode, always pretend we have max rights.
+        int mode = fileSystem.isDirectory(path) ? P9_S_IFDIR : P9_S_IFREG;
+        if (fileSystem.isExecutable(path)) {
+            mode |= 0111;
+        }
+        if (fileSystem.isWritable(path)) {
+            mode |= 0222;
+        }
+        if (fileSystem.isReadable(path)) {
+            mode |= 0444;
+        }
+        reply.putInt(mode); // mode, always pretend we have max rights.
         reply.putInt(0); // uid, not supported.
         reply.putInt(0); // gid, not supported.
         reply.putLong(0); // nlink, not supported.

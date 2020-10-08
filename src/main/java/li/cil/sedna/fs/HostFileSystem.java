@@ -6,7 +6,6 @@ import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -28,34 +27,46 @@ public final class HostFileSystem implements FileSystem {
 
     @Override
     public long getUniqueId(final Path path) {
-        return toFile(path).hashCode();
+        return toHost(path).hashCode();
     }
 
     @Override
     public boolean exists(final Path path) {
-        return toFile(path).exists();
+        return Files.exists(toHost(path));
     }
 
     @Override
     public boolean isDirectory(final Path path) {
-        return toFile(path).isDirectory();
+        return Files.isDirectory(toHost(path));
+    }
+
+    @Override
+    public boolean isWritable(final Path path) {
+        return Files.isWritable(toHost(path));
+    }
+
+    @Override
+    public boolean isReadable(final Path path) {
+        return Files.isReadable(toHost(path));
+    }
+
+    @Override
+    public boolean isExecutable(final Path path) {
+        return Files.isExecutable(toHost(path));
     }
 
     @Override
     public BasicFileAttributes getAttributes(final Path path) throws IOException {
-        return Files.readAttributes(toFile(path).toPath(), BasicFileAttributes.class);
+        return Files.readAttributes(toHost(path), BasicFileAttributes.class);
     }
 
     @Override
     public void mkdir(final Path path) throws IOException {
-        if (!toFile(path).mkdir()) {
-            throw new IOException();
-        }
+        Files.createDirectory(toHost(path));
     }
 
     @Override
     public FileHandle open(final Path path, final int flags) throws IOException {
-        final File file = toFile(path);
         final String mode;
         if ((flags & FileMode.WRITE) != 0) {
             mode = "rw";
@@ -65,8 +76,12 @@ public final class HostFileSystem implements FileSystem {
             throw new IOException();
         }
 
-        if (file.isDirectory()) {
-            final List<DirectoryEntry> entries = Arrays.stream(file.listFiles()).map(DirectoryEntry::create).collect(Collectors.toList());
+        final java.nio.file.Path hostPath = toHost(path);
+        if (Files.isDirectory(hostPath)) {
+            final List<DirectoryEntry> entries = Files.list(hostPath)
+                    .map(java.nio.file.Path::toFile)
+                    .map(DirectoryEntry::create)
+                    .collect(Collectors.toList());
             return new FileHandle() {
                 @Override
                 public int read(final long offset, final ByteBuffer buffer) throws IOException {
@@ -88,7 +103,7 @@ public final class HostFileSystem implements FileSystem {
                 }
             };
         } else {
-            final RandomAccessFile openedFile = new RandomAccessFile(file, mode);
+            final RandomAccessFile openedFile = new RandomAccessFile(hostPath.toFile(), mode);
             if ((flags & FileMode.TRUNCATE) != 0) {
                 openedFile.setLength(0);
             }
@@ -121,32 +136,25 @@ public final class HostFileSystem implements FileSystem {
 
     @Override
     public FileHandle create(final Path path, final int flags) throws IOException {
-        final File file = toFile(path);
-        if (!file.createNewFile()) {
-            throw new IOException();
-        }
+        Files.createFile(toHost(path));
         return open(path, flags);
     }
 
     @Override
     public void unlink(final Path path) throws IOException {
-        if (!toFile(path).delete()) {
-            throw new IOException();
-        }
+        Files.delete(toHost(path));
     }
 
     @Override
     public void rename(final Path oldpath, final Path newpath) throws IOException {
-        if (!toFile(oldpath).renameTo(toFile(newpath))) {
-            throw new IOException();
-        }
+        Files.move(toHost(oldpath), toHost(newpath));
     }
 
-    private File toFile(final Path path) {
+    private java.nio.file.Path toHost(final Path path) {
         java.nio.file.Path result = root.toPath();
         for (final String part : path.getParts()) {
             result = result.resolve(part);
         }
-        return result.toFile();
+        return result;
     }
 }

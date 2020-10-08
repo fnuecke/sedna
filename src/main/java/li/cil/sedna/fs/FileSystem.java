@@ -16,6 +16,12 @@ public interface FileSystem {
 
     boolean isDirectory(final Path path);
 
+    boolean isWritable(final Path path);
+
+    boolean isReadable(final Path path);
+
+    boolean isExecutable(final Path path);
+
     BasicFileAttributes getAttributes(final Path path) throws IOException;
 
     void mkdir(final Path path) throws IOException;
