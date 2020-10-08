@@ -34,9 +34,6 @@ public final class R5Board implements Steppable, Resettable {
     private static final int BIOS_ADDRESS = 0x1000;
     private static final int LOW_MEMORY_SIZE = 0x2000; // Just needs to fit "jump to firmware".
 
-    private static final int FIRMWARE_ADDRESS = PHYSICAL_MEMORY_FIRST;
-    private static final int FDT_ADDRESS = FIRMWARE_ADDRESS + 0x02200000;
-
     private final RealTimeCounter rtc;
     private final MemoryMap memoryMap;
     private final List<MemoryMappedDevice> devices = new ArrayList<>();
@@ -154,12 +151,18 @@ public final class R5Board implements Steppable, Resettable {
                 ((Resettable) device).reset();
             }
         }
+    }
 
+    public void installDeviceTree(final int address) {
+        installDeviceTree(address, PHYSICAL_MEMORY_FIRST);
+    }
+
+    public void installDeviceTree(final int address, final int programStart) {
         try {
             final FlattenedDeviceTree fdt = buildDeviceTree().flatten();
             final byte[] dtb = fdt.toDTB();
             for (int i = 0; i < dtb.length; i++) {
-                memoryMap.store(FDT_ADDRESS + i, dtb[i], 0);
+                memoryMap.store(address + i, dtb[i], 0);
             }
 
             final int lui = 0b0110111;
@@ -172,11 +175,11 @@ public final class R5Board implements Steppable, Resettable {
             int pc = 0x1000; // R5CPU starts executing at 0x1000.
 
             // lui a1, FDT_ADDRESS  -> store FDT address in a1 for firmware
-            memoryMap.store(pc, lui | rd_x11 + FDT_ADDRESS, 2);
+            memoryMap.store(pc, lui | rd_x11 + address, 2);
             pc += 4;
 
             // lui t0, PHYSICAL_MEMORY_FIRST  -> load address of firmware
-            memoryMap.store(pc, lui | rd_x5 + PHYSICAL_MEMORY_FIRST, 2);
+            memoryMap.store(pc, lui | rd_x5 + programStart, 2);
             pc += 4;
 
             // jalr zero, t0, 0  -> jump to firmware
