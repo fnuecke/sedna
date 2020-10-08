@@ -1233,7 +1233,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                 final int limit = src.limit();
                 while (src.position() < limit) {
                     assert position < length;
-                    final int count = length - position;
+                    final int count = Math.min(length - position, limit - src.position());
                     src.limit(src.position() + count);
                     MemoryMaps.store(memoryMap, address + position, src);
                     writtenByteCount += count;
