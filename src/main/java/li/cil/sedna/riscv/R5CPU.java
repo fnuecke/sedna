@@ -22,12 +22,22 @@ import li.cil.sedna.riscv.exception.R5BreakpointException;
 import li.cil.sedna.riscv.exception.R5ECallException;
 import li.cil.sedna.riscv.exception.R5Exception;
 import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
+import li.cil.sedna.riscv.instructions.R5InstructionDeclaration;
+import li.cil.sedna.riscv.instructions.R5InstructionDefinition;
+import li.cil.sedna.riscv.instructions.R5InstructionDefinition.Field;
+import li.cil.sedna.riscv.instructions.R5InstructionDefinition.Implementation;
+import li.cil.sedna.riscv.instructions.R5InstructionDefinition.InstructionSize;
+import li.cil.sedna.riscv.instructions.R5InstructionType;
 import li.cil.sedna.utils.BitUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import javax.annotation.Nullable;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -161,6 +171,20 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
     // halting the system.
     private final transient RealTimeCounter rtc;
 
+    private final transient HashMap<R5InstructionDeclaration, InstructionInvocationInfo> instructions = new HashMap<>();
+
+    private static final class InstructionInvocationInfo {
+        public final MethodHandle handle;
+        public final R5InstructionDefinition definition;
+        public final int[] args;
+
+        private InstructionInvocationInfo(final MethodHandle handle, final R5InstructionDefinition definition) {
+            this.handle = handle;
+            this.definition = definition;
+            this.args = new int[definition.parameters.length];
+        }
+    }
+
     public R5CPU(final MemoryMap physicalMemory, @Nullable final RealTimeCounter rtc) {
         this.rtc = rtc != null ? rtc : this;
         this.physicalMemory = physicalMemory;
@@ -177,6 +201,24 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
 
         for (int i = 0; i < watchedTraces.length; i++) {
             watchedTraces[i] = new WatchedTrace();
+        }
+
+        for (final R5InstructionDeclaration declaration : R5InstructionDeclaration.getAll()) {
+            final R5InstructionDefinition definition = R5InstructionDefinition.get(declaration);
+            if (definition == null) {
+                continue;
+            }
+
+            final Class<?> returnType = definition.returnsBoolean ? boolean.class : void.class;
+            final Class<?>[] argTypes = new Class<?>[definition.parameters.length];
+            Arrays.fill(argTypes, int.class);
+            final MethodHandle handle;
+            try {
+                handle = MethodHandles.lookup().findSpecial(R5CPU.class, definition.methodName, MethodType.methodType(returnType, argTypes), R5CPU.class).bindTo(this);
+            } catch (final NoSuchMethodException | IllegalAccessException e) {
+                throw new AssertionError(e);
+            }
+            instructions.put(declaration, new InstructionInvocationInfo(handle, definition));
         }
 
         reset();
@@ -361,6 +403,9 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
         trace.execute();
     }
 
+    public boolean singleStep;
+    public boolean test;
+
     private void interpret() throws R5Exception, MemoryAccessException {
         // The idea here is to run many sequential instructions with very little overhead.
         // We only need to exit the inner loop when we either leave the page we started in,
@@ -397,11 +442,103 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
             }
         }
 
-        requestTraceTranslation(cache.device, instOffset, instEnd, toPC, inst);
+//        requestTraceTranslation(cache.device, instOffset, instEnd, toPC, inst);
 
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
                 mcycle++;
+
+                if (true) {
+                    final R5InstructionDeclaration instruction = R5InstructionDeclaration.find(inst);
+                    if (instruction == null) {
+                        throw new R5IllegalInstructionException();
+                    }
+
+                    if (instruction.type != R5InstructionType.HINT) {
+                        final InstructionInvocationInfo data = instructions.get(instruction);
+                        if (data == null) {
+                            throw new R5IllegalInstructionException();
+                        }
+
+                        for (int i = 0; i < data.args.length; i++) {
+                            data.args[i] = data.definition.parameters[i].get(inst);
+                        }
+
+                        if (data.definition.readsPC) {
+                            pc = instOffset + toPC;
+                        }
+
+                        boolean breakLoop = data.definition.writesPC;
+                        try {
+                            switch (data.args.length) {
+                                case 0: {
+                                    if (data.definition.returnsBoolean) {
+                                        breakLoop = (boolean) data.handle.invokeExact();
+                                    } else {
+                                        data.handle.invokeExact();
+                                    }
+                                    break;
+                                }
+                                case 1: {
+                                    if (data.definition.returnsBoolean) {
+                                        breakLoop = (boolean) data.handle.invokeExact(data.args[0]);
+                                    } else {
+                                        data.handle.invokeExact(data.args[0]);
+                                    }
+                                    break;
+                                }
+                                case 2: {
+                                    if (data.definition.returnsBoolean) {
+                                        breakLoop = (boolean) data.handle.invokeExact(data.args[0], data.args[1]);
+                                    } else {
+                                        data.handle.invokeExact(data.args[0], data.args[1]);
+                                    }
+                                    break;
+                                }
+                                case 3: {
+                                    if (data.definition.returnsBoolean) {
+                                        breakLoop = (boolean) data.handle.invokeExact(data.args[0], data.args[1], data.args[2]);
+                                    } else {
+                                        data.handle.invokeExact(data.args[0], data.args[1], data.args[2]);
+                                    }
+                                    break;
+                                }
+                                case 4: {
+                                    if (data.definition.returnsBoolean) {
+                                        breakLoop = (boolean) data.handle.invokeExact(data.args[0], data.args[1], data.args[2], data.args[3]);
+                                    } else {
+                                        data.handle.invokeExact(data.args[0], data.args[1], data.args[2], data.args[3]);
+                                    }
+                                    break;
+                                }
+                                default: {
+                                    throw new AssertionError();
+                                }
+                            }
+                        } catch (final R5Exception | MemoryAccessException | RuntimeException e) {
+                            throw e;
+                        } catch (final Throwable e) {
+                            throw new AssertionError(e);
+                        }
+
+                        if (breakLoop || singleStep) {
+                            if (!breakLoop || !data.definition.writesPC) {
+                                pc = instOffset + toPC + instruction.size;
+                            }
+                            return;
+                        }
+                    }
+
+                    instOffset += instruction.size;
+                    if (!singleStep && instOffset < instEnd) { // Likely case: we're still fully in the page.
+                        inst = cache.device.load(instOffset, Sizes.SIZE_32_LOG2);
+                    } else { // Unlikely case: we reached the end of the page. Leave to do interrupts and cycle check.
+                        pc = instOffset + toPC;
+                        return;
+                    }
+
+                    continue;
+                }
 
                 if ((inst & 0b11) == 0b11) {
                     // Instruction decoding, see Volume I: RISC-V Unprivileged ISA V20191214-draft page 16ff.
@@ -425,14 +562,14 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                         }
 
                         case 0b0110111: { // LUI
-                            lui(inst, rd);
+                            lui_(inst, rd);
 
                             instOffset += 4;
                             break;
                         }
 
                         case 0b0010111: { // AUIPC
-                            auipc(inst, rd, instOffset + toPC);
+                            auipc_(inst, rd, instOffset + toPC);
 
                             instOffset += 4;
                             break;
@@ -452,12 +589,12 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                         ///////////////////////////////////////////////////////////////////
                         // Unconditional Jumps
                         case 0b1101111: { // JAL
-                            jal(inst, rd, instOffset + toPC);
+                            jal_(inst, rd, instOffset + toPC);
                             return; // Invalidate fetch cache
                         }
 
                         case 0b110_0111: { // JALR
-                            jalr(inst, rd, rs1, instOffset + toPC);
+                            jalr_(inst, rd, rs1, instOffset + toPC);
                             return; // Invalidate fetch cache
                         }
 
@@ -510,12 +647,12 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
 
                                 case 0b001: { // FENCE.I
                                     if (inst != 0b000000000000_00000_001_00000_0001111)
-                                        throw new R5IllegalInstructionException(inst);
+                                        throw new R5IllegalInstructionException();
                                     break;
                                 }
 
                                 default: {
-                                    throw new R5IllegalInstructionException(inst);
+                                    throw new R5IllegalInstructionException();
                                 }
                             }
 
@@ -530,7 +667,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                         case 0b1110011: { // SYSTEM
                             final int funct3 = BitUtils.getField(inst, 12, 14, 0);
                             if (funct3 == 0b100) {
-                                throw new R5IllegalInstructionException(inst);
+                                throw new R5IllegalInstructionException();
                             }
 
                             switch (funct3 & 0b11) {
@@ -539,14 +676,14 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                                     switch (funct12) {
                                         case 0b0000000_00000: { // ECALL
                                             if ((inst & 0b000000000000_11111_111_11111_0000000) != 0) {
-                                                throw new R5IllegalInstructionException(inst);
+                                                throw new R5IllegalInstructionException();
                                             }
 
                                             throw new R5ECallException(priv);
                                         }
                                         case 0b0000000_00001: { // EBREAK
                                             if ((inst & 0b000000000000_11111_111_11111_0000000) != 0) {
-                                                throw new R5IllegalInstructionException(inst);
+                                                throw new R5IllegalInstructionException();
                                             }
 
                                             throw new R5BreakpointException();
@@ -554,23 +691,23 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                                         // 0b0000000_00010: URET
                                         case 0b0001000_00010: { // SRET
                                             if ((inst & 0b000000000000_11111_111_11111_0000000) != 0) {
-                                                throw new R5IllegalInstructionException(inst);
+                                                throw new R5IllegalInstructionException();
                                             }
 
-                                            sret(inst);
+                                            sret();
                                             return;
                                         }
                                         case 0b0011000_00010: { // MRET
                                             if ((inst & 0b000000000000_11111_111_11111_0000000) != 0) {
-                                                throw new R5IllegalInstructionException(inst);
+                                                throw new R5IllegalInstructionException();
                                             }
 
-                                            mret(inst);
+                                            mret();
                                             return;
                                         }
 
                                         case 0b0001000_00101: { // WFI
-                                            if (wfi(inst)) {
+                                            if (wfi()) {
                                                 pc = instOffset + toPC + 4;
                                                 return;
                                             }
@@ -580,11 +717,11 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                                         default: {
                                             final int funct7 = funct12 >>> 5;
                                             if (funct7 == 0b0001001) { // SFENCE.VMA
-                                                sfence_vma(inst, rs1);
+                                                sfence_vma(rs1, 0 /* ASID */);
                                                 pc = instOffset + toPC + 4;
                                                 return; // Invalidate fetch cache
                                             } else {
-                                                throw new R5IllegalInstructionException(inst);
+                                                throw new R5IllegalInstructionException();
                                             }
                                         }
                                     }
@@ -601,7 +738,8 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                                     final int funct3lb = funct3 & 0b11;
                                     switch (funct3lb) {
                                         case 0b01: { // CSRRW[I]
-                                            if (csrrw(inst, rd, rs1, funct3, csr)) {
+                                            final int a = (funct3 & 0b100) == 0 ? x[rs1] : rs1; // 0b1XX are immediate versions.
+                                            if (csrrw_impl(rd, a, csr)) {
                                                 pc = instOffset + toPC + 4;
                                                 return; // Invalidate fetch cache
                                             }
@@ -610,7 +748,9 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                                         }
                                         case 0b10:  // CSRRS[I]
                                         case 0b11: { // CSRRC[I]
-                                            if (csrrx(inst, rd, rs1, funct3, csr)) {
+                                            final int a = (funct3 & 0b100) == 0 ? x[rs1] : rs1; // 0b1XX are immediate versions.
+                                            final boolean isSet = (funct3 & 0b11) == 0b10;
+                                            if (csrrx_impl(rd, rs1, csr, a, isSet)) {
                                                 pc = instOffset + toPC + 4;
                                                 return; // Invalidate fetch cache
                                             }
@@ -635,7 +775,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                             if (funct3 == 0b010) { // 32 bit width
                                 amo32(inst, rd, rs1);
                             } else {
-                                throw new R5IllegalInstructionException(inst);
+                                throw new R5IllegalInstructionException();
                             }
 
                             instOffset += 4;
@@ -643,14 +783,14 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                         }
 
                         default: {
-                            throw new R5IllegalInstructionException(inst);
+                            throw new R5IllegalInstructionException();
                         }
                     }
                 } else {
                     // Compressed instruction decoding, V1p97ff, p112f.
 
                     if (inst == 0) { // Defined illegal instruction.
-                        throw new R5IllegalInstructionException(inst);
+                        throw new R5IllegalInstructionException();
                     }
 
                     final int op = inst & 0b11;
@@ -678,7 +818,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                                 // 0b111: C.FSW
 
                                 default: {
-                                    throw new R5IllegalInstructionException(inst);
+                                    throw new R5IllegalInstructionException();
                                 }
                             }
 
@@ -753,7 +893,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                                                 // 0b101: C.ADDW
 
                                                 default: {
-                                                    throw new R5IllegalInstructionException(inst);
+                                                    throw new R5IllegalInstructionException();
                                                 }
                                             }
 
@@ -780,7 +920,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                                 }
 
                                 default: {
-                                    throw new R5IllegalInstructionException(inst);
+                                    throw new R5IllegalInstructionException();
                                 }
                             }
 
@@ -799,7 +939,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                                 // 0b001: C.FLDSP
                                 case 0b010: { // C.LWSP
                                     if (rd == 0) { // Reserved.
-                                        throw new R5IllegalInstructionException(inst);
+                                        throw new R5IllegalInstructionException();
                                     }
 
                                     c_lwsp(inst, rd);
@@ -813,7 +953,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                                     if ((inst & (1 << 12)) == 0) { // C.JR / C.MV
                                         if (rs2 == 0) { // C.JR
                                             if (rd == 0) {
-                                                throw new R5IllegalInstructionException(inst);
+                                                throw new R5IllegalInstructionException();
                                             }
 
                                             c_jr(rd);
@@ -850,7 +990,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                                 // 0b111: C.FSWSP
 
                                 default: {
-                                    throw new R5IllegalInstructionException(inst);
+                                    throw new R5IllegalInstructionException();
                                 }
                             }
 
@@ -858,19 +998,22 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                         }
 
                         default: {
-                            throw new R5IllegalInstructionException(inst);
+                            throw new R5IllegalInstructionException();
                         }
                     }
                 }
 
-                if (instOffset < instEnd) { // Likely case: we're still fully in the page.
+                if (!singleStep && instOffset < instEnd) { // Likely case: we're still fully in the page.
                     inst = cache.device.load(instOffset, Sizes.SIZE_32_LOG2);
                 } else { // Unlikely case: we reached the end of the page. Leave to do interrupts and cycle check.
                     pc = instOffset + toPC;
                     return;
                 }
             }
-        } catch (final Throwable e) {
+        } catch (final R5IllegalInstructionException e) {
+            pc = instOffset + toPC;
+            throw new R5IllegalInstructionException(e, inst);
+        } catch (final R5Exception | MemoryAccessException e) {
             pc = instOffset + toPC;
             throw e;
         }
@@ -882,24 +1025,24 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
         final int funct7 = BitUtils.getField(inst, 25, 31, 0);
         switch (funct7) {
             case 0b000001: {
-                op_m(inst, rd, rs1, rs2, funct3);
+                op_m(rd, rs1, rs2, funct3);
 
                 break;
             }
             case 0b0000000:
             case 0b0100000: {
-                op_rr(inst, rd, rs1, rs2, funct3, funct7);
+                op_rr(rd, rs1, rs2, funct3, funct7);
 
                 break;
             }
 
             default: {
-                throw new R5IllegalInstructionException(inst);
+                throw new R5IllegalInstructionException();
             }
         }
     }
 
-    private void op_m(final int inst, final int rd, final int rs1, final int rs2, final int funct3) throws R5IllegalInstructionException {
+    private void op_m(final int rd, final int rs1, final int rs2, final int funct3) throws R5IllegalInstructionException {
         ///////////////////////////////////////////////////////////////////
         // Chapter 7 "M" Standard Extension for Integer Multiplication and Division, Version 2.0
         ///////////////////////////////////////////////////////////////////
@@ -954,12 +1097,12 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
             }
 
             default: {
-                throw new R5IllegalInstructionException(inst);
+                throw new R5IllegalInstructionException();
             }
         }
     }
 
-    private void op_rr(final int inst, final int rd, final int rs1, final int rs2, final int funct3, final int funct7) throws R5IllegalInstructionException {
+    private void op_rr(final int rd, final int rs1, final int rs2, final int funct3, final int funct7) throws R5IllegalInstructionException {
         // Integer Register-Register Operations
         switch (funct3 | funct7) {
             //noinspection PointlessBitwiseExpression
@@ -1017,68 +1160,8 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
             }
 
             default: {
-                throw new R5IllegalInstructionException(inst);
+                throw new R5IllegalInstructionException();
             }
-        }
-    }
-
-    private void add(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            x[rd] = x[rs1] + x[rs2];
-        }
-    }
-
-    private void sub(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            x[rd] = x[rs1] - x[rs2];
-        }
-    }
-
-    private void sll(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            x[rd] = x[rs1] << x[rs2];
-        }
-    }
-
-    private void slt(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            x[rd] = x[rs1] < x[rs2] ? 1 : 0;
-        }
-    }
-
-    private void sltu(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            x[rd] = Integer.compareUnsigned(x[rs1], x[rs2]) < 0 ? 1 : 0;
-        }
-    }
-
-    private void xor(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            x[rd] = x[rs1] ^ x[rs2];
-        }
-    }
-
-    private void srl(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            x[rd] = x[rs1] >>> x[rs2];
-        }
-    }
-
-    private void sra(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            x[rd] = x[rs1] >> x[rs2];
-        }
-    }
-
-    private void or(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            x[rd] = x[rs1] | x[rs2];
-        }
-    }
-
-    private void and(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            x[rd] = x[rs1] & x[rs2];
         }
     }
 
@@ -1089,41 +1172,41 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
         final int imm = inst >> 20; // inst[31:20], sign extended
         switch (funct3) {
             case 0b000: { // ADDI
-                addi(rd, rs1, imm);
+                addi_(rd, rs1, imm);
 
                 break;
             }
             case 0b010: { // SLTI
-                slti(rd, rs1, imm);
+                slti_(rd, rs1, imm);
 
                 break;
             }
             case 0b011: { // SLTIU
-                sltiu(rd, rs1, imm);
+                sltiu_(rd, rs1, imm);
 
                 break;
             }
             case 0b100: { // XORI
-                xori(rd, rs1, imm);
+                xori_(rd, rs1, imm);
 
                 break;
             }
             case 0b110: { // ORI
-                ori(rd, rs1, imm);
+                ori_(rd, rs1, imm);
 
                 break;
             }
             case 0b111: { // ANDI
-                andi(rd, rs1, imm);
+                andi_(rd, rs1, imm);
 
                 break;
             }
             case 0b001: { // SLLI
                 if ((inst & 0b1111111_00000_00000_000_00000_0000000) != 0) {
-                    throw new R5IllegalInstructionException(inst);
+                    throw new R5IllegalInstructionException();
                 }
 
-                slli(rd, rs1, imm);
+                slli_(rd, rs1, imm);
 
                 break;
             }
@@ -1131,166 +1214,98 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                 final int funct7 = BitUtils.getField(imm, 5, 11, 0); // imm[11:5]
                 switch (funct7) {
                     case 0b0000000: { // SRLI
-                        srli(rd, rs1, imm);
+                        srli_(rd, rs1, imm);
 
                         break;
                     }
                     case 0b0100000: { // SRAI
-                        srai(rd, rs1, imm);
+                        srai_(rd, rs1, imm);
 
                         break;
                     }
 
                     default: {
-                        throw new R5IllegalInstructionException(inst);
+                        throw new R5IllegalInstructionException();
                     }
                 }
                 break;
             }
 
             default: {
-                throw new R5IllegalInstructionException(inst);
+                throw new R5IllegalInstructionException();
             }
         }
     }
 
-    private void addi(final int rd, final int rs1, final int imm) {
+    private void addi_(final int rd, final int rs1, final int imm) {
         if (rd != 0) {
             x[rd] = x[rs1] + imm;
         }
     }
 
-    private void slti(final int rd, final int rs1, final int imm) {
+    private void slti_(final int rd, final int rs1, final int imm) {
         if (rd != 0) {
             x[rd] = x[rs1] < imm ? 1 : 0;
         }
     }
 
-    private void sltiu(final int rd, final int rs1, final int imm) {
+    private void sltiu_(final int rd, final int rs1, final int imm) {
         if (rd != 0) {
             x[rd] = Integer.compareUnsigned(x[rs1], imm) < 0 ? 1 : 0;
         }
     }
 
-    private void xori(final int rd, final int rs1, final int imm) {
+    private void xori_(final int rd, final int rs1, final int imm) {
         if (rd != 0) {
             x[rd] = x[rs1] ^ imm;
         }
     }
 
-    private void ori(final int rd, final int rs1, final int imm) {
+    private void ori_(final int rd, final int rs1, final int imm) {
         if (rd != 0) {
             x[rd] = x[rs1] | imm;
         }
     }
 
-    private void andi(final int rd, final int rs1, final int imm) {
+    private void andi_(final int rd, final int rs1, final int imm) {
         if (rd != 0) {
             x[rd] = x[rs1] & imm;
         }
     }
 
-    private void slli(final int rd, final int rs1, final int imm) {
+    private void slli_(final int rd, final int rs1, final int imm) {
         if (rd != 0) {
             x[rd] = x[rs1] << (imm & 0b11111);
         }
     }
 
-    private void srli(final int rd, final int rs1, final int imm) {
+    private void srli_(final int rd, final int rs1, final int imm) {
         if (rd != 0) {
             x[rd] = x[rs1] >>> (imm & 0b11111);
         }
     }
 
-    private void srai(final int rd, final int rs1, final int imm) {
+    private void srai_(final int rd, final int rs1, final int imm) {
         if (rd != 0) {
             x[rd] = x[rs1] >> (imm & 0b11111);
         }
     }
 
-    private void lui(final int inst, final int rd) {
+    private void lui_(final int inst, final int rd) {
         final int imm = inst & 0b11111111111111111111_00000_0000000; // inst[31:12]
         if (rd != 0) {
             x[rd] = imm;
         }
     }
 
-    private void auipc(final int inst, final int rd, final int pc) {
+    private void auipc_(final int inst, final int rd, final int pc) {
         final int imm = inst & 0b11111111111111111111_00000_0000000; // inst[31:12]
         if (rd != 0) {
             x[rd] = pc + imm;
         }
     }
 
-    private void mul(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            x[rd] = x[rs1] * x[rs2];
-        }
-    }
-
-    private void mulh(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            x[rd] = (int) (((long) x[rs1] * (long) x[rs2]) >> 32);
-        }
-    }
-
-    private void mulhsu(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            x[rd] = (int) (((long) x[rs1] * Integer.toUnsignedLong(x[rs2])) >> 32);
-        }
-    }
-
-    private void mulhu(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            x[rd] = (int) ((Integer.toUnsignedLong(x[rs1]) * Integer.toUnsignedLong(x[rs2])) >>> 32);
-        }
-    }
-
-    private void div(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            if (x[rs2] == 0) {
-                x[rd] = -1;
-            } else if (x[rs1] == Integer.MIN_VALUE && x[rs2] == -1) {
-                x[rd] = x[rs1];
-            } else {
-                x[rd] = x[rs1] / x[rs2];
-            }
-        }
-    }
-
-    private void divu(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            if (x[rs2] == 0) {
-                x[rd] = -1;
-            } else {
-                x[rd] = Integer.divideUnsigned(x[rs1], x[rs2]);
-            }
-        }
-    }
-
-    private void rem(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            if (x[rs2] == 0) {
-                x[rd] = x[rs1];
-            } else if (x[rs1] == Integer.MIN_VALUE && x[rs2] == -1) {
-                x[rd] = 0;
-            } else {
-                x[rd] = x[rs1] % x[rs2];
-            }
-        }
-    }
-
-    private void remu(final int rd, final int rs1, final int rs2) {
-        if (rd != 0) {
-            if (x[rs2] == 0) {
-                x[rd] = x[rs1];
-            } else {
-                x[rd] = Integer.remainderUnsigned(x[rs1], x[rs2]);
-            }
-        }
-    }
-
-    private void jal(final int inst, final int rd, final int pc) {
+    private void jal_(final int inst, final int rd, final int pc) {
         final int imm = BitUtils.extendSign(BitUtils.getField(inst, 31, 31, 20) |
                                             BitUtils.getField(inst, 21, 30, 1) |
                                             BitUtils.getField(inst, 20, 20, 11) |
@@ -1302,7 +1317,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
         this.pc = pc + imm;
     }
 
-    private void jalr(final int inst, final int rd, final int rs1, final int pc) {
+    private void jalr_(final int inst, final int rd, final int rs1, final int pc) {
         final int imm = inst >> 20; // inst[31:20], sign extended
         final int address = (x[rs1] + imm) & ~0b1; // Compute first in case rs1 == rd.
         // Note: we just mask here, but technically we should raise an exception for misaligned jumps.
@@ -1333,7 +1348,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                 break;
             }
             default: {
-                throw new R5IllegalInstructionException(inst);
+                throw new R5IllegalInstructionException();
             }
         }
 
@@ -1379,7 +1394,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
             }
 
             default: {
-                throw new R5IllegalInstructionException(inst);
+                throw new R5IllegalInstructionException();
             }
         }
 
@@ -1411,128 +1426,40 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                 break;
             }
             default: {
-                throw new R5IllegalInstructionException(inst);
+                throw new R5IllegalInstructionException();
             }
         }
     }
 
-    private void sret(final int inst) throws R5Exception {
-        if (priv < R5.PRIVILEGE_S) {
-            throw new R5IllegalInstructionException(inst);
-        }
-
-        if ((mstatus & R5.STATUS_TSR_MASK) != 0 && priv < R5.PRIVILEGE_M) {
-            throw new R5IllegalInstructionException(inst);
-        }
-
-        final int spp = (mstatus & R5.STATUS_SPP_MASK) >>> R5.STATUS_SPP_SHIFT; // Previous privilege level.
-        final int spie = (mstatus & R5.STATUS_SPIE_MASK) >>> R5.STATUS_SPIE_SHIFT; // Preview interrupt-enable state.
-        mstatus = (mstatus & ~R5.STATUS_SIE_MASK) | ((R5.STATUS_SIE_MASK * spie) << R5.STATUS_SIE_SHIFT);
-        mstatus = (mstatus & ~(1 << spp)) |
-                  (spie << spp);
-        mstatus |= R5.STATUS_SPIE_MASK;
-        mstatus &= ~R5.STATUS_SPP_MASK;
-        mstatus &= ~R5.STATUS_MPRV_MASK;
-
-        setPrivilege(spp);
-
-        pc = sepc;
-    }
-
-    private void mret(final int inst) throws R5Exception {
-        if (priv < R5.PRIVILEGE_M) {
-            throw new R5IllegalInstructionException(inst);
-        }
-
-        final int mpp = (mstatus & R5.STATUS_MPP_MASK) >>> R5.STATUS_MPP_SHIFT; // Previous privilege level.
-        final int mpie = (mstatus & R5.STATUS_MPIE_MASK) >>> R5.STATUS_MPIE_SHIFT; // Preview interrupt-enable state.
-        mstatus = (mstatus & ~R5.STATUS_MIE_MASK) | ((R5.STATUS_MIE_MASK * mpie) << R5.STATUS_MIE_SHIFT);
-        mstatus |= R5.STATUS_MPIE_MASK;
-        mstatus &= ~R5.STATUS_MPP_MASK;
-        if (mpp != R5.PRIVILEGE_M) {
-            mstatus &= ~R5.STATUS_MPRV_MASK;
-        }
-
-        setPrivilege(mpp);
-
-        pc = mepc;
-    }
-
-    private boolean wfi(final int inst) throws R5Exception {
-        if ((inst & 0b000000000000_11111_111_11111_0000000) != 0) {
-            throw new R5IllegalInstructionException(inst);
-        }
-        if (priv == R5.PRIVILEGE_U) {
-            throw new R5IllegalInstructionException(inst);
-        }
-        if ((mstatus & R5.STATUS_TW_MASK) != 0 && priv == R5.PRIVILEGE_S) {
-            throw new R5IllegalInstructionException(inst);
-        }
-
-        if ((mip.get() & mie) != 0) {
-            return false;
-        }
-
-        if (mie == 0) {
-            LOGGER.warn("Waiting for interrupts but none are enabled.");
-        }
-
-        waitingForInterrupt = true;
-        return true;
-    }
-
-    private void sfence_vma(final int inst, final int rs1) throws R5Exception {
-        if ((inst & 0b0000000_00000_00000_111_11111_0000000) != 0) {
-            throw new R5IllegalInstructionException(inst);
-        }
-        if (priv == R5.PRIVILEGE_U) {
-            throw new R5IllegalInstructionException(inst);
-        }
-        if ((mstatus & R5.STATUS_TVM_MASK) != 0 && priv == R5.PRIVILEGE_S) {
-            throw new R5IllegalInstructionException(inst);
-        }
-
-        if (rs1 == 0) {
-            flushTLB();
-        } else {
-            flushTLB(x[rs1]);
-        }
-
-        flushTraces();
-    }
-
-    private boolean csrrw(final int inst, final int rd, final int rs1, final int funct3, final int csr) throws R5Exception {
+    private boolean csrrw_impl(final int rd, final int a, final int csr) throws R5Exception {
         final boolean invalidateFetchCache;
 
-        final int a = (funct3 & 0b100) == 0 ? x[rs1] : rs1; // 0b1XX are immediate versions.
-        checkCSR(inst, csr, true);
+        checkCSR(csr, true);
         if (rd != 0) { // Explicit check, spec says no read side-effects when rd = 0.
-            final int b = readCSR(inst, csr);
-            invalidateFetchCache = writeCSR(inst, csr, a);
+            final int b = readCSR(csr);
+            invalidateFetchCache = writeCSR(csr, a);
             x[rd] = b; // Write to register last, avoid lingering side-effect when write errors.
         } else {
-            invalidateFetchCache = writeCSR(inst, csr, a);
+            invalidateFetchCache = writeCSR(csr, a);
         }
 
         return invalidateFetchCache;
     }
 
-    private boolean csrrx(final int inst, final int rd, final int rs1, final int funct3, final int csr) throws R5Exception {
+    private boolean csrrx_impl(final int rd, final int rs1, final int csr, final int a, final boolean isSet) throws R5Exception {
         final boolean invalidateFetchCache;
 
-        final int a = (funct3 & 0b100) == 0 ? x[rs1] : rs1; // 0b1XX are immediate versions.
         final boolean mayChange = rs1 != 0;
 
         final int b;
         if (mayChange) {
-            checkCSR(inst, csr, true);
-            b = readCSR(inst, csr);
-            final boolean isSet = (funct3 & 0b11) == 0b10;
+            checkCSR(csr, true);
+            b = readCSR(csr);
             final int masked = isSet ? (a | b) : (~a & b);
-            invalidateFetchCache = writeCSR(inst, csr, masked);
+            invalidateFetchCache = writeCSR(csr, masked);
         } else {
-            checkCSR(inst, csr, false);
-            b = readCSR(inst, csr);
+            checkCSR(csr, false);
+            b = readCSR(csr);
             invalidateFetchCache = false;
         }
 
@@ -1551,7 +1478,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
             // 8.2 Load-Reserved/Store-Conditional Instructions
             case 0b00010: { // LR.W
                 if (rs2 != 0) {
-                    throw new R5IllegalInstructionException(inst);
+                    throw new R5IllegalInstructionException();
                 }
 
                 lr_w(rd, rs1);
@@ -1602,145 +1529,8 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
             }
 
             default: {
-                throw new R5IllegalInstructionException(inst);
+                throw new R5IllegalInstructionException();
             }
-        }
-    }
-
-    private void lr_w(final int rd, final int rs1) throws MemoryAccessException {
-        final int result;
-        final int address = x[rs1];
-        result = load32(address);
-        reservation_set = address;
-
-        if (rd != 0) {
-            x[rd] = result;
-        }
-    }
-
-    private void sc_w(final int rd, final int rs1, final int rs2) throws MemoryAccessException {
-        final int result;
-        final int address = x[rs1];
-        if (address == reservation_set) {
-            store32(address, x[rs2]);
-            result = 0;
-        } else {
-            result = 1;
-        }
-
-        reservation_set = -1; // Always invalidate as per spec.
-
-        if (rd != 0) {
-            x[rd] = result;
-        }
-    }
-
-    private void amoswap_w(final int rd, final int rs1, final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
-        final int a = load32(address);
-        final int b = x[rs2];
-
-        store32(address, b);
-
-        if (rd != 0) {
-            x[rd] = a;
-        }
-    }
-
-    private void amoadd_w(final int rd, final int rs1, final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
-        final int a = load32(address);
-        final int b = x[rs2];
-
-        store32(address, a + b);
-
-        if (rd != 0) {
-            x[rd] = a;
-        }
-    }
-
-    private void amoxor_w(final int rd, final int rs1, final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
-        final int a = load32(address);
-        final int b = x[rs2];
-
-        store32(address, a ^ b);
-
-        if (rd != 0) {
-            x[rd] = a;
-        }
-    }
-
-    private void amoand_w(final int rd, final int rs1, final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
-        final int a = load32(address);
-        final int b = x[rs2];
-
-        store32(address, a & b);
-
-        if (rd != 0) {
-            x[rd] = a;
-        }
-    }
-
-    private void amoor_w(final int rd, final int rs1, final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
-        final int a = load32(address);
-        final int b = x[rs2];
-
-        store32(address, a | b);
-
-        if (rd != 0) {
-            x[rd] = a;
-        }
-    }
-
-    private void amomin_w(final int rd, final int rs1, final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
-        final int a = load32(address);
-        final int b = x[rs2];
-
-        store32(address, Math.min(a, b));
-
-        if (rd != 0) {
-            x[rd] = a;
-        }
-    }
-
-    private void amomax_w(final int rd, final int rs1, final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
-        final int a = load32(address);
-        final int b = x[rs2];
-
-        final int c = Math.max(a, b);
-        store32(address, c);
-
-        if (rd != 0) {
-            x[rd] = a;
-        }
-    }
-
-    private void amominu_w(final int rd, final int rs1, final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
-        final int a = load32(address);
-        final int b = x[rs2];
-
-        store32(address, (int) Math.min(Integer.toUnsignedLong(a), Integer.toUnsignedLong(b)));
-
-        if (rd != 0) {
-            x[rd] = a;
-        }
-    }
-
-    private void amomaxu_w(final int rd, final int rs1, final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
-        final int a = load32(address);
-        final int b = x[rs2];
-
-        store32(address, (int) Math.max(Integer.toUnsignedLong(a), Integer.toUnsignedLong(b)));
-
-        if (rd != 0) {
-            x[rd] = a;
         }
     }
 
@@ -1750,7 +1540,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                         BitUtils.getField(inst, 6, 6, 2) |
                         BitUtils.getField(inst, 5, 5, 3);
         if (imm == 0) {
-            throw new R5IllegalInstructionException(inst);
+            throw new R5IllegalInstructionException();
         }
 
         x[rd] = x[2] + imm;
@@ -1810,7 +1600,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                                             BitUtils.getField(inst, 3, 4, 7) |
                                             BitUtils.getField(inst, 2, 2, 5), 10);
         if (imm == 0) { // Reserved.
-            throw new R5IllegalInstructionException(inst);
+            throw new R5IllegalInstructionException();
         }
         x[2] += imm;
     }
@@ -1819,7 +1609,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
         final int imm = BitUtils.extendSign(BitUtils.getField(inst, 12, 12, 17) |
                                             BitUtils.getField(inst, 2, 6, 12), 18);
         if (imm == 0) { // Reserved.
-            throw new R5IllegalInstructionException(inst);
+            throw new R5IllegalInstructionException();
         }
         x[rd] = imm;
     }
@@ -1932,21 +1722,21 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
         store32(address, value);
     }
 
-    private void checkCSR(final int inst, final int csr, final boolean throwIfReadonly) throws R5Exception {
+    private void checkCSR(final int csr, final boolean throwIfReadonly) throws R5Exception {
         if (throwIfReadonly && ((csr >= 0xC00 && csr <= 0xC1F) || (csr >= 0xC80 && csr <= 0xC9F)))
-            throw new R5IllegalInstructionException(inst);
+            throw new R5IllegalInstructionException();
 
         // Topmost bits, i.e. csr[11:8], encode access rights for CSR by convention. Of these, the top-most two bits,
         // csr[11:10], encode read-only state, where 0b11: read-only, 0b00..0b10: read-write.
         if (throwIfReadonly && ((csr & 0b1100_0000_0000) == 0b1100_0000_0000))
-            throw new R5IllegalInstructionException(inst);
+            throw new R5IllegalInstructionException();
         // The two following bits, csr[9:8], encode the lowest privilege level that can access the CSR.
         if (priv < ((csr >>> 8) & 0b11))
-            throw new R5IllegalInstructionException(inst);
+            throw new R5IllegalInstructionException();
     }
 
     @SuppressWarnings("DuplicateBranchesInSwitch")
-    private int readCSR(final int inst, final int csr) throws R5Exception {
+    private int readCSR(final int csr) throws R5Exception {
         switch (csr) {
             // Floating-Point Control and Status Registers
 //            case 0x001: { // fflags, Floating-Point Accrued Exceptions.
@@ -2007,7 +1797,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
             // Supervisor Protection and Translation
             case 0x180: { // satp Supervisor address translation and protection.
                 if (priv == R5.PRIVILEGE_S && (mstatus & R5.STATUS_TVM_MASK) != 0) {
-                    throw new R5IllegalInstructionException(inst);
+                    throw new R5IllegalInstructionException();
                 }
                 return satp;
             }
@@ -2141,7 +1931,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
 
                     // counteren[2:0] is IR, TM, CY. As such the bit index matches the masked csr value.
                     if ((counteren & (1 << (csr & 0b11))) == 0) {
-                        throw new R5IllegalInstructionException(inst);
+                        throw new R5IllegalInstructionException();
                     }
                 }
                 return (int) mcycle;
@@ -2163,7 +1953,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
 
                     // counteren[2:0] is IR, TM, CY. As such the bit index matches the masked csr value.
                     if ((counteren & (1 << (csr & 0b11))) == 0) {
-                        throw new R5IllegalInstructionException(inst);
+                        throw new R5IllegalInstructionException();
                     }
                 }
                 return (int) (mcycle >> 32);
@@ -2188,13 +1978,13 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
             }
 
             default: {
-                throw new R5IllegalInstructionException(inst);
+                throw new R5IllegalInstructionException();
             }
         }
     }
 
     @SuppressWarnings("DuplicateBranchesInSwitch")
-    private boolean writeCSR(final int inst, final int csr, final int value) throws R5Exception {
+    private boolean writeCSR(final int csr, final int value) throws R5Exception {
         switch (csr) {
             // Floating-Point Control and Status Registers
 //            case 0x001: { // fflags, Floating-Point Accrued Exceptions.
@@ -2275,7 +2065,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
                 final int change = satp ^ validatedValue;
                 if ((change & (R5.SATP_MODE_MASK | R5.SATP_PPN_MASK)) != 0) {
                     if (priv == R5.PRIVILEGE_S && (mstatus & R5.STATUS_TVM_MASK) != 0) {
-                        throw new R5IllegalInstructionException(inst);
+                        throw new R5IllegalInstructionException();
                     }
 
                     satp = validatedValue;
@@ -2413,7 +2203,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
             // 0x615: htimedeltah, Upper 32 bits of htimedelta, RV32 only.
 
             default: {
-                throw new R5IllegalInstructionException(inst);
+                throw new R5IllegalInstructionException();
             }
         }
 
@@ -2677,7 +2467,7 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
             final int vpnShift = R5.PAGE_ADDRESS_SHIFT + R5.SV32_XPN_SIZE * i;
             final int vpn = (virtualAddress >>> vpnShift) & R5.SV32_XPN_MASK;
             pteAddress += vpn << R5.SV32_PTE_SIZE_LOG2; // equivalent to vpn * PTE size
-            int pte = (int) physicalMemory.load(pteAddress, Sizes.SIZE_32_LOG2); // 3.
+            int pte = physicalMemory.load(pteAddress, Sizes.SIZE_32_LOG2); // 3.
 
             if ((pte & R5.PTE_V_MASK) == 0 || ((pte & R5.PTE_R_MASK) == 0 && (pte & R5.PTE_W_MASK) != 0)) { // 4.
                 throw getPageFaultException(accessType, virtualAddress);
@@ -2910,5 +2700,801 @@ public class R5CPU implements Steppable, RealTimeCounter, InterruptController {
 
         priv = state.priv;
         waitingForInterrupt = state.waitingForInterrupt;
+    }
+
+    ///////////////////////////////////////////////////////////////////
+    // RV32I Base Instruction Set
+
+    @Implementation("LUI")
+    private void lui(@Field("rd") final int rd,
+                     @Field("imm") final int imm) {
+        if (rd != 0) {
+            x[rd] = imm;
+        }
+    }
+
+    @Implementation("AUIPC")
+    private void auipc(@Field("rd") final int rd,
+                       @Field("imm") final int imm) {
+        if (rd != 0) {
+            x[rd] = pc + imm;
+        }
+    }
+
+    @Implementation("JAL")
+    private void jal(@Field("rd") final int rd,
+                     @Field("imm") final int imm,
+                     @InstructionSize final int instructionSize) {
+        if (rd != 0) {
+            x[rd] = pc + instructionSize;
+        }
+
+        pc += imm;
+    }
+
+    @Implementation("JALR")
+    private void jalr(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("imm") final int imm,
+                      @InstructionSize final int instructionSize) {
+        // Compute first in case rs1 == rd and force alignment.
+        final int address = (x[rs1] + imm) & ~1;
+        if (rd != 0) {
+            x[rd] = pc + instructionSize;
+        }
+
+        pc = address;
+    }
+
+    @Implementation("BEQ")
+    private boolean beq(@Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2,
+                        @Field("imm") final int imm) {
+        if (x[rs1] == x[rs2]) {
+            pc += imm;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    @Implementation("BNE")
+    private boolean bne(@Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2,
+                        @Field("imm") final int imm) {
+        if (x[rs1] != x[rs2]) {
+            pc += imm;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    @Implementation("BLT")
+    private boolean blt(@Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2,
+                        @Field("imm") final int imm) {
+        if (x[rs1] < x[rs2]) {
+            pc += imm;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    @Implementation("BGE")
+    private boolean bge(@Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2,
+                        @Field("imm") final int imm) {
+        if (x[rs1] >= x[rs2]) {
+            pc += imm;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    @Implementation("BLTU")
+    private boolean bltu(@Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2,
+                         @Field("imm") final int imm) {
+        if (Integer.compareUnsigned(x[rs1], x[rs2]) < 0) {
+            pc += imm;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    @Implementation("BGEU")
+    private boolean bgeu(@Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2,
+                         @Field("imm") final int imm) {
+        if (Integer.compareUnsigned(x[rs1], x[rs2]) >= 0) {
+            pc += imm;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    @SuppressWarnings("ContainsNonStaticMethodInvocations")
+    @Implementation("LB")
+    private void lb(@Field("rd") final int rd,
+                    @Field("rs1") final int rs1,
+                    @Field("imm") final int imm) throws MemoryAccessException {
+        final int result = load8(x[rs1] + imm);
+        if (rd != 0) {
+            x[rd] = result;
+        }
+    }
+
+    @SuppressWarnings("ContainsNonStaticMethodInvocations")
+    @Implementation("LH")
+    private void lh(@Field("rd") final int rd,
+                    @Field("rs1") final int rs1,
+                    @Field("imm") final int imm) throws MemoryAccessException {
+        final int result = load16(x[rs1] + imm);
+        if (rd != 0) {
+            x[rd] = result;
+        }
+    }
+
+    @SuppressWarnings("ContainsNonStaticMethodInvocations")
+    @Implementation("LW")
+    private void lw(@Field("rd") final int rd,
+                    @Field("rs1") final int rs1,
+                    @Field("imm") final int imm) throws MemoryAccessException {
+        final int result = load32(x[rs1] + imm);
+        if (rd != 0) {
+            x[rd] = result;
+        }
+    }
+
+    @SuppressWarnings("ContainsNonStaticMethodInvocations")
+    @Implementation("LBU")
+    private void lbu(@Field("rd") final int rd,
+                     @Field("rs1") final int rs1,
+                     @Field("imm") final int imm) throws MemoryAccessException {
+        final int result = load8(x[rs1] + imm) & 0xFF;
+        if (rd != 0) {
+            x[rd] = result;
+        }
+    }
+
+    @SuppressWarnings("ContainsNonStaticMethodInvocations")
+    @Implementation("LHU")
+    private void lhu(@Field("rd") final int rd,
+                     @Field("rs1") final int rs1,
+                     @Field("imm") final int imm) throws MemoryAccessException {
+        final int result = load16(x[rs1] + imm) & 0xFFFF;
+        if (rd != 0) {
+            x[rd] = result;
+        }
+    }
+
+    @SuppressWarnings("ContainsNonStaticMethodInvocations")
+    @Implementation("SB")
+    private void sb(@Field("rs1") final int rs1,
+                    @Field("rs2") final int rs2,
+                    @Field("imm") final int imm) throws MemoryAccessException {
+        store8(x[rs1] + imm, (byte) x[rs2]);
+    }
+
+    @SuppressWarnings("ContainsNonStaticMethodInvocations")
+    @Implementation("SH")
+    private void sh(@Field("rs1") final int rs1,
+                    @Field("rs2") final int rs2,
+                    @Field("imm") final int imm) throws MemoryAccessException {
+        store16(x[rs1] + imm, (short) x[rs2]);
+    }
+
+    @SuppressWarnings("ContainsNonStaticMethodInvocations")
+    @Implementation("SW")
+    private void sw(@Field("rs1") final int rs1,
+                    @Field("rs2") final int rs2,
+                    @Field("imm") final int imm) throws MemoryAccessException {
+        store32(x[rs1] + imm, x[rs2]);
+    }
+
+    @Implementation("ADDI")
+    private void addi(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("imm") final int imm) {
+        if (rd != 0) {
+            x[rd] = x[rs1] + imm;
+        }
+    }
+
+    @Implementation("SLTI")
+    private void slti(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("imm") final int imm) {
+        if (rd != 0) {
+            x[rd] = x[rs1] < imm ? 1 : 0;
+        }
+    }
+
+    @Implementation("SLTIU")
+    private void sltiu(@Field("rd") final int rd,
+                       @Field("rs1") final int rs1,
+                       @Field("imm") final int imm) {
+        if (rd != 0) {
+            x[rd] = Integer.compareUnsigned(x[rs1], imm) < 0 ? 1 : 0;
+        }
+    }
+
+    @Implementation("XORI")
+    private void xori(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("imm") final int imm) {
+        if (rd != 0) {
+            x[rd] = x[rs1] ^ imm;
+        }
+    }
+
+    @Implementation("ORI")
+    private void ori(@Field("rd") final int rd,
+                     @Field("rs1") final int rs1,
+                     @Field("imm") final int imm) {
+        if (rd != 0) {
+            x[rd] = x[rs1] | imm;
+        }
+    }
+
+    @Implementation("ANDI")
+    private void andi(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("imm") final int imm) {
+        if (rd != 0) {
+            x[rd] = x[rs1] & imm;
+        }
+    }
+
+    @Implementation("SLLI")
+    private void slli(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("shamt") final int shamt) {
+        if (rd != 0) {
+            x[rd] = x[rs1] << (shamt & 0b11111);
+        }
+    }
+
+    @Implementation("SRLI")
+    private void srli(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("shamt") final int shamt) {
+        if (rd != 0) {
+            x[rd] = x[rs1] >>> (shamt & 0b11111);
+        }
+    }
+
+    @Implementation("SRAI")
+    private void srai(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("shamt") final int shamt) {
+        if (rd != 0) {
+            x[rd] = x[rs1] >> (shamt & 0b11111);
+        }
+    }
+
+    @Implementation("ADD")
+    private void add(@Field("rd") final int rd,
+                     @Field("rs1") final int rs1,
+                     @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = x[rs1] + x[rs2];
+        }
+    }
+
+    @Implementation("SUB")
+    private void sub(@Field("rd") final int rd,
+                     @Field("rs1") final int rs1,
+                     @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = x[rs1] - x[rs2];
+        }
+    }
+
+    @Implementation("SLL")
+    private void sll(@Field("rd") final int rd,
+                     @Field("rs1") final int rs1,
+                     @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = x[rs1] << x[rs2];
+        }
+    }
+
+    @Implementation("SLT")
+    private void slt(@Field("rd") final int rd,
+                     @Field("rs1") final int rs1,
+                     @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = x[rs1] < x[rs2] ? 1 : 0;
+        }
+    }
+
+    @Implementation("SLTU")
+    private void sltu(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = Integer.compareUnsigned(x[rs1], x[rs2]) < 0 ? 1 : 0;
+        }
+    }
+
+    @Implementation("XOR")
+    private void xor(@Field("rd") final int rd,
+                     @Field("rs1") final int rs1,
+                     @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = x[rs1] ^ x[rs2];
+        }
+    }
+
+    @Implementation("SRL")
+    private void srl(@Field("rd") final int rd,
+                     @Field("rs1") final int rs1,
+                     @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = x[rs1] >>> x[rs2];
+        }
+    }
+
+    @Implementation("SRA")
+    private void sra(@Field("rd") final int rd,
+                     @Field("rs1") final int rs1,
+                     @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = x[rs1] >> x[rs2];
+        }
+    }
+
+    @Implementation("OR")
+    private void or(@Field("rd") final int rd,
+                    @Field("rs1") final int rs1,
+                    @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = x[rs1] | x[rs2];
+        }
+    }
+
+    @Implementation("AND")
+    private void and(@Field("rd") final int rd,
+                     @Field("rs1") final int rs1,
+                     @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = x[rs1] & x[rs2];
+        }
+    }
+
+    @Implementation("FENCE")
+    private void fence() {
+        // no-op
+    }
+
+    @Implementation("ECALL")
+    private void ecall() throws R5Exception {
+        throw new R5ECallException(priv);
+    }
+
+    @Implementation("EBREAK")
+    private void ebreak() throws R5Exception {
+        throw new R5BreakpointException();
+    }
+
+    ///////////////////////////////////////////////////////////////////
+    // RV32/RV64 Zifencei Standard Extension
+
+    @Implementation("FENCE.I")
+    private void fence_i() {
+        // no-op
+    }
+
+    ///////////////////////////////////////////////////////////////////
+    // RV32/RV64 Zicsr Standard Extension
+
+    @SuppressWarnings("ContainsNonStaticMethodInvocations")
+    @Implementation("CSRRW")
+    private boolean csrrw(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("csr") final int csr) throws R5Exception {
+        return csrrw_impl(rd, x[rs1], csr);
+    }
+
+    @SuppressWarnings("ContainsNonStaticMethodInvocations")
+    @Implementation("CSRRS")
+    private boolean csrrs(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("csr") final int csr) throws R5Exception {
+        return csrrx_impl(rd, rs1, csr, x[rs1], true);
+    }
+
+    @SuppressWarnings("ContainsNonStaticMethodInvocations")
+    @Implementation("CSRRC")
+    private boolean csrrc(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("csr") final int csr) throws R5Exception {
+        return csrrx_impl(rd, rs1, csr, x[rs1], false);
+    }
+
+    @SuppressWarnings("ContainsNonStaticMethodInvocations")
+    @Implementation("CSRRWI")
+    private boolean csrrwi(@Field("rd") final int rd,
+                           @Field("rs1") final int rs1,
+                           @Field("csr") final int csr) throws R5Exception {
+        return csrrw_impl(rd, rs1, csr);
+    }
+
+    @SuppressWarnings("ContainsNonStaticMethodInvocations")
+    @Implementation("CSRRSI")
+    private boolean csrrsi(@Field("rd") final int rd,
+                           @Field("rs1") final int rs1,
+                           @Field("csr") final int csr) throws R5Exception {
+        return csrrx_impl(rd, rs1, csr, rs1, true);
+    }
+
+    @SuppressWarnings("ContainsNonStaticMethodInvocations")
+    @Implementation("CSRRCI")
+    private boolean csrrci(@Field("rd") final int rd,
+                           @Field("rs1") final int rs1,
+                           @Field("csr") final int csr) throws R5Exception {
+        return csrrx_impl(rd, rs1, csr, rs1, false);
+    }
+
+    ///////////////////////////////////////////////////////////////////
+    // RV32M Standard Extension
+
+    @Implementation("MUL")
+    private void mul(@Field("rd") final int rd,
+                     @Field("rs1") final int rs1,
+                     @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = x[rs1] * x[rs2];
+        }
+    }
+
+    @Implementation("MULH")
+    private void mulh(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = (int) (((long) x[rs1] * (long) x[rs2]) >> 32);
+        }
+    }
+
+    @Implementation("MULHSU")
+    private void mulhsu(@Field("rd") final int rd,
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = (int) (((long) x[rs1] * Integer.toUnsignedLong(x[rs2])) >> 32);
+        }
+    }
+
+    @Implementation("MULHU")
+    private void mulhu(@Field("rd") final int rd,
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = (int) ((Integer.toUnsignedLong(x[rs1]) * Integer.toUnsignedLong(x[rs2])) >>> 32);
+        }
+    }
+
+    @Implementation("DIV")
+    private void div(@Field("rd") final int rd,
+                     @Field("rs1") final int rs1,
+                     @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            if (x[rs2] == 0) {
+                x[rd] = -1;
+            } else if (x[rs1] == Integer.MIN_VALUE && x[rs2] == -1) {
+                x[rd] = x[rs1];
+            } else {
+                x[rd] = x[rs1] / x[rs2];
+            }
+        }
+    }
+
+    @Implementation("DIVU")
+    private void divu(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            if (x[rs2] == 0) {
+                x[rd] = -1;
+            } else {
+                x[rd] = Integer.divideUnsigned(x[rs1], x[rs2]);
+            }
+        }
+    }
+
+    @Implementation("REM")
+    private void rem(@Field("rd") final int rd,
+                     @Field("rs1") final int rs1,
+                     @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            if (x[rs2] == 0) {
+                x[rd] = x[rs1];
+            } else if (x[rs1] == Integer.MIN_VALUE && x[rs2] == -1) {
+                x[rd] = 0;
+            } else {
+                x[rd] = x[rs1] % x[rs2];
+            }
+        }
+    }
+
+    @Implementation("REMU")
+    private void remu(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            if (x[rs2] == 0) {
+                x[rd] = x[rs1];
+            } else {
+                x[rd] = Integer.remainderUnsigned(x[rs1], x[rs2]);
+            }
+        }
+    }
+
+    ///////////////////////////////////////////////////////////////////
+    // RV32A Standard Extension
+
+    @Implementation("LR.W")
+    private void lr_w(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1) throws MemoryAccessException {
+        final int result;
+        final int address = x[rs1];
+        result = load32(address);
+        reservation_set = address;
+
+        if (rd != 0) {
+            x[rd] = result;
+        }
+    }
+
+    @Implementation("SC.W")
+    private void sc_w(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("rs2") final int rs2) throws MemoryAccessException {
+        final int result;
+        final int address = x[rs1];
+        if (address == reservation_set) {
+            store32(address, x[rs2]);
+            result = 0;
+        } else {
+            result = 1;
+        }
+
+        reservation_set = -1; // Always invalidate as per spec.
+
+        if (rd != 0) {
+            x[rd] = result;
+        }
+    }
+
+    @Implementation("AMOSWAP.W")
+    private void amoswap_w(@Field("rd") final int rd,
+                           @Field("rs1") final int rs1,
+                           @Field("rs2") final int rs2) throws MemoryAccessException {
+        final int address = x[rs1];
+        final int a = load32(address);
+        final int b = x[rs2];
+
+        store32(address, b);
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    @Implementation("AMOADD.W")
+    private void amoadd_w(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) throws MemoryAccessException {
+        final int address = x[rs1];
+        final int a = load32(address);
+        final int b = x[rs2];
+
+        store32(address, a + b);
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    @Implementation("AMOXOR.W")
+    private void amoxor_w(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) throws MemoryAccessException {
+        final int address = x[rs1];
+        final int a = load32(address);
+        final int b = x[rs2];
+
+        store32(address, a ^ b);
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    @Implementation("AMOAND.W")
+    private void amoand_w(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) throws MemoryAccessException {
+        final int address = x[rs1];
+        final int a = load32(address);
+        final int b = x[rs2];
+
+        store32(address, a & b);
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    @Implementation("AMOOR.W")
+    private void amoor_w(@Field("rd") final int rd,
+                         @Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2) throws MemoryAccessException {
+        final int address = x[rs1];
+        final int a = load32(address);
+        final int b = x[rs2];
+
+        store32(address, a | b);
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    @Implementation("AMOMIN.W")
+    private void amomin_w(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) throws MemoryAccessException {
+        final int address = x[rs1];
+        final int a = load32(address);
+        final int b = x[rs2];
+
+        store32(address, Math.min(a, b));
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    @Implementation("AMOMAX.W")
+    private void amomax_w(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) throws MemoryAccessException {
+        final int address = x[rs1];
+        final int a = load32(address);
+        final int b = x[rs2];
+
+        final int c = Math.max(a, b);
+        store32(address, c);
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    @Implementation("AMOMINU.W")
+    private void amominu_w(@Field("rd") final int rd,
+                           @Field("rs1") final int rs1,
+                           @Field("rs2") final int rs2) throws MemoryAccessException {
+        final int address = x[rs1];
+        final int a = load32(address);
+        final int b = x[rs2];
+
+        store32(address, (int) Math.min(Integer.toUnsignedLong(a), Integer.toUnsignedLong(b)));
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    @Implementation("AMOMAXU.W")
+    private void amomaxu_w(@Field("rd") final int rd,
+                           @Field("rs1") final int rs1,
+                           @Field("rs2") final int rs2) throws MemoryAccessException {
+        final int address = x[rs1];
+        final int a = load32(address);
+        final int b = x[rs2];
+
+        store32(address, (int) Math.max(Integer.toUnsignedLong(a), Integer.toUnsignedLong(b)));
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    ///////////////////////////////////////////////////////////////////
+    // Privileged Instructions
+
+    @Implementation("SRET")
+    private void sret() throws R5Exception {
+        if (priv < R5.PRIVILEGE_S) {
+            throw new R5IllegalInstructionException();
+        }
+
+        if ((mstatus & R5.STATUS_TSR_MASK) != 0 && priv < R5.PRIVILEGE_M) {
+            throw new R5IllegalInstructionException();
+        }
+
+        final int spp = (mstatus & R5.STATUS_SPP_MASK) >>> R5.STATUS_SPP_SHIFT; // Previous privilege level.
+        final int spie = (mstatus & R5.STATUS_SPIE_MASK) >>> R5.STATUS_SPIE_SHIFT; // Preview interrupt-enable state.
+        mstatus = (mstatus & ~R5.STATUS_SIE_MASK) | ((R5.STATUS_SIE_MASK * spie) << R5.STATUS_SIE_SHIFT);
+        mstatus = (mstatus & ~(1 << spp)) |
+                  (spie << spp);
+        mstatus |= R5.STATUS_SPIE_MASK;
+        mstatus &= ~R5.STATUS_SPP_MASK;
+        mstatus &= ~R5.STATUS_MPRV_MASK;
+
+        setPrivilege(spp);
+
+        pc = sepc;
+    }
+
+    @Implementation("MRET")
+    private void mret() throws R5Exception {
+        if (priv < R5.PRIVILEGE_M) {
+            throw new R5IllegalInstructionException();
+        }
+
+        final int mpp = (mstatus & R5.STATUS_MPP_MASK) >>> R5.STATUS_MPP_SHIFT; // Previous privilege level.
+        final int mpie = (mstatus & R5.STATUS_MPIE_MASK) >>> R5.STATUS_MPIE_SHIFT; // Preview interrupt-enable state.
+        mstatus = (mstatus & ~R5.STATUS_MIE_MASK) | ((R5.STATUS_MIE_MASK * mpie) << R5.STATUS_MIE_SHIFT);
+        mstatus |= R5.STATUS_MPIE_MASK;
+        mstatus &= ~R5.STATUS_MPP_MASK;
+        if (mpp != R5.PRIVILEGE_M) {
+            mstatus &= ~R5.STATUS_MPRV_MASK;
+        }
+
+        setPrivilege(mpp);
+
+        pc = mepc;
+    }
+
+    @Implementation("WFI")
+    private boolean wfi() throws R5Exception {
+        if (priv == R5.PRIVILEGE_U) {
+            throw new R5IllegalInstructionException();
+        }
+        if ((mstatus & R5.STATUS_TW_MASK) != 0 && priv == R5.PRIVILEGE_S) {
+            throw new R5IllegalInstructionException();
+        }
+
+        if ((mip.get() & mie) != 0) {
+            return false;
+        }
+
+        if (mie == 0) {
+            LOGGER.warn("Waiting for interrupts but none are enabled.");
+        }
+
+        waitingForInterrupt = true;
+        return true;
+    }
+
+    @Implementation("SFENCE.VMA")
+    private boolean sfence_vma(@Field("rs1") final int rs1,
+                               @Field("rs2") final int rs2) throws R5Exception {
+        if (priv == R5.PRIVILEGE_U) {
+            throw new R5IllegalInstructionException();
+        }
+        if ((mstatus & R5.STATUS_TVM_MASK) != 0 && priv == R5.PRIVILEGE_S) {
+            throw new R5IllegalInstructionException();
+        }
+
+        if (rs1 == 0) {
+            flushTLB();
+        } else {
+            flushTLB(x[rs1]);
+        }
+
+        flushTraces();
+
+        return true;
     }
 }

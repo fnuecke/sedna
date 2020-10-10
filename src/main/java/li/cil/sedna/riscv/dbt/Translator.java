@@ -208,7 +208,7 @@ public final class Translator {
                                 }
                                 case 0b001: { // SLLI
                                     if ((inst & 0b1111111_00000_00000_000_00000_0000000) != 0) {
-                                        throw new R5IllegalInstructionException(inst);
+                                        throw new R5IllegalInstructionException();
                                     }
 
                                     invokeOp("slli", rd, rs1, imm);
@@ -227,14 +227,14 @@ public final class Translator {
                                         }
 
                                         default: {
-                                            throw new R5IllegalInstructionException(inst);
+                                            throw new R5IllegalInstructionException();
                                         }
                                     }
                                     break;
                                 }
 
                                 default: {
-                                    throw new R5IllegalInstructionException(inst);
+                                    throw new R5IllegalInstructionException();
                                 }
                             }
 
@@ -298,7 +298,7 @@ public final class Translator {
                                         }
 
                                         default: {
-                                            throw new R5IllegalInstructionException(inst);
+                                            throw new R5IllegalInstructionException();
                                         }
                                     }
 
@@ -358,7 +358,7 @@ public final class Translator {
                                         }
 
                                         default: {
-                                            throw new R5IllegalInstructionException(inst);
+                                            throw new R5IllegalInstructionException();
                                         }
                                     }
 
@@ -366,7 +366,7 @@ public final class Translator {
                                 }
 
                                 default: {
-                                    throw new R5IllegalInstructionException(inst);
+                                    throw new R5IllegalInstructionException();
                                 }
                             }
 
@@ -417,12 +417,12 @@ public final class Translator {
 
                                 case 0b001: { // FENCE.I
                                     if (inst != 0b000000000000_00000_001_00000_0001111)
-                                        throw new R5IllegalInstructionException(inst);
+                                        throw new R5IllegalInstructionException();
                                     break;
                                 }
 
                                 default: {
-                                    throw new R5IllegalInstructionException(inst);
+                                    throw new R5IllegalInstructionException();
                                 }
                             }
 
@@ -433,7 +433,7 @@ public final class Translator {
                         case 0b1110011: { // SYSTEM
                             final int funct3 = BitUtils.getField(inst, 12, 14, 0);
                             if (funct3 == 0b100) {
-                                throw new R5IllegalInstructionException(inst);
+                                throw new R5IllegalInstructionException();
                             }
 
                             switch (funct3 & 0b11) {
@@ -442,7 +442,7 @@ public final class Translator {
                                     switch (funct12) {
                                         case 0b0000000_00000: { // ECALL
                                             if ((inst & 0b000000000000_11111_111_11111_0000000) != 0) {
-                                                throw new R5IllegalInstructionException(inst);
+                                                throw new R5IllegalInstructionException();
                                             }
 
                                             storePCInLocal();
@@ -456,7 +456,7 @@ public final class Translator {
                                         }
                                         case 0b0000000_00001: { // EBREAK
                                             if ((inst & 0b000000000000_11111_111_11111_0000000) != 0) {
-                                                throw new R5IllegalInstructionException(inst);
+                                                throw new R5IllegalInstructionException();
                                             }
 
                                             storePCInLocal();
@@ -468,7 +468,7 @@ public final class Translator {
                                         }
                                         case 0b0001000_00010: { // SRET
                                             if ((inst & 0b000000000000_11111_111_11111_0000000) != 0) {
-                                                throw new R5IllegalInstructionException(inst);
+                                                throw new R5IllegalInstructionException();
                                             }
 
                                             invokeOp("sret", inst);
@@ -476,7 +476,7 @@ public final class Translator {
                                         }
                                         case 0b0011000_00010: { // MRET
                                             if ((inst & 0b000000000000_11111_111_11111_0000000) != 0) {
-                                                throw new R5IllegalInstructionException(inst);
+                                                throw new R5IllegalInstructionException();
                                             }
 
                                             invokeOp("mret", inst);
@@ -503,7 +503,7 @@ public final class Translator {
                                                 mv.visitJumpInsn(Opcodes.GOTO, returnLabel);
                                                 return; // Invalidate fetch cache
                                             } else {
-                                                throw new R5IllegalInstructionException(inst);
+                                                throw new R5IllegalInstructionException();
                                             }
                                         }
                                     }
@@ -555,7 +555,7 @@ public final class Translator {
                                 switch (funct5) {
                                     case 0b00010: { // LR.W
                                         if (rs2 != 0) {
-                                            throw new R5IllegalInstructionException(inst);
+                                            throw new R5IllegalInstructionException();
                                         }
 
                                         invokeOp("lr_w", rd, rs1);
@@ -604,11 +604,11 @@ public final class Translator {
                                     }
 
                                     default: {
-                                        throw new R5IllegalInstructionException(inst);
+                                        throw new R5IllegalInstructionException();
                                     }
                                 }
                             } else {
-                                throw new R5IllegalInstructionException(inst);
+                                throw new R5IllegalInstructionException();
                             }
 
                             instOffset += 4;
@@ -616,12 +616,12 @@ public final class Translator {
                         }
 
                         default: {
-                            throw new R5IllegalInstructionException(inst);
+                            throw new R5IllegalInstructionException();
                         }
                     }
                 } else {
                     if (inst == 0) {
-                        throw new R5IllegalInstructionException(inst);
+                        throw new R5IllegalInstructionException();
                     }
 
                     final int op = inst & 0b11;
@@ -649,7 +649,7 @@ public final class Translator {
                                 // 0b111: C.FSW
 
                                 default: {
-                                    throw new R5IllegalInstructionException(inst);
+                                    throw new R5IllegalInstructionException();
                                 }
                             }
 
@@ -727,7 +727,7 @@ public final class Translator {
                                                 // 0b101: C.ADDW
 
                                                 default: {
-                                                    throw new R5IllegalInstructionException(inst);
+                                                    throw new R5IllegalInstructionException();
                                                 }
                                             }
 
@@ -752,7 +752,7 @@ public final class Translator {
                                 }
 
                                 default: {
-                                    throw new R5IllegalInstructionException(inst);
+                                    throw new R5IllegalInstructionException();
                                 }
                             }
 
@@ -771,7 +771,7 @@ public final class Translator {
                                 // 0b001: C.FLDSP
                                 case 0b010: { // C.LWSP
                                     if (rd == 0) { // Reserved.
-                                        throw new R5IllegalInstructionException(inst);
+                                        throw new R5IllegalInstructionException();
                                     }
 
                                     invokeOp("c_lwsp", inst, rd);
@@ -785,7 +785,7 @@ public final class Translator {
                                     if ((inst & (1 << 12)) == 0) {
                                         if (rs2 == 0) { // C.JR
                                             if (rd == 0) {
-                                                throw new R5IllegalInstructionException(inst);
+                                                throw new R5IllegalInstructionException();
                                             }
 
                                             invokeOp("c_jr", rd);
@@ -826,7 +826,7 @@ public final class Translator {
                                 }
 
                                 default: {
-                                    throw new R5IllegalInstructionException(inst);
+                                    throw new R5IllegalInstructionException();
                                 }
                             }
 
@@ -834,7 +834,7 @@ public final class Translator {
                         }
 
                         default: {
-                            throw new R5IllegalInstructionException(inst);
+                            throw new R5IllegalInstructionException();
                         }
                     }
                 }
@@ -851,6 +851,7 @@ public final class Translator {
             mv.visitTypeInsn(Opcodes.NEW, ILLEGAL_INSTRUCTION_EXCEPTION_TYPE.getInternalName());
             mv.visitInsn(Opcodes.DUP);
             mv.visitLdcInsn(e.getExceptionValue());
+            mv.visitInsn(Opcodes.ACONST_NULL);
             mv.visitMethodInsn(Opcodes.INVOKESPECIAL, ILLEGAL_INSTRUCTION_EXCEPTION_TYPE.getInternalName(), INIT_INT.getName(), INIT_INT.getDescriptor(), false);
             mv.visitInsn(Opcodes.ATHROW);
         } catch (final MemoryAccessException e) {
