@@ -43,7 +43,7 @@ public final class ISATests {
     };
 
     private static final int PHYSICAL_MEMORY_START = 0x80000000;
-    private static final int PHYSICAL_MEMORY_LENGTH = 32 * 1024 * 1024;
+    private static final int PHYSICAL_MEMORY_LENGTH = 512 * 1024;
 
     @TestFactory
     public Collection<DynamicTest> testISA() {
