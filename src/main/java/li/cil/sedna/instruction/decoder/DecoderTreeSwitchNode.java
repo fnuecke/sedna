@@ -5,6 +5,7 @@ import li.cil.sedna.instruction.InstructionDeclaration;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 public final class DecoderTreeSwitchNode extends AbstractDecoderTreeNode {
     public final int mask;
@@ -16,7 +17,7 @@ public final class DecoderTreeSwitchNode extends AbstractDecoderTreeNode {
 
         final int[] groupPatterns = groups.keySet().toIntArray();
         assert groupPatterns.length > 1;
-//        Arrays.sort(groupPatterns);
+        Arrays.sort(groupPatterns);
 
         patterns = new int[groupPatterns.length];
         children = new AbstractDecoderTreeNode[groupPatterns.length];
