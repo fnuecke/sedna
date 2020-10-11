@@ -1,12 +1,12 @@
-package li.cil.sedna.riscv.instructions;
+package li.cil.sedna.instruction;
 
-final class R5InstructionFieldMapping {
+final class InstructionFieldMapping {
     public final int srcMSB;
     public final int srcLSB;
     public final int dstLSB;
     public final boolean signExtend;
 
-    R5InstructionFieldMapping(final int srcMSB, final int srcLSB, final int dstLSB, final boolean signExtend) {
+    InstructionFieldMapping(final int srcMSB, final int srcLSB, final int dstLSB, final boolean signExtend) {
         this.srcMSB = srcMSB;
         this.srcLSB = srcLSB;
         this.dstLSB = dstLSB;

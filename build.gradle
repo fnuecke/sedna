@@ -34,7 +34,7 @@ compileJava {
     options.compilerArgs.addAll([
             '-XDignore.symbol.file'
     ])
-
+    options.encoding = 'UTF8'
     options.fork = true
     options.forkOptions.executable = 'javac'
 }

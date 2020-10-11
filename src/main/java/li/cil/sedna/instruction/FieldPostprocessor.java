@@ -1,15 +1,15 @@
-package li.cil.sedna.riscv.instructions;
+package li.cil.sedna.instruction;
 
 import java.util.function.IntUnaryOperator;
 
-public enum R5FieldPostprocessor {
+public enum FieldPostprocessor {
     ADD_8((x) -> x + 8),
 
     ;
 
     private final IntUnaryOperator callback;
 
-    R5FieldPostprocessor(final IntUnaryOperator callback) {
+    FieldPostprocessor(final IntUnaryOperator callback) {
         this.callback = callback;
     }
 

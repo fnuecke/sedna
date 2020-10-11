@@ -1,9 +1,9 @@
-package li.cil.sedna.riscv.instructions;
+package li.cil.sedna.instruction;
 
-public final class R5ConstantInstructionArgument implements R5InstructionArgument {
+public final class ConstantInstructionArgument implements InstructionArgument {
     private final int value;
 
-    R5ConstantInstructionArgument(final int value) {
+    ConstantInstructionArgument(final int value) {
         this.value = value;
     }
 

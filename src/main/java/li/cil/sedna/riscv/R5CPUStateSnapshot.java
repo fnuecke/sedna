@@ -1,5 +1,7 @@
 package li.cil.sedna.riscv;
 
+import java.util.Arrays;
+
 @SuppressWarnings("SpellCheckingInspection")
 public final class R5CPUStateSnapshot {
     public int pc;
@@ -34,4 +36,37 @@ public final class R5CPUStateSnapshot {
 
     public int priv;
     public boolean waitingForInterrupt;
+
+    @Override
+    public boolean equals(final Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        final R5CPUStateSnapshot that = (R5CPUStateSnapshot) o;
+        return pc == that.pc &&
+               reservation_set == that.reservation_set &&
+               mcycle == that.mcycle &&
+               mstatus == that.mstatus &&
+               mstatush == that.mstatush &&
+               mtvec == that.mtvec &&
+               medeleg == that.medeleg &&
+               mideleg == that.mideleg &&
+               mip == that.mip &&
+               mie == that.mie &&
+               mcounteren == that.mcounteren &&
+               mscratch == that.mscratch &&
+               mepc == that.mepc &&
+               mcause == that.mcause &&
+               mtval == that.mtval &&
+               fs == that.fs &&
+               stvec == that.stvec &&
+               scounteren == that.scounteren &&
+               sscratch == that.sscratch &&
+               sepc == that.sepc &&
+               scause == that.scause &&
+               stval == that.stval &&
+               satp == that.satp &&
+               priv == that.priv &&
+               waitingForInterrupt == that.waitingForInterrupt &&
+               Arrays.equals(x, that.x);
+    }
 }
