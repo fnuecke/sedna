@@ -244,7 +244,7 @@ public final class InstructionDeclarationLoader {
                 throw new IllegalArgumentException(String.format("Unexpected token [%s].", context.tokens.get(0)));
             }
         } else {
-            postprocessor = null;
+            postprocessor = FieldPostprocessor.NONE;
         }
 
         return new Field(name, mappings, postprocessor);

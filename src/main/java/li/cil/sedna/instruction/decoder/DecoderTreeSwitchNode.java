@@ -57,7 +57,7 @@ public final class DecoderTreeSwitchNode extends AbstractDecoderTreeNode {
     public void visit(final DecoderTreeVisitor visitor) {
         final DecoderTreeSwitchVisitor switchVisitor = visitor.visitSwitch(mask);
         if (switchVisitor != null) {
-            switchVisitor.visit(patterns.length);
+            switchVisitor.visit(patterns, mask);
             for (int i = 0; i < patterns.length; i++) {
                 final DecoderTreeVisitor switchCaseVisitor = switchVisitor.visitSwitchCase(i, patterns[i] & mask);
                 if (switchCaseVisitor != null) {

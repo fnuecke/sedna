@@ -46,7 +46,7 @@ public final class R5Board implements Steppable, Resettable {
 
     public R5Board() {
         memoryMap = new SimpleMemoryMap();
-        rtc = cpu = new R5CPU(memoryMap);
+        rtc = cpu = R5CPU.create(memoryMap);
 
         final PhysicalMemory flash = Memory.create(LOW_MEMORY_SIZE);
         clint = new R5CoreLocalInterrupter(rtc);

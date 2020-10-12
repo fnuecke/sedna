@@ -1,6 +1,6 @@
 package li.cil.sedna.instruction;
 
-final class InstructionFieldMapping {
+public final class InstructionFieldMapping {
     public final int srcMSB;
     public final int srcLSB;
     public final int dstLSB;

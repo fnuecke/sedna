@@ -1,14 +1,14 @@
 package li.cil.sedna.instruction;
 
 public final class ConstantInstructionArgument implements InstructionArgument {
-    private final int value;
+    public final int value;
 
     ConstantInstructionArgument(final int value) {
         this.value = value;
     }
 
     @Override
-    public int get(final int opcode) {
+    public int get(final int instruction) {
         return value;
     }
 

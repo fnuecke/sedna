@@ -130,8 +130,8 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
         }
 
         @Override
-        public void visit(final int count) {
-            this.count = count;
+        public void visit(final int[] patterns, final int mask) {
+            this.count = patterns.length;
         }
 
         @Override

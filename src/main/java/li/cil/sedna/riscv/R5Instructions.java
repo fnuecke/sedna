@@ -34,7 +34,7 @@ public final class R5Instructions {
         }
 
         try {
-            DEFINITIONS.putAll(InstructionDefinitionLoader.load(R5CPU.class, DECLARATIONS));
+            DEFINITIONS.putAll(InstructionDefinitionLoader.load(R5CPUTemplate.class, DECLARATIONS));
         } catch (final Throwable e) {
             LOGGER.error("Failed loading RISC-V instruction definitions.", e);
         }
