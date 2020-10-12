@@ -17,7 +17,8 @@ public final class DecoderTreeSwitchNode extends AbstractDecoderTreeNode {
 
         final int[] groupPatterns = groups.keySet().toIntArray();
         assert groupPatterns.length > 1;
-        Arrays.sort(groupPatterns);
+
+        sortUnsigned(groupPatterns);
 
         patterns = new int[groupPatterns.length];
         children = new AbstractDecoderTreeNode[groupPatterns.length];
@@ -73,5 +74,16 @@ public final class DecoderTreeSwitchNode extends AbstractDecoderTreeNode {
     @Override
     public String toString() {
         return "[SWITCH]";
+    }
+
+    private static void sortUnsigned(final int[] values) {
+        final int length = values.length;
+        for (int i = 0; i < length; i++) {
+            values[i] = values[i] ^ Integer.MIN_VALUE;
+        }
+        Arrays.sort(values);
+        for (int i = 0; i < length; i++) {
+            values[i] = values[i] ^ Integer.MIN_VALUE;
+        }
     }
 }
