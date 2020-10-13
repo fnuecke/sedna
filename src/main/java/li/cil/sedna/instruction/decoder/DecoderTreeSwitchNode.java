@@ -11,7 +11,7 @@ public final class DecoderTreeSwitchNode extends AbstractDecoderTreeInnerNode {
         if (switchVisitor != null) {
             switchVisitor.visit(this);
             for (int i = 0; i < children.length; i++) {
-                final DecoderTreeVisitor switchCaseVisitor = switchVisitor.visitSwitchCase(this, i);
+                final DecoderTreeVisitor switchCaseVisitor = switchVisitor.visitSwitchCase(i, children[i].pattern() & mask());
                 if (switchCaseVisitor != null) {
                     children[i].accept(switchCaseVisitor);
                 }

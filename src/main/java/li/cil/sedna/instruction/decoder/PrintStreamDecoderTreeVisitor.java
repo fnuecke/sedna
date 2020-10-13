@@ -91,27 +91,76 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
         return BitUtils.maskFromRange(0, size * 8 - 1);
     }
 
+    private final class InnerNodeVisitor implements DecoderTreeVisitor {
+        private final int depth;
+        private final int processedMask;
+        private final int branchMask;
+        private final int parentMask;
+        private final int pattern;
+        private final boolean isLastChild;
+
+        public InnerNodeVisitor(final int pattern, final int parentMask, final int processedMask, final int depth, final int branchMask, final boolean isLastChild) {
+            this.depth = depth;
+            this.processedMask = processedMask;
+            this.branchMask = branchMask;
+            this.parentMask = parentMask;
+            this.pattern = pattern;
+            this.isLastChild = isLastChild;
+        }
+
+        @Override
+        public DecoderTreeSwitchVisitor visitSwitch() {
+            printNodeHeader(depth, branchMask, true, isLastChild);
+            System.out.print(formatMasked(pattern, parentMask, processedMask));
+            System.out.print("    [SWITCH]  ");
+            System.out.println("");
+
+            return new SwitchVisitor(depth, processedMask | parentMask, branchMask);
+        }
+
+        @Override
+        public DecoderTreeBranchVisitor visitBranch() {
+            printNodeHeader(depth, branchMask, true, isLastChild);
+            System.out.print(formatMasked(pattern, parentMask, processedMask));
+            stream.print("    [BRANCH]  ");
+            System.out.println("");
+
+            return new BranchVisitor(depth, processedMask | parentMask, branchMask);
+        }
+
+        @Override
+        public DecoderTreeLeafVisitor visitInstruction() {
+            return new LeafVisitor(depth, processedMask, branchMask, parentMask, isLastChild);
+        }
+
+        @Override
+        public void visitEnd() {
+        }
+    }
+
     private final class SwitchVisitor implements DecoderTreeSwitchVisitor {
         private final int depth;
-        private final int consumedMask;
+        private final int processedMask;
         private final int branchMask;
+        private int switchMask;
         private int count;
 
-        public SwitchVisitor(final int depth, final int consumedMask, final int branchMask) {
+        public SwitchVisitor(final int depth, final int processedMask, final int branchMask) {
             this.depth = depth;
-            this.consumedMask = consumedMask;
+            this.processedMask = processedMask;
             this.branchMask = branchMask;
         }
 
         @Override
         public void visit(final DecoderTreeSwitchNode node) {
             this.count = node.children.length;
+            this.switchMask = node.mask() & ~processedMask;
         }
 
         @Override
-        public DecoderTreeVisitor visitSwitchCase(final DecoderTreeSwitchNode node, final int index) {
+        public DecoderTreeVisitor visitSwitchCase(final int index, final int pattern) {
             final boolean isLastChild = index == count - 1;
-            return new InnerNodeVisitor(depth + 1, consumedMask, (branchMask << 1) | (isLastChild ? 0 : 1), node.mask(), formatMasked(node.children[index].pattern(), node.mask(), consumedMask), isLastChild);
+            return new InnerNodeVisitor(pattern, switchMask, processedMask, depth + 1, (branchMask << 1) | (isLastChild ? 0 : 1), isLastChild);
         }
 
         @Override
@@ -121,13 +170,13 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
 
     private final class BranchVisitor implements DecoderTreeBranchVisitor {
         private final int depth;
-        private final int consumedMask;
+        private final int processedMask;
         private final int branchMask;
         private int count;
 
-        public BranchVisitor(final int depth, final int consumedMask, final int branchMask) {
+        public BranchVisitor(final int depth, final int processedMask, final int branchMask) {
             this.depth = depth;
-            this.consumedMask = consumedMask;
+            this.processedMask = processedMask;
             this.branchMask = branchMask;
         }
 
@@ -139,52 +188,7 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
         @Override
         public DecoderTreeVisitor visitBranchCase(final int index, final int mask, final int pattern) {
             final boolean isLastChild = index == count - 1;
-            return new InnerNodeVisitor(depth + 1, consumedMask, (branchMask << 1) | (isLastChild ? 0 : 1), mask, formatMasked(pattern, mask, consumedMask), isLastChild);
-        }
-
-        @Override
-        public void visitEnd() {
-        }
-    }
-
-    private final class InnerNodeVisitor implements DecoderTreeVisitor {
-        private final int depth;
-        private final int consumedMask;
-        private final int branchMask;
-        private final int parentMask;
-        private final boolean isLastChild;
-        private final char[] pattern;
-
-        public InnerNodeVisitor(final int depth, final int consumedMask, final int branchMask, final int parentMask, final char[] pattern, final boolean isLastChild) {
-            this.depth = depth;
-            this.consumedMask = consumedMask;
-            this.branchMask = branchMask;
-            this.parentMask = parentMask;
-            this.pattern = pattern;
-            this.isLastChild = isLastChild;
-        }
-
-        @Override
-        public DecoderTreeSwitchVisitor visitSwitch() {
-            printNodeHeader(depth, branchMask, true, isLastChild);
-            System.out.print(pattern);
-            System.out.println("    [SWITCH]");
-
-            return new SwitchVisitor(depth, consumedMask | parentMask, branchMask);
-        }
-
-        @Override
-        public DecoderTreeBranchVisitor visitBranch() {
-            printNodeHeader(depth, branchMask, true, isLastChild);
-            stream.print(pattern);
-            stream.println("    [BRANCH]");
-
-            return new BranchVisitor(depth, consumedMask | parentMask, branchMask);
-        }
-
-        @Override
-        public DecoderTreeLeafVisitor visitInstruction() {
-            return new LeafVisitor(depth, consumedMask, branchMask, parentMask, isLastChild);
+            return new InnerNodeVisitor(pattern, mask, processedMask, depth + 1, (branchMask << 1) | (isLastChild ? 0 : 1), isLastChild);
         }
 
         @Override
@@ -212,7 +216,8 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
             printNodeHeader(depth, branchMask, false, isLastChild);
             stream.print(formatMasked(declaration.pattern, parentMask & declaration.patternMask, consumedMask | ~instructionSizeToMask(declaration.size)));
             stream.print("    ");
-            stream.println(declaration.displayName);
+            stream.print(StringUtils.rightPad(declaration.displayName, 12));
+            stream.println(String.join(" ", declaration.arguments.keySet()));
         }
 
         @Override

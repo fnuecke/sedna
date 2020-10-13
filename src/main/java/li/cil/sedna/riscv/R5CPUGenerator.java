@@ -153,10 +153,43 @@ public final class R5CPUGenerator {
             methodVisitor.visitInsn(ATHROW);
         }
 
+        private final class InnerNodeVisitor implements DecoderTreeVisitor {
+            private final int processedMask;
+            private final Label endLabel;
+
+            public InnerNodeVisitor(final int processedMask, final Label endLabel) {
+                this.processedMask = processedMask;
+                this.endLabel = endLabel;
+            }
+
+            @Override
+            public DecoderTreeSwitchVisitor visitSwitch() {
+                return new SwitchVisitor(processedMask);
+            }
+
+            @Override
+            public DecoderTreeBranchVisitor visitBranch() {
+                return new BranchVisitor(processedMask);
+            }
+
+            @Override
+            public DecoderTreeLeafVisitor visitInstruction() {
+                return new LeafVisitor();
+            }
+
+            @Override
+            public void visitEnd() {
+                if (endLabel != null) {
+                    methodVisitor.visitLabel(endLabel);
+                }
+            }
+        }
+
         private final class SwitchVisitor implements DecoderTreeSwitchVisitor {
             private final int processedMask;
             private final Label defaultCase = new Label();
             private Label[] cases;
+            private int switchMask;
 
             public SwitchVisitor(final int processedMask) {
                 this.processedMask = processedMask;
@@ -165,7 +198,7 @@ public final class R5CPUGenerator {
             @Override
             public void visit(final DecoderTreeSwitchNode node) {
                 // Find parameters used by all child nodes
-
+                //
 
                 final AbstractDecoderTreeNode[] children = node.children;
                 final int caseCount = children.length;
@@ -175,6 +208,7 @@ public final class R5CPUGenerator {
                     cases[i] = new Label();
                 }
 
+                switchMask = node.mask() & ~processedMask;
                 final int mask = node.mask() & ~processedMask;
                 final ArrayList<MaskField> maskFields = computeMaskFields(mask);
 
@@ -316,9 +350,9 @@ public final class R5CPUGenerator {
             }
 
             @Override
-            public DecoderTreeVisitor visitSwitchCase(final DecoderTreeSwitchNode node, final int index) {
+            public DecoderTreeVisitor visitSwitchCase(final int index, final int pattern) {
                 methodVisitor.visitLabel(cases[index]);
-                return new InnerNodeVisitor(processedMask | node.mask(), null);
+                return new InnerNodeVisitor(processedMask | switchMask, null);
             }
 
             @Override
@@ -344,38 +378,6 @@ public final class R5CPUGenerator {
                 }
 
                 return labels;
-            }
-        }
-
-        private final class InnerNodeVisitor implements DecoderTreeVisitor {
-            private final int processedMask;
-            private final Label endLabel;
-
-            public InnerNodeVisitor(final int processedMask, final Label endLabel) {
-                this.processedMask = processedMask;
-                this.endLabel = endLabel;
-            }
-
-            @Override
-            public DecoderTreeSwitchVisitor visitSwitch() {
-                return new SwitchVisitor(processedMask);
-            }
-
-            @Override
-            public DecoderTreeBranchVisitor visitBranch() {
-                return new BranchVisitor(processedMask);
-            }
-
-            @Override
-            public DecoderTreeLeafVisitor visitInstruction() {
-                return new LeafVisitor();
-            }
-
-            @Override
-            public void visitEnd() {
-                if (endLabel != null) {
-                    methodVisitor.visitLabel(endLabel);
-                }
             }
         }
 

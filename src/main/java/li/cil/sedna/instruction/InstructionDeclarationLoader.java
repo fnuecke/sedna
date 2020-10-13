@@ -193,26 +193,37 @@ public final class InstructionDeclarationLoader {
         result.names = new String[Math.max(1, argsAndFieldNameOrConst.length - 1)];
         System.arraycopy(argsAndFieldNameOrConst, 0, result.names, 0, Math.max(1, argsAndFieldNameOrConst.length - 1));
 
-        final String fieldName;
         final String fieldNameOrConst = argsAndFieldNameOrConst[argsAndFieldNameOrConst.length - 1];
-        if (argsAndFieldNameOrConst.length == 1) {
-            fieldName = fieldNameOrConst;
-        } else {
+        if (argsAndFieldNameOrConst.length > 1) {
             try {
                 final int constValue = Integer.parseInt(fieldNameOrConst);
                 result.value = new ConstantInstructionArgument(constValue);
                 return result;
             } catch (final NumberFormatException ignored) {
             }
-            fieldName = fieldNameOrConst;
         }
 
-        final Field field = context.fields.get(fieldName);
+        final Field field = context.fields.get(fieldNameOrConst);
         if (field == null) {
-            throw new IllegalArgumentException(String.format("Reference to unknown field [%s].", fieldName));
+            throw new IllegalArgumentException(String.format("Reference to unknown field [%s].", fieldNameOrConst));
         }
 
-        result.value = new FieldInstructionArgument(field.mappings, field.postprocessor);
+        FieldInstructionArgument argument = new FieldInstructionArgument(field.mappings, field.postprocessor);
+
+        // Re-use existing field arguments to make it easier to group them during code-gen.
+        boolean isNewArgument = true;
+        for (final FieldInstructionArgument existingArgument : context.distinctFieldArguments) {
+            if (existingArgument.equals(argument)) {
+                argument = existingArgument;
+                isNewArgument = false;
+                break;
+            }
+        }
+        if (isNewArgument) {
+            context.distinctFieldArguments.add(argument);
+        }
+
+        result.value = argument;
 
         int mappingsBits = 0;
         for (final InstructionFieldMapping mapping : field.mappings) {
@@ -227,7 +238,23 @@ public final class InstructionDeclarationLoader {
         final String name = context.tokens.remove(0);
         final ArrayList<InstructionFieldMapping> mappings = new ArrayList<>(context.tokens.size());
         while (!context.tokens.isEmpty() && !"|".equals(context.tokens.get(0))) {
-            mappings.add(parseFieldMapping(context));
+            InstructionFieldMapping mapping = parseFieldMapping(context);
+
+            // Re-use existing identical mapping if possible. This makes it easier to group
+            // them during code-gen, for example.
+            boolean isNewMapping = true;
+            for (final InstructionFieldMapping existingMapping : context.distinctFieldMappings) {
+                if (existingMapping.equals(mapping)) {
+                    mapping = existingMapping;
+                    isNewMapping = false;
+                    break;
+                }
+            }
+            if (isNewMapping) {
+                context.distinctFieldMappings.add(mapping);
+            }
+
+            mappings.add(mapping);
         }
 
         final FieldPostprocessor postprocessor;
@@ -310,6 +337,9 @@ public final class InstructionDeclarationLoader {
         public int lineNumber = 1;
         public String line;
         public ArrayList<String> tokens = new ArrayList<>();
+
+        public final ArrayList<InstructionFieldMapping> distinctFieldMappings = new ArrayList<>();
+        public final ArrayList<FieldInstructionArgument> distinctFieldArguments = new ArrayList<>();
 
         public final HashMap<String, Field> fields = new HashMap<>();
         public final ArrayList<InstructionDeclaration> instructions = new ArrayList<>();
