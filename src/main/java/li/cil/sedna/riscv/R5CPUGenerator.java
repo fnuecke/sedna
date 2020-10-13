@@ -1,5 +1,6 @@
 package li.cil.sedna.riscv;
 
+import it.unimi.dsi.fastutil.objects.Object2IntArrayMap;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.instruction.*;
@@ -18,6 +19,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public final class R5CPUGenerator {
@@ -112,16 +115,18 @@ public final class R5CPUGenerator {
     }
 
     private static final class DecoderGenerator implements DecoderTreeVisitor, Opcodes {
-        private final MethodVisitor methodVisitor;
-        private final Label continueLabel;
-        private final Label illegalInstructionLabel;
-
         private static final int LOCAL_THIS = 0;
         private static final int LOCAL_CACHE = 1;
         private static final int LOCAL_INST = 2;
         private static final int LOCAL_INST_OFFSET = 3;
         private static final int LOCAL_TO_PC = 4;
         private static final int LOCAL_INST_END = 5;
+        private static final int LOCAL_FIRST_FIELD = 6;
+
+        private final MethodVisitor methodVisitor;
+        private final Label continueLabel;
+        private final Label illegalInstructionLabel;
+        private final Object2IntArrayMap<FieldInstructionArgument> localVariables = new Object2IntArrayMap<>();
 
         private DecoderGenerator(final MethodVisitor methodVisitor, final Label continueLabel) {
             this.methodVisitor = methodVisitor;
@@ -185,7 +190,7 @@ public final class R5CPUGenerator {
             }
         }
 
-        private final class SwitchVisitor implements DecoderTreeSwitchVisitor {
+        private final class SwitchVisitor extends LocalVariableContext implements DecoderTreeSwitchVisitor {
             private final int processedMask;
             private final Label defaultCase = new Label();
             private Label[] cases;
@@ -197,8 +202,7 @@ public final class R5CPUGenerator {
 
             @Override
             public void visit(final DecoderTreeSwitchNode node) {
-                // Find parameters used by all child nodes
-                //
+                pushLocalVariables(node.arguments());
 
                 final AbstractDecoderTreeNode[] children = node.children;
                 final int caseCount = children.length;
@@ -359,6 +363,8 @@ public final class R5CPUGenerator {
             public void visitEnd() {
                 methodVisitor.visitLabel(defaultCase);
                 methodVisitor.visitJumpInsn(GOTO, illegalInstructionLabel);
+
+                popVariables();
             }
 
             private Label[] sortPatternsAndGetRemappedLabels(final int[] patterns) {
@@ -381,7 +387,7 @@ public final class R5CPUGenerator {
             }
         }
 
-        private final class BranchVisitor implements DecoderTreeBranchVisitor {
+        private final class BranchVisitor extends LocalVariableContext implements DecoderTreeBranchVisitor {
             private final int processedMask;
 
             public BranchVisitor(final int processedMask) {
@@ -390,6 +396,7 @@ public final class R5CPUGenerator {
 
             @Override
             public void visit(final int count, final DecoderTreeNodeFieldInstructionArguments arguments) {
+                pushLocalVariables(arguments);
             }
 
             @Override
@@ -411,6 +418,8 @@ public final class R5CPUGenerator {
             @Override
             public void visitEnd() {
                 methodVisitor.visitJumpInsn(GOTO, illegalInstructionLabel);
+
+                popVariables();
             }
         }
 
@@ -438,8 +447,6 @@ public final class R5CPUGenerator {
                     generateSavePC();
                 }
 
-                // TODO Will probably want to move parsing fields that are used by almost every instruction out to save code size.
-
                 methodVisitor.visitVarInsn(ALOAD, LOCAL_THIS); // cpu
                 for (final InstructionArgument argument : definition.parameters) {
                     if (argument instanceof ConstantInstructionArgument) {
@@ -447,30 +454,11 @@ public final class R5CPUGenerator {
                         methodVisitor.visitLdcInsn(constantArgument.value);
                     } else if (argument instanceof FieldInstructionArgument) {
                         final FieldInstructionArgument fieldArgument = (FieldInstructionArgument) argument;
-                        methodVisitor.visitInsn(ICONST_0);
-                        for (final InstructionFieldMapping mapping : fieldArgument.mappings) {
-                            methodVisitor.visitVarInsn(ILOAD, LOCAL_INST);
-                            methodVisitor.visitLdcInsn(mapping.srcLSB);
-                            methodVisitor.visitLdcInsn(mapping.srcMSB);
-                            methodVisitor.visitLdcInsn(mapping.dstLSB);
-                            methodVisitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(BitUtils.class),
-                                    "getField", "(IIII)I", false);
-                            if (mapping.signExtend) {
-                                methodVisitor.visitLdcInsn(mapping.dstLSB + (mapping.srcMSB - mapping.srcLSB) + 1);
-                                methodVisitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(BitUtils.class),
-                                        "extendSign", "(II)I", false);
-                            }
-                            methodVisitor.visitInsn(IOR);
-                        }
-                        switch (fieldArgument.postprocessor) {
-                            case NONE:
-                                break;
-                            case ADD_8:
-                                methodVisitor.visitLdcInsn(8);
-                                methodVisitor.visitInsn(IADD);
-                                break;
-                            default:
-                                throw new IllegalArgumentException();
+                        if (localVariables.containsKey(fieldArgument)) {
+                            final int localIndex = localVariables.getInt(fieldArgument);
+                            methodVisitor.visitVarInsn(ILOAD, localIndex);
+                        } else {
+                            generateGetField(fieldArgument);
                         }
                     } else {
                         throw new IllegalArgumentException();
@@ -504,6 +492,53 @@ public final class R5CPUGenerator {
 
             @Override
             public void visitEnd() {
+            }
+        }
+
+        private abstract class LocalVariableContext {
+            // This is our threshold for pulling field extraction out of individual instruction leaf nodes into
+            // a switch or branch node. 0 = pull up everything used more than once, 1 = pull up nothing,
+            // everything in-between is the relative value of used/total that has to be exceeded for a field
+            // extraction to be pulled up.
+            // The value of 0.5 has been empirically determined as roughly a sweet-spot for the time being.
+            private static final float THRESHOLD = 0.5f;
+
+            private final HashMap<FieldInstructionArgument, String> ownedLocals = new HashMap<>();
+            private final Label beginVariableScopeLabel = new Label();
+
+            protected void pushLocalVariables(final DecoderTreeNodeFieldInstructionArguments arguments) {
+                final int threshold = Math.max(2, (int) (arguments.totalLeafCount * THRESHOLD));
+                arguments.arguments.forEach((argument, entry) -> {
+                    if (entry.count >= threshold && !localVariables.containsKey(argument)) {
+                        ownedLocals.put(argument, String.join("_", entry.names));
+                    }
+                });
+
+                if (ownedLocals.isEmpty()) {
+                    return;
+                }
+
+                for (final FieldInstructionArgument argument : ownedLocals.keySet()) {
+                    // This works because while it's a map, we fill and empty it like a stack.
+                    final int localIndex = LOCAL_FIRST_FIELD + localVariables.size();
+                    localVariables.put(argument, localIndex);
+
+                    generateGetField(argument);
+                    methodVisitor.visitVarInsn(ISTORE, localIndex);
+                }
+
+                methodVisitor.visitLabel(beginVariableScopeLabel);
+            }
+
+            protected void popVariables() {
+                for (final Map.Entry<FieldInstructionArgument, String> entry : ownedLocals.entrySet()) {
+                    final FieldInstructionArgument argument = entry.getKey();
+                    final int localIndex = localVariables.removeInt(argument);
+
+                    final Label endVariableScopeLabel = new Label();
+                    methodVisitor.visitLabel(endVariableScopeLabel);
+                    methodVisitor.visitLocalVariable(entry.getValue(), "I", null, beginVariableScopeLabel, endVariableScopeLabel, localIndex);
+                }
             }
         }
 
@@ -563,6 +598,35 @@ public final class R5CPUGenerator {
             methodVisitor.visitVarInsn(ILOAD, LOCAL_TO_PC);
             methodVisitor.visitInsn(IADD);
             methodVisitor.visitFieldInsn(PUTFIELD, Type.getInternalName(R5CPUTemplate.class), "pc", "I");
+        }
+
+        private void generateGetField(final FieldInstructionArgument argument) {
+            methodVisitor.visitInsn(ICONST_0);
+            for (final InstructionFieldMapping mapping : argument.mappings) {
+                methodVisitor.visitVarInsn(ILOAD, LOCAL_INST);
+                methodVisitor.visitLdcInsn(mapping.srcLSB);
+                methodVisitor.visitLdcInsn(mapping.srcMSB);
+                methodVisitor.visitLdcInsn(mapping.dstLSB);
+                methodVisitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(BitUtils.class),
+                        "getField", "(IIII)I", false);
+                if (mapping.signExtend) {
+                    methodVisitor.visitLdcInsn(mapping.dstLSB + (mapping.srcMSB - mapping.srcLSB) + 1);
+                    methodVisitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(BitUtils.class),
+                            "extendSign", "(II)I", false);
+                }
+                methodVisitor.visitInsn(IOR);
+            }
+
+            switch (argument.postprocessor) {
+                case NONE:
+                    break;
+                case ADD_8:
+                    methodVisitor.visitLdcInsn(8);
+                    methodVisitor.visitInsn(IADD);
+                    break;
+                default:
+                    throw new IllegalArgumentException();
+            }
         }
     }
 }
