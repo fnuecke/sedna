@@ -28,7 +28,7 @@ public final class DecoderTreeBranchNode extends AbstractDecoderTreeNode {
     }
 
     @Override
-    public void visit(final DecoderTreeVisitor visitor) {
+    public void accept(final DecoderTreeVisitor visitor) {
         final DecoderTreeBranchVisitor branchVisitor = visitor.visitBranch();
         if (branchVisitor != null) {
             branchVisitor.visit(declarations.length);
@@ -43,6 +43,8 @@ public final class DecoderTreeBranchNode extends AbstractDecoderTreeNode {
 
             branchVisitor.visitEnd();
         }
+
+        visitor.visitEnd();
     }
 
     @Override

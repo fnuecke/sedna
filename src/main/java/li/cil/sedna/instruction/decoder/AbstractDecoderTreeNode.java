@@ -13,5 +13,5 @@ public abstract class AbstractDecoderTreeNode {
     @Nullable
     public abstract InstructionDeclaration findDeclaration(final int instruction);
 
-    public abstract void visit(final DecoderTreeVisitor visitor);
+    public abstract void accept(final DecoderTreeVisitor visitor);
 }

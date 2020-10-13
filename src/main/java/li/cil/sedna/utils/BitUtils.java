@@ -31,4 +31,15 @@ public final class BitUtils {
     public static int extendSign(final int value, final int width) {
         return (value << (32 - width)) >> (32 - width);
     }
+
+    /**
+     * Generates a mask for a bit range defined by its lowest and highest bits, both inclusive.
+     *
+     * @param bitFrom  the least significant bit in the mask.
+     * @param bitUntil the most significant bit in the mask.
+     * @return the mask defined by the given bit indices.
+     */
+    public static int maskFromRange(final int bitFrom, final int bitUntil) {
+        return (int) ((1L << (bitUntil - bitFrom + 1)) - 1) << bitFrom;
+    }
 }

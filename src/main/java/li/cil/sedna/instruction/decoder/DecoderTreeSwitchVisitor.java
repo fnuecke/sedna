@@ -1,9 +1,9 @@
 package li.cil.sedna.instruction.decoder;
 
 public interface DecoderTreeSwitchVisitor {
-    void visit(final int[] patterns, final int mask);
+    void visit(final DecoderTreeSwitchNode node);
 
-    DecoderTreeVisitor visitSwitchCase(final int index, final int pattern);
+    DecoderTreeVisitor visitSwitchCase(final DecoderTreeSwitchNode node, final int index);
 
     void visitEnd();
 }

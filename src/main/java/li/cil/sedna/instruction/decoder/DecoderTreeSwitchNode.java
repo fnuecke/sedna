@@ -17,7 +17,6 @@ public final class DecoderTreeSwitchNode extends AbstractDecoderTreeNode {
 
         final int[] groupPatterns = groups.keySet().toIntArray();
         assert groupPatterns.length > 1;
-
         sortUnsigned(groupPatterns);
 
         patterns = new int[groupPatterns.length];
@@ -55,20 +54,21 @@ public final class DecoderTreeSwitchNode extends AbstractDecoderTreeNode {
     }
 
     @Override
-    public void visit(final DecoderTreeVisitor visitor) {
-        final DecoderTreeSwitchVisitor switchVisitor = visitor.visitSwitch(mask);
+    public void accept(final DecoderTreeVisitor visitor) {
+        final DecoderTreeSwitchVisitor switchVisitor = visitor.visitSwitch();
         if (switchVisitor != null) {
-            switchVisitor.visit(patterns, mask);
+            switchVisitor.visit(this);
             for (int i = 0; i < patterns.length; i++) {
-                final DecoderTreeVisitor switchCaseVisitor = switchVisitor.visitSwitchCase(i, patterns[i] & mask);
+                final DecoderTreeVisitor switchCaseVisitor = switchVisitor.visitSwitchCase(this, i);
                 if (switchCaseVisitor != null) {
-                    children[i].visit(switchCaseVisitor);
-                    switchCaseVisitor.visitEnd();
+                    children[i].accept(switchCaseVisitor);
                 }
             }
 
             switchVisitor.visitEnd();
         }
+
+        visitor.visitEnd();
     }
 
     @Override

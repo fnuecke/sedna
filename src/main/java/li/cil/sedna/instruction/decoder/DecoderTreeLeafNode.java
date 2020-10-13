@@ -27,12 +27,14 @@ public final class DecoderTreeLeafNode extends AbstractDecoderTreeNode {
     }
 
     @Override
-    public void visit(final DecoderTreeVisitor visitor) {
+    public void accept(final DecoderTreeVisitor visitor) {
         final DecoderTreeLeafVisitor instructionVisitor = visitor.visitInstruction();
         if (instructionVisitor != null) {
             instructionVisitor.visitInstruction(declaration);
             instructionVisitor.visitEnd();
         }
+
+        visitor.visitEnd();
     }
 
     @Override

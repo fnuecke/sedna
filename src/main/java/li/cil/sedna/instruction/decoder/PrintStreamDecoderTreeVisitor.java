@@ -1,6 +1,7 @@
 package li.cil.sedna.instruction.decoder;
 
 import li.cil.sedna.instruction.InstructionDeclaration;
+import li.cil.sedna.utils.BitUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.PrintStream;
@@ -44,14 +45,14 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
     }
 
     @Override
-    public DecoderTreeSwitchVisitor visitSwitch(final int mask) {
+    public DecoderTreeSwitchVisitor visitSwitch() {
         if (pattern != null) {
             printNodeHeader(depth, branchMask, true, isLastChild);
             System.out.print(pattern);
             System.out.println("    [SWITCH]");
         }
 
-        return new SwitchVisitor(depth, consumedMask | parentMask, branchMask, mask);
+        return new SwitchVisitor(depth, consumedMask | parentMask, branchMask);
     }
 
     @Override
@@ -115,29 +116,31 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
         return chars;
     }
 
+    private static int instructionSizeToMask(final int size) {
+        return BitUtils.maskFromRange(0, size * 8 - 1);
+    }
+
     private final class SwitchVisitor implements DecoderTreeSwitchVisitor {
         private final int depth;
         private final int consumedMask;
         private final int branchMask;
-        private final int switchMask;
         private int count;
 
-        public SwitchVisitor(final int depth, final int consumedMask, final int branchMask, final int switchMask) {
+        public SwitchVisitor(final int depth, final int consumedMask, final int branchMask) {
             this.depth = depth;
             this.consumedMask = consumedMask;
             this.branchMask = branchMask;
-            this.switchMask = switchMask;
         }
 
         @Override
-        public void visit(final int[] patterns, final int mask) {
-            this.count = patterns.length;
+        public void visit(final DecoderTreeSwitchNode node) {
+            this.count = node.patterns.length;
         }
 
         @Override
-        public DecoderTreeVisitor visitSwitchCase(final int index, final int pattern) {
+        public DecoderTreeVisitor visitSwitchCase(final DecoderTreeSwitchNode node, final int index) {
             final boolean isLastChild = index == count - 1;
-            return new PrintStreamDecoderTreeVisitor(stream, depth + 1, consumedMask, maxDepth, (branchMask << 1) | (isLastChild ? 0 : 1), switchMask, formatMasked(pattern, switchMask, consumedMask), isLastChild);
+            return new PrintStreamDecoderTreeVisitor(stream, depth + 1, consumedMask, maxDepth, (branchMask << 1) | (isLastChild ? 0 : 1), node.mask, formatMasked(node.patterns[index], node.mask, consumedMask), isLastChild);
         }
 
         @Override
@@ -191,7 +194,7 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
         @Override
         public void visitInstruction(final InstructionDeclaration declaration) {
             printNodeHeader(depth, branchMask, false, isLastChild);
-            stream.print(formatMasked(declaration.pattern, parentMask & declaration.patternMask, consumedMask));
+            stream.print(formatMasked(declaration.pattern, parentMask & declaration.patternMask, consumedMask | ~instructionSizeToMask(declaration.size)));
             stream.print("    ");
             stream.println(declaration.displayName);
         }

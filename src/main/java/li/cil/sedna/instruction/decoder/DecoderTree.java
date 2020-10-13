@@ -96,6 +96,6 @@ public final class DecoderTree {
     public static void main(final String[] args) {
         final ArrayList<InstructionDeclaration> declarations = R5Instructions.getDeclarations();
         final AbstractDecoderTreeNode switchTree = create(declarations);
-        switchTree.visit(new PrintStreamDecoderTreeVisitor(switchTree.maxDepth()));
+        switchTree.accept(new PrintStreamDecoderTreeVisitor(switchTree.maxDepth()));
     }
 }
