@@ -48,7 +48,7 @@ public final class R5Instructions {
 
     @Nullable
     public static InstructionDeclaration findDeclaration(final int instruction) {
-        return DECODER.findDeclaration(instruction);
+        return DECODER.query(instruction);
     }
 
     @Nullable

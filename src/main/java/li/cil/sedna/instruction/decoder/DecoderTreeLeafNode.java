@@ -16,9 +16,19 @@ public final class DecoderTreeLeafNode extends AbstractDecoderTreeNode {
         return 0;
     }
 
+    @Override
+    public int mask() {
+        return declaration.patternMask;
+    }
+
+    @Override
+    public int pattern() {
+        return declaration.pattern;
+    }
+
     @Nullable
     @Override
-    public InstructionDeclaration findDeclaration(final int instruction) {
+    public InstructionDeclaration query(final int instruction) {
         if ((instruction & declaration.patternMask) == declaration.pattern) {
             return declaration;
         } else {

@@ -10,8 +10,12 @@ public abstract class AbstractDecoderTreeNode {
 
     public abstract int maxDepth();
 
+    public abstract int mask();
+
+    public abstract int pattern();
+
     @Nullable
-    public abstract InstructionDeclaration findDeclaration(final int instruction);
+    public abstract InstructionDeclaration query(final int instruction);
 
     public abstract void accept(final DecoderTreeVisitor visitor);
 }

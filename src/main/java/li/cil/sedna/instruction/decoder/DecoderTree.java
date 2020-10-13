@@ -5,18 +5,19 @@ import li.cil.sedna.instruction.InstructionDeclaration;
 import li.cil.sedna.riscv.R5Instructions;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 
 public final class DecoderTree {
     public static AbstractDecoderTreeNode create(final ArrayList<InstructionDeclaration> declarations) {
-        return create(declarations, 0xFFFFFFFF);
+        return postProcess(create(declarations, 0xFFFFFFFF));
     }
 
     static AbstractDecoderTreeNode create(final ArrayList<InstructionDeclaration> declarations, final int groupMask) {
         if (declarations.size() == 1) {
             final InstructionDeclaration declaration = declarations.get(0);
             if (declaration.patternMask != groupMask) {
-                return new DecoderTreeBranchNode(declarations.toArray(new InstructionDeclaration[0]));
+                return new DecoderTreeBranchNode(new DecoderTreeLeafNode[]{new DecoderTreeLeafNode(declaration)});
             } else {
                 return new DecoderTreeLeafNode(declaration);
             }
@@ -86,11 +87,40 @@ public final class DecoderTree {
                     }
                 }
 
-                return new DecoderTreeBranchNode(declarations.toArray(new InstructionDeclaration[0]));
+                return new DecoderTreeBranchNode(declarations.stream().map(DecoderTreeLeafNode::new).toArray(DecoderTreeLeafNode[]::new));
             } else {
-                return new DecoderTreeSwitchNode(maskIntersect, groups);
+                final int[] groupPatterns = groups.keySet().toIntArray();
+                sortUnsigned(groupPatterns);
+
+                final AbstractDecoderTreeNode[] children = new AbstractDecoderTreeNode[groupPatterns.length];
+                for (int i = 0; i < groupPatterns.length; i++) {
+                    children[i] = DecoderTree.create(groups.get(groupPatterns[i]), maskIntersect);
+                }
+
+                return new DecoderTreeSwitchNode(children);
             }
         }
+    }
+
+    private static void sortUnsigned(final int[] values) {
+        final int length = values.length;
+        for (int i = 0; i < length; i++) {
+            values[i] = values[i] ^ Integer.MIN_VALUE;
+        }
+        Arrays.sort(values);
+        for (int i = 0; i < length; i++) {
+            values[i] = values[i] ^ Integer.MIN_VALUE;
+        }
+    }
+
+    private static AbstractDecoderTreeNode postProcess(final AbstractDecoderTreeNode root) {
+//        if (root instanceof DecoderTreeSwitchNode) {
+//            final DecoderTreeSwitchNode switchNode = (DecoderTreeSwitchNode) root;
+//            if (switchNode.children.length < 3) {
+//                new DecoderTreeBranchNode(switchNode.children);
+//            }
+//        }
+        return root;
     }
 
     public static void main(final String[] args) {
