@@ -113,14 +113,23 @@ public final class DecoderTree {
         }
     }
 
-    private static AbstractDecoderTreeNode postProcess(final AbstractDecoderTreeNode root) {
-//        if (root instanceof DecoderTreeSwitchNode) {
-//            final DecoderTreeSwitchNode switchNode = (DecoderTreeSwitchNode) root;
-//            if (switchNode.children.length < 3) {
-//                new DecoderTreeBranchNode(switchNode.children);
-//            }
-//        }
-        return root;
+    private static AbstractDecoderTreeNode postProcess(final AbstractDecoderTreeNode node) {
+        if (node instanceof DecoderTreeSwitchNode) {
+            final DecoderTreeSwitchNode switchNode = (DecoderTreeSwitchNode) node;
+            if (switchNode.children.length < 3) {
+                return new DecoderTreeBranchNode(switchNode.children);
+            } else {
+                for (int i = 0; i < switchNode.children.length; i++) {
+                    switchNode.children[i] = postProcess(switchNode.children[i]);
+                }
+            }
+        } else if (node instanceof DecoderTreeBranchNode) {
+            final DecoderTreeBranchNode branchNode = (DecoderTreeBranchNode) node;
+            for (int i = 0; i < branchNode.children.length; i++) {
+                branchNode.children[i] = postProcess(branchNode.children[i]);
+            }
+        }
+        return node;
     }
 
     public static void main(final String[] args) {
