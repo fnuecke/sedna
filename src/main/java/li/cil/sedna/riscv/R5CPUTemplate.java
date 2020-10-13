@@ -154,8 +154,12 @@ final class R5CPUTemplate implements R5CPU {
     // halting the system.
     private final transient RealTimeCounter rtc;
 
+    @SuppressWarnings("RedundantCast")
     public R5CPUTemplate(final MemoryMap physicalMemory, @Nullable final RealTimeCounter rtc) {
-        this.rtc = rtc != null ? rtc : (RealTimeCounter)(Object)this;
+        // This cast is necessary so that stack frame computation in ASM does not throw
+        // an exception from trying to load the realization class we're generating while
+        // we're generating it.
+        this.rtc = rtc != null ? rtc : (RealTimeCounter) (Object) this;
         this.physicalMemory = physicalMemory;
 
         for (int i = 0; i < TLB_SIZE; i++) {
@@ -398,8 +402,11 @@ final class R5CPUTemplate implements R5CPU {
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
                 mcycle++;
 
-                // This is the hook we replace when generating the decoder code.
-                decode();
+                ///////////////////////////////////////////////////////////////////
+                // This is the hook we replace when generating the decoder code. //
+                decode();                                                        //
+                // See R5CPUGenerator.                                           //
+                ///////////////////////////////////////////////////////////////////
 
                 if (instOffset < instEnd) { // Likely case: we're still fully in the page.
                     inst = cache.device.load(instOffset, Sizes.SIZE_32_LOG2);
@@ -417,27 +424,28 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
+    @SuppressWarnings("RedundantThrows")
     private static void decode() throws R5Exception, MemoryAccessException {
         throw new UnsupportedOperationException();
     }
 
     private boolean csrrw_impl(final int rd, final int a, final int csr) throws R5Exception {
-        final boolean invalidateFetchCache;
+        final boolean exitTrace;
 
         checkCSR(csr, true);
         if (rd != 0) { // Explicit check, spec says no read side-effects when rd = 0.
             final int b = readCSR(csr);
-            invalidateFetchCache = writeCSR(csr, a);
+            exitTrace = writeCSR(csr, a);
             x[rd] = b; // Write to register last, avoid lingering side-effect when write errors.
         } else {
-            invalidateFetchCache = writeCSR(csr, a);
+            exitTrace = writeCSR(csr, a);
         }
 
-        return invalidateFetchCache;
+        return exitTrace;
     }
 
     private boolean csrrx_impl(final int rd, final int rs1, final int csr, final int a, final boolean isSet) throws R5Exception {
-        final boolean invalidateFetchCache;
+        final boolean exitTrace;
 
         final boolean mayChange = rs1 != 0;
 
@@ -446,18 +454,18 @@ final class R5CPUTemplate implements R5CPU {
             checkCSR(csr, true);
             b = readCSR(csr);
             final int masked = isSet ? (a | b) : (~a & b);
-            invalidateFetchCache = writeCSR(csr, masked);
+            exitTrace = writeCSR(csr, masked);
         } else {
             checkCSR(csr, false);
             b = readCSR(csr);
-            invalidateFetchCache = false;
+            exitTrace = false;
         }
 
         if (rd != 0) {
             x[rd] = b;
         }
 
-        return invalidateFetchCache;
+        return exitTrace;
     }
 
     private void checkCSR(final int csr, final boolean throwIfReadonly) throws R5Exception {
