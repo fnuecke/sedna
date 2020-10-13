@@ -5,6 +5,7 @@ import li.cil.sedna.utils.BitUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.PrintStream;
+import java.util.stream.Collectors;
 
 public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
     private final PrintStream stream;
@@ -111,9 +112,9 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
         @Override
         public DecoderTreeSwitchVisitor visitSwitch() {
             printNodeHeader(depth, branchMask, true, isLastChild);
-            System.out.print(formatMasked(pattern, parentMask, processedMask));
-            System.out.print("    [SWITCH]  ");
-            System.out.println("");
+            stream.print(formatMasked(pattern, parentMask, processedMask));
+            stream.print("    ");
+            stream.print(StringUtils.rightPad("[SWITCH]", 12));
 
             return new SwitchVisitor(depth, processedMask | parentMask, branchMask);
         }
@@ -121,9 +122,9 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
         @Override
         public DecoderTreeBranchVisitor visitBranch() {
             printNodeHeader(depth, branchMask, true, isLastChild);
-            System.out.print(formatMasked(pattern, parentMask, processedMask));
-            stream.print("    [BRANCH]  ");
-            System.out.println("");
+            stream.print(formatMasked(pattern, parentMask, processedMask));
+            stream.print("    ");
+            stream.print(StringUtils.rightPad("[BRANCH]", 12));
 
             return new BranchVisitor(depth, processedMask | parentMask, branchMask);
         }
@@ -155,6 +156,10 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
         public void visit(final DecoderTreeSwitchNode node) {
             this.count = node.children.length;
             this.switchMask = node.mask() & ~processedMask;
+
+            if (depth > 0) {
+                stream.println(node.arguments().arguments.values().stream().map(e -> String.join("=", e.names)).collect(Collectors.joining(" ")));
+            }
         }
 
         @Override
@@ -181,8 +186,12 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
         }
 
         @Override
-        public void visit(final int count) {
+        public void visit(final int count, final DecoderTreeNodeFieldInstructionArguments arguments) {
             this.count = count;
+
+            if (depth > 0) {
+                stream.println(arguments.arguments.values().stream().map(e -> String.join("=", e.names)).collect(Collectors.joining(" ")));
+            }
         }
 
         @Override

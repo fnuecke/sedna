@@ -389,7 +389,7 @@ public final class R5CPUGenerator {
             }
 
             @Override
-            public void visit(final int count) {
+            public void visit(final int count, final DecoderTreeNodeFieldInstructionArguments arguments) {
             }
 
             @Override
