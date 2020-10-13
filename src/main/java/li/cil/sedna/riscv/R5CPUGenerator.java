@@ -13,7 +13,6 @@ import org.objectweb.asm.commons.ClassRemapper;
 import org.objectweb.asm.commons.Remapper;
 
 import javax.annotation.Nullable;
-import java.io.PrintStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -115,6 +114,7 @@ public final class R5CPUGenerator {
     private static final class DecoderGenerator implements DecoderTreeVisitor, Opcodes {
         private final MethodVisitor methodVisitor;
         private final Label continueLabel;
+        private final Label illegalInstructionLabel;
 
         private static final int LOCAL_THIS = 0;
         private static final int LOCAL_CACHE = 1;
@@ -126,6 +126,7 @@ public final class R5CPUGenerator {
         private DecoderGenerator(final MethodVisitor methodVisitor, final Label continueLabel) {
             this.methodVisitor = methodVisitor;
             this.continueLabel = continueLabel;
+            this.illegalInstructionLabel = new Label();
         }
 
         @Override
@@ -145,7 +146,11 @@ public final class R5CPUGenerator {
 
         @Override
         public void visitEnd() {
-            generateIllegalInstruction();
+            methodVisitor.visitLabel(illegalInstructionLabel);
+            methodVisitor.visitTypeInsn(NEW, Type.getInternalName(R5IllegalInstructionException.class));
+            methodVisitor.visitInsn(DUP);
+            methodVisitor.visitMethodInsn(INVOKESPECIAL, Type.getInternalName(R5IllegalInstructionException.class), "<init>", "()V", false);
+            methodVisitor.visitInsn(ATHROW);
         }
 
         private final class SwitchVisitor implements DecoderTreeSwitchVisitor {
@@ -209,7 +214,7 @@ public final class R5CPUGenerator {
                     methodVisitor.visitInsn(IAND);
                     methodVisitor.visitLdcInsn(commonPattern);
                     methodVisitor.visitJumpInsn(IF_ICMPEQ, switchLabel);
-                    generateIllegalInstruction();
+                    methodVisitor.visitJumpInsn(GOTO, illegalInstructionLabel);
                     methodVisitor.visitLabel(switchLabel);
                 }
 
@@ -314,7 +319,7 @@ public final class R5CPUGenerator {
             @Override
             public void visitEnd() {
                 methodVisitor.visitLabel(defaultCase);
-                generateIllegalInstruction();
+                methodVisitor.visitJumpInsn(GOTO, illegalInstructionLabel);
             }
 
             private Label[] sortPatternsAndGetRemappedLabels(final int[] patterns) {
@@ -335,12 +340,6 @@ public final class R5CPUGenerator {
 
                 return labels;
             }
-        }
-
-        private void generatePrintln(final String s) {
-            methodVisitor.visitFieldInsn(GETSTATIC, Type.getInternalName(System.class), "out", Type.getDescriptor(PrintStream.class));
-            methodVisitor.visitLdcInsn(s);
-            methodVisitor.visitMethodInsn(INVOKEVIRTUAL, Type.getInternalName(PrintStream.class), "println", "(Ljava/lang/String;)V", false);
         }
 
         private final class SwitchCaseVisitor implements DecoderTreeVisitor {
@@ -385,11 +384,12 @@ public final class R5CPUGenerator {
             public DecoderTreeLeafVisitor visitBranchCase(final int index, final int mask, final int pattern) {
                 final Label elseLabel = new Label();
 
-                if (mask != 0) {
+                final int remainingMask = mask & ~processedMask;
+                if (remainingMask != 0) {
                     methodVisitor.visitVarInsn(ILOAD, LOCAL_INST); // inst
-                    methodVisitor.visitLdcInsn(mask); // inst, mask
+                    methodVisitor.visitLdcInsn(remainingMask); // inst, mask
                     methodVisitor.visitInsn(IAND); // instMasked
-                    methodVisitor.visitLdcInsn(pattern); // inst, pattern
+                    methodVisitor.visitLdcInsn(pattern & ~processedMask); // inst, pattern
                     methodVisitor.visitJumpInsn(IF_ICMPNE, elseLabel);
                 }
 
@@ -398,7 +398,7 @@ public final class R5CPUGenerator {
 
             @Override
             public void visitEnd() {
-                generateIllegalInstruction();
+                methodVisitor.visitJumpInsn(GOTO, illegalInstructionLabel);
             }
         }
 
@@ -412,7 +412,7 @@ public final class R5CPUGenerator {
             @Override
             public void visitInstruction(final InstructionDeclaration declaration) {
                 if (declaration.type == InstructionType.ILLEGAL) {
-                    generateIllegalInstruction();
+                    methodVisitor.visitJumpInsn(GOTO, illegalInstructionLabel);
                     return;
                 }
 
@@ -424,7 +424,7 @@ public final class R5CPUGenerator {
 
                 final InstructionDefinition definition = R5Instructions.getDefinition(declaration);
                 if (definition == null) {
-                    generateIllegalInstruction();
+                    methodVisitor.visitJumpInsn(GOTO, illegalInstructionLabel);
                     return;
                 }
 
@@ -560,13 +560,6 @@ public final class R5CPUGenerator {
             methodVisitor.visitVarInsn(ILOAD, LOCAL_TO_PC);
             methodVisitor.visitInsn(IADD);
             methodVisitor.visitFieldInsn(PUTFIELD, Type.getInternalName(R5CPUTemplate.class), "pc", "I");
-        }
-
-        private void generateIllegalInstruction() {
-            methodVisitor.visitTypeInsn(NEW, Type.getInternalName(R5IllegalInstructionException.class));
-            methodVisitor.visitInsn(DUP);
-            methodVisitor.visitMethodInsn(INVOKESPECIAL, Type.getInternalName(R5IllegalInstructionException.class), "<init>", "()V", false);
-            methodVisitor.visitInsn(ATHROW);
         }
     }
 }
