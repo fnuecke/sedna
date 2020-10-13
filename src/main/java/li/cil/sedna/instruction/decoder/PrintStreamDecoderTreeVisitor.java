@@ -158,7 +158,8 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
             this.switchMask = node.mask() & ~processedMask;
 
             if (depth > 0) {
-                stream.println(node.arguments().arguments.values().stream().map(e -> String.join("=", e.names)).collect(Collectors.joining(" ")));
+                final DecoderTreeNodeFieldInstructionArguments arguments = node.arguments();
+                stream.println(arguments.arguments.values().stream().map(e -> String.join("=", e.names) + " (" + e.count + "/" + arguments.totalLeafCount + ")").collect(Collectors.joining(" ")));
             }
         }
 
@@ -190,7 +191,7 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
             this.count = count;
 
             if (depth > 0) {
-                stream.println(arguments.arguments.values().stream().map(e -> String.join("=", e.names)).collect(Collectors.joining(" ")));
+                stream.println(arguments.arguments.values().stream().map(e -> String.join("=", e.names) + " (" + e.count + "/" + arguments.totalLeafCount + ")").collect(Collectors.joining(" ")));
             }
         }
 
