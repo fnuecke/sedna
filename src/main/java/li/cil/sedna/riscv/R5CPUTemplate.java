@@ -330,7 +330,7 @@ final class R5CPUTemplate implements R5CPU {
         if (tracesRequested.add(pc)) {
             translatorDataExchange.translatorRequests.add(new TranslatorJob(this, pc, device, instOffset, instEnd, toPC, inst));
 
-            translators.submit(this::runTranslator);
+            TranslatorPool.TRANSLATORS.submit(this::runTranslator);
         }
         /*/
 
@@ -388,7 +388,7 @@ final class R5CPUTemplate implements R5CPU {
             }
         }
 
-//        requestTraceTranslation(cache.device, instOffset, instEnd, toPC, inst);
+        requestTraceTranslation(cache.device, instOffset, instEnd, toPC, inst);
 
         interpretTrace(cache, inst, instOffset, toPC, instEnd);
     }
