@@ -6,10 +6,14 @@ public final class R5IllegalInstructionException extends R5Exception {
     private final int instruction;
 
     public R5IllegalInstructionException() {
-        this(null, 0);
+        this(0, null);
     }
 
-    public R5IllegalInstructionException(final R5IllegalInstructionException cause, final int instruction) {
+    public R5IllegalInstructionException(final int instruction) {
+        this(instruction, null);
+    }
+
+    public R5IllegalInstructionException(final int instruction, final R5IllegalInstructionException cause) {
         super(R5.EXCEPTION_ILLEGAL_INSTRUCTION, cause);
         this.instruction = instruction;
     }

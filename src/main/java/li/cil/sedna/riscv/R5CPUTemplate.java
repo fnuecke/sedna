@@ -417,7 +417,7 @@ final class R5CPUTemplate implements R5CPU {
             }
         } catch (final R5IllegalInstructionException e) {
             pc = instOffset + toPC;
-            throw new R5IllegalInstructionException(e, inst);
+            throw new R5IllegalInstructionException(inst, e);
         } catch (final R5Exception | MemoryAccessException e) {
             pc = instOffset + toPC;
             throw e;
