@@ -9,9 +9,9 @@ public final class DecoderTreeBranchNode extends AbstractDecoderTreeInnerNode {
     public void accept(final DecoderTreeVisitor visitor) {
         final DecoderTreeBranchVisitor branchVisitor = visitor.visitBranch();
         if (branchVisitor != null) {
-            branchVisitor.visit(children.length, arguments());
+            branchVisitor.visit(children.length, getArguments());
             for (int i = 0; i < children.length; i++) {
-                final DecoderTreeVisitor branchCaseVisitor = branchVisitor.visitBranchCase(i, children[i].mask(), children[i].pattern());
+                final DecoderTreeVisitor branchCaseVisitor = branchVisitor.visitBranchCase(i, children[i].getMask(), children[i].getPattern());
                 if (branchCaseVisitor != null) {
                     children[i].accept(branchCaseVisitor);
                 }

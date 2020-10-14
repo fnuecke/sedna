@@ -8,13 +8,13 @@ public abstract class AbstractDecoderTreeNode {
     AbstractDecoderTreeNode() {
     }
 
-    public abstract int maxDepth();
+    public abstract int getMaxDepth();
 
-    public abstract int mask();
+    public abstract int getMask();
 
-    public abstract int pattern();
+    public abstract int getPattern();
 
-    public abstract DecoderTreeNodeFieldInstructionArguments arguments();
+    public abstract DecoderTreeNodeFieldInstructionArguments getArguments();
 
     @Nullable
     public abstract InstructionDeclaration query(final int instruction);

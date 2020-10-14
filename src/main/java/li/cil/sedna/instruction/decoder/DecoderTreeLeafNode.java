@@ -15,22 +15,22 @@ public final class DecoderTreeLeafNode extends AbstractDecoderTreeNode {
     }
 
     @Override
-    public int maxDepth() {
+    public int getMaxDepth() {
         return 0;
     }
 
     @Override
-    public int mask() {
+    public int getMask() {
         return declaration.patternMask;
     }
 
     @Override
-    public int pattern() {
+    public int getPattern() {
         return declaration.pattern;
     }
 
     @Override
-    public DecoderTreeNodeFieldInstructionArguments arguments() {
+    public DecoderTreeNodeFieldInstructionArguments getArguments() {
         final HashMap<FieldInstructionArgument, ArrayList<String>> argumentNames = new HashMap<>();
         declaration.arguments.forEach((key, argument) -> {
             if (argument instanceof FieldInstructionArgument) {

@@ -10,40 +10,50 @@ import java.util.HashSet;
 
 public abstract class AbstractDecoderTreeInnerNode extends AbstractDecoderTreeNode {
     public final AbstractDecoderTreeNode[] children;
+    private final int maxDepth;
+    private final int mask;
+    private final int pattern;
 
-    protected AbstractDecoderTreeInnerNode(final AbstractDecoderTreeNode[] children) {
+    AbstractDecoderTreeInnerNode(final AbstractDecoderTreeNode[] children) {
         this.children = children;
-    }
 
-    @Override
-    public int maxDepth() {
         int maxDepth = 0;
         for (final AbstractDecoderTreeNode child : children) {
-            maxDepth = Math.max(maxDepth, child.maxDepth());
+            maxDepth = Math.max(maxDepth, child.getMaxDepth());
         }
-        return 1 + maxDepth;
+        this.maxDepth = 1 + maxDepth;
+
+        int mask = children[0].getMask();
+        for (int i = 1; i < children.length; i++) {
+            final AbstractDecoderTreeNode child = children[i];
+            mask &= child.getMask();
+        }
+        this.mask = mask;
+
+        this.pattern = children[0].getPattern() & mask;
     }
 
     @Override
-    public int mask() {
-        int mask = children[0].mask();
-        for (final AbstractDecoderTreeNode child : children) {
-            mask &= child.mask();
-        }
+    public int getMaxDepth() {
+        return maxDepth;
+    }
+
+    @Override
+    public int getMask() {
         return mask;
     }
 
     @Override
-    public int pattern() {
-        return children[0].pattern() & mask();
+    public int getPattern() {
+        return pattern;
     }
 
     @Override
-    public DecoderTreeNodeFieldInstructionArguments arguments() {
+    public DecoderTreeNodeFieldInstructionArguments getArguments() {
         int totalLeafCount = 0;
         final HashMap<FieldInstructionArgument, ArrayList<DecoderTreeNodeFieldInstructionArguments.Entry>> childEntries = new HashMap<>();
         for (final AbstractDecoderTreeNode child : children) {
-            final DecoderTreeNodeFieldInstructionArguments childArguments = child.arguments();
+            final DecoderTreeNodeFieldInstructionArguments childArguments = child.getArguments();
             totalLeafCount += childArguments.totalLeafCount;
             childArguments.arguments.forEach((argument, entry) -> {
                 childEntries.computeIfAbsent(argument, arg -> new ArrayList<>()).add(entry);
