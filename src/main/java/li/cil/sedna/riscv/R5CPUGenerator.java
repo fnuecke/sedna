@@ -24,16 +24,17 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public final class R5CPUGenerator {
-    private static final Class<?> GENERATED_CLASS;
-    private static final Constructor<?> GENERATED_CLASS_CTOR;
+    @SuppressWarnings("unchecked")
+    private static final Class<R5CPU> GENERATED_CLASS = (Class<R5CPU>) generateClass();
+    private static final Constructor<R5CPU> GENERATED_CLASS_CTOR;
 
-    public static Class<?> getCPUClass() {
+    public static Class<R5CPU> getGeneratedClass() {
         return GENERATED_CLASS;
     }
 
     public static R5CPU create(final MemoryMap physicalMemory, @Nullable final RealTimeCounter rtc) {
         try {
-            return (R5CPU) GENERATED_CLASS_CTOR.newInstance(physicalMemory, rtc);
+            return GENERATED_CLASS_CTOR.newInstance(physicalMemory, rtc);
         } catch (final InvocationTargetException e) {
             Throwables.rethrow(e.getCause());
             throw new AssertionError();
@@ -43,7 +44,6 @@ public final class R5CPUGenerator {
     }
 
     static {
-        GENERATED_CLASS = generateClass();
         try {
             GENERATED_CLASS_CTOR = GENERATED_CLASS.getConstructor(MemoryMap.class, RealTimeCounter.class);
             GENERATED_CLASS_CTOR.setAccessible(true);

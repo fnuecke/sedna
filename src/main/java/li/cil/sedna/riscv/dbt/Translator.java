@@ -25,7 +25,7 @@ public final class Translator implements Opcodes {
     // called via INVOKEVIRTUAL).
     private static final int MIN_INSTRUCTIONS = 2;
 
-    private static final Type CPU_TYPE = Type.getType(R5CPUGenerator.getCPUClass());
+    private static final Type CPU_TYPE = Type.getType(R5CPUGenerator.getGeneratedClass());
     private static final Type TRACE_TYPE = Type.getType(Trace.class);
     private static final Type ILLEGAL_INSTRUCTION_EXCEPTION_TYPE = Type.getType(R5IllegalInstructionException.class);
 
@@ -84,14 +84,14 @@ public final class Translator implements Opcodes {
     }
 
     private static Class<Trace> defineClass(final byte[] data) {
-        @SuppressWarnings("unchecked") final Class<Trace> traceClass = (Class<Trace>) UNSAFE.defineAnonymousClass(R5CPUGenerator.getCPUClass(), data, null);
+        @SuppressWarnings("unchecked") final Class<Trace> traceClass = (Class<Trace>) UNSAFE.defineAnonymousClass(R5CPUGenerator.getGeneratedClass(), data, null);
         UNSAFE.ensureClassInitialized(traceClass);
         return traceClass;
     }
 
     private static Trace instantiateTrace(final Class<Trace> traceClass, final R5CPU cpu) {
         try {
-            return traceClass.getDeclaredConstructor(R5CPUGenerator.getCPUClass()).newInstance(cpu);
+            return traceClass.getDeclaredConstructor(R5CPUGenerator.getGeneratedClass()).newInstance(cpu);
         } catch (final Throwable e) {
             throw new AssertionError("Failed instantiating trace.", e);
         }
