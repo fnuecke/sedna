@@ -1,7 +1,6 @@
 package li.cil.sedna.instruction.decoder;
 
 import li.cil.sedna.instruction.FieldInstructionArgument;
-import li.cil.sedna.instruction.InstructionDeclaration;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -54,9 +53,8 @@ public abstract class AbstractDecoderTreeInnerNode extends AbstractDecoderTreeNo
         for (final AbstractDecoderTreeNode child : children) {
             final DecoderTreeNodeFieldInstructionArguments childArguments = child.getArguments();
             totalLeafCount += childArguments.totalLeafCount;
-            childArguments.arguments.forEach((argument, entry) -> {
-                childEntries.computeIfAbsent(argument, arg -> new ArrayList<>()).add(entry);
-            });
+            childArguments.arguments.forEach((argument, entry) ->
+                    childEntries.computeIfAbsent(argument, arg -> new ArrayList<>()).add(entry));
         }
 
         final HashMap<FieldInstructionArgument, DecoderTreeNodeFieldInstructionArguments.Entry> entries = new HashMap<>();
