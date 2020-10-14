@@ -5,7 +5,6 @@ import li.cil.sedna.utils.BitUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.PrintStream;
-import java.util.stream.Collectors;
 
 public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
     private final PrintStream stream;
@@ -155,11 +154,15 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
         @Override
         public void visit(final DecoderTreeSwitchNode node) {
             this.count = node.children.length;
-            this.switchMask = node.mask() & ~processedMask;
+            this.switchMask = node.getMask() & ~processedMask;
 
             if (depth > 0) {
-                final DecoderTreeNodeFieldInstructionArguments arguments = node.arguments();
-                stream.println(arguments.arguments.values().stream().map(e -> String.join("=", e.names) + " (" + e.count + "/" + arguments.totalLeafCount + ")").collect(Collectors.joining(" ")));
+                final DecoderTreeNodeFieldInstructionArguments arguments = node.getArguments();
+                for (final DecoderTreeNodeFieldInstructionArguments.Entry entry : arguments.arguments.values()) {
+                    stream.print(String.join("=", entry.names));
+                    stream.printf(" (%d/%d) ", entry.count, arguments.totalLeafCount);
+                }
+                stream.println();
             }
         }
 
@@ -191,7 +194,11 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
             this.count = count;
 
             if (depth > 0) {
-                stream.println(arguments.arguments.values().stream().map(e -> String.join("=", e.names) + " (" + e.count + "/" + arguments.totalLeafCount + ")").collect(Collectors.joining(" ")));
+                for (final DecoderTreeNodeFieldInstructionArguments.Entry entry : arguments.arguments.values()) {
+                    stream.print(String.join("=", entry.names));
+                    stream.printf(" (%d/%d) ", entry.count, arguments.totalLeafCount);
+                }
+                stream.println();
             }
         }
 

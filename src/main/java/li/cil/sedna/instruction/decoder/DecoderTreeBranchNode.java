@@ -1,5 +1,9 @@
 package li.cil.sedna.instruction.decoder;
 
+import li.cil.sedna.instruction.InstructionDeclaration;
+
+import javax.annotation.Nullable;
+
 public final class DecoderTreeBranchNode extends AbstractDecoderTreeInnerNode {
     DecoderTreeBranchNode(final AbstractDecoderTreeNode[] children) {
         super(children);
@@ -21,6 +25,17 @@ public final class DecoderTreeBranchNode extends AbstractDecoderTreeInnerNode {
         }
 
         visitor.visitEnd();
+    }
+
+    @Nullable
+    @Override
+    public InstructionDeclaration query(final int instruction) {
+        for (final AbstractDecoderTreeNode child : children) {
+            if ((instruction & child.getMask()) == child.getPattern()) {
+                return child.query(instruction);
+            }
+        }
+        return null;
     }
 
     @Override

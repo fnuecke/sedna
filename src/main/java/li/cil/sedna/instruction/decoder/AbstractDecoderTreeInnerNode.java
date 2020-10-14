@@ -3,7 +3,6 @@ package li.cil.sedna.instruction.decoder;
 import li.cil.sedna.instruction.FieldInstructionArgument;
 import li.cil.sedna.instruction.InstructionDeclaration;
 
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -72,16 +71,5 @@ public abstract class AbstractDecoderTreeInnerNode extends AbstractDecoderTreeNo
         });
 
         return new DecoderTreeNodeFieldInstructionArguments(totalLeafCount, entries);
-    }
-
-    @Nullable
-    @Override
-    public InstructionDeclaration query(final int instruction) {
-        for (final AbstractDecoderTreeNode child : children) {
-            if ((instruction & mask()) == (child.pattern() & mask())) {
-                return child.query(instruction);
-            }
-        }
-        return null;
     }
 }
