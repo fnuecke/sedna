@@ -20,7 +20,7 @@ public final class InstructionDefinitionLoader {
         cr.accept(new ClassVisitor(Opcodes.ASM7) {
             @Override
             public MethodVisitor visitMethod(final int access, final String name, final String descriptor, final String signature, final String[] exceptions) {
-                final InstructionFunctionVisitor visitor = new InstructionFunctionVisitor(implementation, name, descriptor);
+                final InstructionFunctionVisitor visitor = new InstructionFunctionVisitor(implementation, name, descriptor, exceptions);
                 visitors.add(visitor);
                 return visitor;
             }
@@ -120,6 +120,7 @@ public final class InstructionDefinitionLoader {
                     visitor.readsPC,
                     visitor.writesPC,
                     returnsBoolean,
+                    visitor.throwsException,
                     arguments);
             definitions.put(declaration, definition);
         }
@@ -131,6 +132,7 @@ public final class InstructionDefinitionLoader {
         private final Class<?> implementation;
         private final String name;
         private final String descriptor;
+        private final boolean throwsException;
         private final ParameterAnnotation[] parameterAnnotations;
         private boolean isImplementation;
         private String instructionName;
@@ -138,12 +140,13 @@ public final class InstructionDefinitionLoader {
         private boolean readsPC;
         private boolean writesPC;
 
-        public InstructionFunctionVisitor(final Class<?> implementation, final String name, final String descriptor) {
+        public InstructionFunctionVisitor(final Class<?> implementation, final String name, final String descriptor, final String[] exceptions) {
             super(Opcodes.ASM7);
             this.implementation = implementation;
             this.name = name;
             this.descriptor = descriptor;
             this.parameterAnnotations = new ParameterAnnotation[Type.getArgumentTypes(descriptor).length];
+            this.throwsException = exceptions != null && exceptions.length > 0;
         }
 
         @Override

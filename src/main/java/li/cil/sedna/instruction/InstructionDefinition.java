@@ -33,6 +33,7 @@ public final class InstructionDefinition {
     public final boolean readsPC;
     public final boolean writesPC;
     public final boolean returnsBoolean;
+    public final boolean throwsException;
     public final InstructionArgument[] parameters;
 
     InstructionDefinition(final String instructionName,
@@ -40,12 +41,14 @@ public final class InstructionDefinition {
                           final boolean readsPC,
                           final boolean writesPC,
                           final boolean returnsBoolean,
+                          final boolean throwsException,
                           final InstructionArgument[] parameters) {
         this.instructionName = instructionName;
         this.methodName = methodName;
         this.readsPC = readsPC;
         this.writesPC = writesPC;
         this.returnsBoolean = returnsBoolean;
+        this.throwsException = throwsException;
         this.parameters = parameters;
     }
 }
