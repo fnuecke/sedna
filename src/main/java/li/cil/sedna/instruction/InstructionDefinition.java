@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 public final class InstructionDefinition {
     @Target(ElementType.METHOD)
     @Retention(RetentionPolicy.CLASS)
-    public @interface Implementation {
+    public @interface Instruction {
         String value();
     }
 

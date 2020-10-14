@@ -14,7 +14,7 @@ import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MemoryRange;
 import li.cil.sedna.instruction.InstructionDefinition.ContainsNonStaticMethodInvocations;
 import li.cil.sedna.instruction.InstructionDefinition.Field;
-import li.cil.sedna.instruction.InstructionDefinition.Implementation;
+import li.cil.sedna.instruction.InstructionDefinition.Instruction;
 import li.cil.sedna.instruction.InstructionDefinition.InstructionSize;
 import li.cil.sedna.memory.exception.*;
 import li.cil.sedna.riscv.dbt.Trace;
@@ -1344,7 +1344,7 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // RV32I Base Instruction Set
 
-    @Implementation("LUI")
+    @Instruction("LUI")
     private void lui(@Field("rd") final int rd,
                      @Field("imm") final int imm) {
         if (rd != 0) {
@@ -1352,7 +1352,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("AUIPC")
+    @Instruction("AUIPC")
     private void auipc(@Field("rd") final int rd,
                        @Field("imm") final int imm) {
         if (rd != 0) {
@@ -1360,7 +1360,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("JAL")
+    @Instruction("JAL")
     private void jal(@Field("rd") final int rd,
                      @Field("imm") final int imm,
                      @InstructionSize final int instructionSize) {
@@ -1371,7 +1371,7 @@ final class R5CPUTemplate implements R5CPU {
         pc += imm;
     }
 
-    @Implementation("JALR")
+    @Instruction("JALR")
     private void jalr(@Field("rd") final int rd,
                       @Field("rs1") final int rs1,
                       @Field("imm") final int imm,
@@ -1385,7 +1385,7 @@ final class R5CPUTemplate implements R5CPU {
         pc = address;
     }
 
-    @Implementation("BEQ")
+    @Instruction("BEQ")
     private boolean beq(@Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
                         @Field("imm") final int imm) {
@@ -1397,7 +1397,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("BNE")
+    @Instruction("BNE")
     private boolean bne(@Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
                         @Field("imm") final int imm) {
@@ -1409,7 +1409,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("BLT")
+    @Instruction("BLT")
     private boolean blt(@Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
                         @Field("imm") final int imm) {
@@ -1421,7 +1421,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("BGE")
+    @Instruction("BGE")
     private boolean bge(@Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
                         @Field("imm") final int imm) {
@@ -1433,7 +1433,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("BLTU")
+    @Instruction("BLTU")
     private boolean bltu(@Field("rs1") final int rs1,
                          @Field("rs2") final int rs2,
                          @Field("imm") final int imm) {
@@ -1445,7 +1445,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("BGEU")
+    @Instruction("BGEU")
     private boolean bgeu(@Field("rs1") final int rs1,
                          @Field("rs2") final int rs2,
                          @Field("imm") final int imm) {
@@ -1458,7 +1458,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("LB")
+    @Instruction("LB")
     private void lb(@Field("rd") final int rd,
                     @Field("rs1") final int rs1,
                     @Field("imm") final int imm) throws MemoryAccessException {
@@ -1469,7 +1469,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("LH")
+    @Instruction("LH")
     private void lh(@Field("rd") final int rd,
                     @Field("rs1") final int rs1,
                     @Field("imm") final int imm) throws MemoryAccessException {
@@ -1480,7 +1480,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("LW")
+    @Instruction("LW")
     private void lw(@Field("rd") final int rd,
                     @Field("rs1") final int rs1,
                     @Field("imm") final int imm) throws MemoryAccessException {
@@ -1491,7 +1491,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("LBU")
+    @Instruction("LBU")
     private void lbu(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
                      @Field("imm") final int imm) throws MemoryAccessException {
@@ -1502,7 +1502,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("LHU")
+    @Instruction("LHU")
     private void lhu(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
                      @Field("imm") final int imm) throws MemoryAccessException {
@@ -1513,7 +1513,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("SB")
+    @Instruction("SB")
     private void sb(@Field("rs1") final int rs1,
                     @Field("rs2") final int rs2,
                     @Field("imm") final int imm) throws MemoryAccessException {
@@ -1521,7 +1521,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("SH")
+    @Instruction("SH")
     private void sh(@Field("rs1") final int rs1,
                     @Field("rs2") final int rs2,
                     @Field("imm") final int imm) throws MemoryAccessException {
@@ -1529,14 +1529,14 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("SW")
+    @Instruction("SW")
     private void sw(@Field("rs1") final int rs1,
                     @Field("rs2") final int rs2,
                     @Field("imm") final int imm) throws MemoryAccessException {
         store32(x[rs1] + imm, x[rs2]);
     }
 
-    @Implementation("ADDI")
+    @Instruction("ADDI")
     private void addi(@Field("rd") final int rd,
                       @Field("rs1") final int rs1,
                       @Field("imm") final int imm) {
@@ -1545,7 +1545,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("SLTI")
+    @Instruction("SLTI")
     private void slti(@Field("rd") final int rd,
                       @Field("rs1") final int rs1,
                       @Field("imm") final int imm) {
@@ -1554,7 +1554,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("SLTIU")
+    @Instruction("SLTIU")
     private void sltiu(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
                        @Field("imm") final int imm) {
@@ -1563,7 +1563,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("XORI")
+    @Instruction("XORI")
     private void xori(@Field("rd") final int rd,
                       @Field("rs1") final int rs1,
                       @Field("imm") final int imm) {
@@ -1572,7 +1572,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("ORI")
+    @Instruction("ORI")
     private void ori(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
                      @Field("imm") final int imm) {
@@ -1581,7 +1581,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("ANDI")
+    @Instruction("ANDI")
     private void andi(@Field("rd") final int rd,
                       @Field("rs1") final int rs1,
                       @Field("imm") final int imm) {
@@ -1590,7 +1590,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("SLLI")
+    @Instruction("SLLI")
     private void slli(@Field("rd") final int rd,
                       @Field("rs1") final int rs1,
                       @Field("shamt") final int shamt) {
@@ -1599,7 +1599,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("SRLI")
+    @Instruction("SRLI")
     private void srli(@Field("rd") final int rd,
                       @Field("rs1") final int rs1,
                       @Field("shamt") final int shamt) {
@@ -1608,7 +1608,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("SRAI")
+    @Instruction("SRAI")
     private void srai(@Field("rd") final int rd,
                       @Field("rs1") final int rs1,
                       @Field("shamt") final int shamt) {
@@ -1617,7 +1617,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("ADD")
+    @Instruction("ADD")
     private void add(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
                      @Field("rs2") final int rs2) {
@@ -1626,7 +1626,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("SUB")
+    @Instruction("SUB")
     private void sub(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
                      @Field("rs2") final int rs2) {
@@ -1635,7 +1635,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("SLL")
+    @Instruction("SLL")
     private void sll(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
                      @Field("rs2") final int rs2) {
@@ -1644,7 +1644,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("SLT")
+    @Instruction("SLT")
     private void slt(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
                      @Field("rs2") final int rs2) {
@@ -1653,7 +1653,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("SLTU")
+    @Instruction("SLTU")
     private void sltu(@Field("rd") final int rd,
                       @Field("rs1") final int rs1,
                       @Field("rs2") final int rs2) {
@@ -1662,7 +1662,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("XOR")
+    @Instruction("XOR")
     private void xor(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
                      @Field("rs2") final int rs2) {
@@ -1671,7 +1671,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("SRL")
+    @Instruction("SRL")
     private void srl(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
                      @Field("rs2") final int rs2) {
@@ -1680,7 +1680,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("SRA")
+    @Instruction("SRA")
     private void sra(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
                      @Field("rs2") final int rs2) {
@@ -1689,7 +1689,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("OR")
+    @Instruction("OR")
     private void or(@Field("rd") final int rd,
                     @Field("rs1") final int rs1,
                     @Field("rs2") final int rs2) {
@@ -1698,7 +1698,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("AND")
+    @Instruction("AND")
     private void and(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
                      @Field("rs2") final int rs2) {
@@ -1707,19 +1707,19 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("FENCE")
+    @Instruction("FENCE")
     private void fence() {
         // no-op
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("ECALL")
+    @Instruction("ECALL")
     private void ecall() throws R5Exception {
         throw new R5ECallException(priv);
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("EBREAK")
+    @Instruction("EBREAK")
     private void ebreak() throws R5Exception {
         throw new R5BreakpointException();
     }
@@ -1727,7 +1727,7 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // RV32/RV64 Zifencei Standard Extension
 
-    @Implementation("FENCE.I")
+    @Instruction("FENCE.I")
     private void fence_i() {
         // no-op
     }
@@ -1736,7 +1736,7 @@ final class R5CPUTemplate implements R5CPU {
     // RV32/RV64 Zicsr Standard Extension
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("CSRRW")
+    @Instruction("CSRRW")
     private boolean csrrw(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("csr") final int csr) throws R5Exception {
@@ -1744,7 +1744,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("CSRRS")
+    @Instruction("CSRRS")
     private boolean csrrs(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("csr") final int csr) throws R5Exception {
@@ -1752,7 +1752,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("CSRRC")
+    @Instruction("CSRRC")
     private boolean csrrc(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("csr") final int csr) throws R5Exception {
@@ -1760,7 +1760,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("CSRRWI")
+    @Instruction("CSRRWI")
     private boolean csrrwi(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("csr") final int csr) throws R5Exception {
@@ -1768,7 +1768,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("CSRRSI")
+    @Instruction("CSRRSI")
     private boolean csrrsi(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("csr") final int csr) throws R5Exception {
@@ -1776,7 +1776,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("CSRRCI")
+    @Instruction("CSRRCI")
     private boolean csrrci(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("csr") final int csr) throws R5Exception {
@@ -1786,7 +1786,7 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // RV32M Standard Extension
 
-    @Implementation("MUL")
+    @Instruction("MUL")
     private void mul(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
                      @Field("rs2") final int rs2) {
@@ -1795,7 +1795,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("MULH")
+    @Instruction("MULH")
     private void mulh(@Field("rd") final int rd,
                       @Field("rs1") final int rs1,
                       @Field("rs2") final int rs2) {
@@ -1804,7 +1804,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("MULHSU")
+    @Instruction("MULHSU")
     private void mulhsu(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
                         @Field("rs2") final int rs2) {
@@ -1813,7 +1813,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("MULHU")
+    @Instruction("MULHU")
     private void mulhu(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
                        @Field("rs2") final int rs2) {
@@ -1822,7 +1822,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("DIV")
+    @Instruction("DIV")
     private void div(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
                      @Field("rs2") final int rs2) {
@@ -1837,7 +1837,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("DIVU")
+    @Instruction("DIVU")
     private void divu(@Field("rd") final int rd,
                       @Field("rs1") final int rs1,
                       @Field("rs2") final int rs2) {
@@ -1850,7 +1850,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("REM")
+    @Instruction("REM")
     private void rem(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
                      @Field("rs2") final int rs2) {
@@ -1865,7 +1865,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @Implementation("REMU")
+    @Instruction("REMU")
     private void remu(@Field("rd") final int rd,
                       @Field("rs1") final int rs1,
                       @Field("rs2") final int rs2) {
@@ -1882,7 +1882,7 @@ final class R5CPUTemplate implements R5CPU {
     // RV32A Standard Extension
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("LR.W")
+    @Instruction("LR.W")
     private void lr_w(@Field("rd") final int rd,
                       @Field("rs1") final int rs1) throws MemoryAccessException {
         final int result;
@@ -1896,7 +1896,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("SC.W")
+    @Instruction("SC.W")
     private void sc_w(@Field("rd") final int rd,
                       @Field("rs1") final int rs1,
                       @Field("rs2") final int rs2) throws MemoryAccessException {
@@ -1917,7 +1917,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("AMOSWAP.W")
+    @Instruction("AMOSWAP.W")
     private void amoswap_w(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("rs2") final int rs2) throws MemoryAccessException {
@@ -1933,7 +1933,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("AMOADD.W")
+    @Instruction("AMOADD.W")
     private void amoadd_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws MemoryAccessException {
@@ -1949,7 +1949,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("AMOXOR.W")
+    @Instruction("AMOXOR.W")
     private void amoxor_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws MemoryAccessException {
@@ -1965,7 +1965,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("AMOAND.W")
+    @Instruction("AMOAND.W")
     private void amoand_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws MemoryAccessException {
@@ -1981,7 +1981,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("AMOOR.W")
+    @Instruction("AMOOR.W")
     private void amoor_w(@Field("rd") final int rd,
                          @Field("rs1") final int rs1,
                          @Field("rs2") final int rs2) throws MemoryAccessException {
@@ -1997,7 +1997,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("AMOMIN.W")
+    @Instruction("AMOMIN.W")
     private void amomin_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws MemoryAccessException {
@@ -2013,7 +2013,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("AMOMAX.W")
+    @Instruction("AMOMAX.W")
     private void amomax_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws MemoryAccessException {
@@ -2030,7 +2030,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("AMOMINU.W")
+    @Instruction("AMOMINU.W")
     private void amominu_w(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("rs2") final int rs2) throws MemoryAccessException {
@@ -2046,7 +2046,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("AMOMAXU.W")
+    @Instruction("AMOMAXU.W")
     private void amomaxu_w(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("rs2") final int rs2) throws MemoryAccessException {
@@ -2065,7 +2065,7 @@ final class R5CPUTemplate implements R5CPU {
     // Privileged Instructions
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("SRET")
+    @Instruction("SRET")
     private void sret() throws R5Exception {
         if (priv < R5.PRIVILEGE_S) {
             throw new R5IllegalInstructionException();
@@ -2090,7 +2090,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("MRET")
+    @Instruction("MRET")
     private void mret() throws R5Exception {
         if (priv < R5.PRIVILEGE_M) {
             throw new R5IllegalInstructionException();
@@ -2111,7 +2111,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("WFI")
+    @Instruction("WFI")
     private boolean wfi() throws R5Exception {
         if (priv == R5.PRIVILEGE_U) {
             throw new R5IllegalInstructionException();
@@ -2133,7 +2133,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @ContainsNonStaticMethodInvocations
-    @Implementation("SFENCE.VMA")
+    @Instruction("SFENCE.VMA")
     private boolean sfence_vma(@Field("rs1") final int rs1,
                                @Field("rs2") final int rs2) throws R5Exception {
         if (priv == R5.PRIVILEGE_U) {

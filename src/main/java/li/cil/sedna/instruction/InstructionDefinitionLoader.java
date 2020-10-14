@@ -175,7 +175,7 @@ public final class InstructionDefinitionLoader {
 
         @Override
         public AnnotationVisitor visitAnnotation(final String descriptor, final boolean visible) {
-            if (Objects.equals(descriptor, Type.getDescriptor(InstructionDefinition.Implementation.class))) {
+            if (Objects.equals(descriptor, Type.getDescriptor(InstructionDefinition.Instruction.class))) {
                 isImplementation = true;
                 return new AnnotationVisitor(Opcodes.ASM7) {
                     @Override
