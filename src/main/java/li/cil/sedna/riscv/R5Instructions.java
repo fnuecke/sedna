@@ -4,9 +4,9 @@ import li.cil.sedna.instruction.InstructionDeclaration;
 import li.cil.sedna.instruction.InstructionDeclarationLoader;
 import li.cil.sedna.instruction.InstructionDefinition;
 import li.cil.sedna.instruction.InstructionDefinitionLoader;
-import li.cil.sedna.instruction.decoder.tree.AbstractDecoderTreeNode;
 import li.cil.sedna.instruction.decoder.DecoderTree;
 import li.cil.sedna.instruction.decoder.PrintStreamDecoderTreeVisitor;
+import li.cil.sedna.instruction.decoder.tree.AbstractDecoderTreeNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -17,12 +17,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 public final class R5Instructions {
-    static final Logger LOGGER = LogManager.getLogger();
+    private static final Logger LOGGER = LogManager.getLogger();
 
-    static final String RISCV_INSTRUCTIONS_FILE = "/riscv/instructions.txt";
-    static final ArrayList<InstructionDeclaration> DECLARATIONS = new ArrayList<>();
+    private static final String RISCV_INSTRUCTIONS_FILE = "/riscv/instructions.txt";
+    private static final ArrayList<InstructionDeclaration> DECLARATIONS = new ArrayList<>();
     private static final HashMap<InstructionDeclaration, InstructionDefinition> DEFINITIONS = new HashMap<>();
-    static final AbstractDecoderTreeNode DECODER;
+    private static final AbstractDecoderTreeNode DECODER_TREE;
 
     static {
         try (final InputStream stream = R5Instructions.class.getResourceAsStream(RISCV_INSTRUCTIONS_FILE)) {
@@ -40,7 +40,7 @@ public final class R5Instructions {
             LOGGER.error("Failed loading RISC-V instruction definitions.", e);
         }
 
-        DECODER = DecoderTree.create(DECLARATIONS);
+        DECODER_TREE = DecoderTree.create(DECLARATIONS);
     }
 
     public static ArrayList<InstructionDeclaration> getDeclarations() {
@@ -48,13 +48,12 @@ public final class R5Instructions {
     }
 
     @Nullable
-    public static InstructionDeclaration findDeclaration(final int instruction) {
-        return DECODER.query(instruction);
-    }
-
-    @Nullable
     public static InstructionDefinition getDefinition(final InstructionDeclaration declaration) {
         return DEFINITIONS.get(declaration);
+    }
+
+    public static AbstractDecoderTreeNode getDecoderTree() {
+        return DECODER_TREE;
     }
 
     public static void main(final String[] args) {

@@ -2,14 +2,14 @@ package li.cil.sedna.riscv.dbt;
 
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.instruction.argument.InstructionArgument;
 import li.cil.sedna.instruction.InstructionDeclaration;
 import li.cil.sedna.instruction.InstructionDefinition;
 import li.cil.sedna.instruction.InstructionType;
+import li.cil.sedna.instruction.argument.InstructionArgument;
 import li.cil.sedna.riscv.R5CPU;
 import li.cil.sedna.riscv.R5CPUGenerator;
-import li.cil.sedna.riscv.R5Instructions;
 import li.cil.sedna.riscv.R5IllegalInstructionException;
+import li.cil.sedna.riscv.R5Instructions;
 import li.cil.sedna.utils.UnsafeGetter;
 import org.objectweb.asm.*;
 import sun.misc.Unsafe;
@@ -170,7 +170,7 @@ public final class Translator implements Opcodes {
 
                 incCycle();
 
-                final InstructionDeclaration declaration = R5Instructions.findDeclaration(inst);
+                final InstructionDeclaration declaration = R5Instructions.getDecoderTree().query(inst);
                 if (declaration == null || declaration.type == InstructionType.ILLEGAL) {
                     throw new R5IllegalInstructionException(inst);
                 }
