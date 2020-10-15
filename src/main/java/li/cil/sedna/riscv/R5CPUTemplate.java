@@ -947,6 +947,21 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
+    private R5CPUTLBEntry fetchPage(final int address) throws MemoryAccessException {
+        if ((address & 1) != 0) {
+            throw new MemoryAccessException(address, MemoryAccessException.Type.MISALIGNED_FETCH);
+        }
+
+        final int index = (address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1);
+        final int hash = address & ~R5.PAGE_ADDRESS_MASK;
+        final R5CPUTLBEntry entry = fetchTLB[index];
+        if (entry.hash == hash) {
+            return entry;
+        } else {
+            return fetchPageSlow(address);
+        }
+    }
+
     private byte load8(final int address) throws MemoryAccessException {
         return (byte) loadx(address, Sizes.SIZE_8, Sizes.SIZE_8_LOG2);
     }
@@ -969,21 +984,6 @@ final class R5CPUTemplate implements R5CPU {
 
     private void store32(final int address, final int value) throws MemoryAccessException {
         storex(address, value, Sizes.SIZE_32, Sizes.SIZE_32_LOG2);
-    }
-
-    private R5CPUTLBEntry fetchPage(final int address) throws MemoryAccessException {
-        if ((address & 1) != 0) {
-            throw new MemoryAccessException(address, MemoryAccessException.Type.MISALIGNED_FETCH);
-        }
-
-        final int index = (address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1);
-        final int hash = address & ~R5.PAGE_ADDRESS_MASK;
-        final R5CPUTLBEntry entry = fetchTLB[index];
-        if (entry.hash == hash) {
-            return entry;
-        } else {
-            return fetchPageSlow(address);
-        }
     }
 
     private int loadx(final int address, final int size, final int sizeLog2) throws MemoryAccessException {
