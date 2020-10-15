@@ -121,6 +121,7 @@ public final class R5CPUGenerator {
         public static final int RETURN_CONTINUE = 0;
         public static final int RETURN_EXIT = 1;
         public static final int RETURN_EXIT_INC_PC = 2;
+        public static final int RETURN_ILLEGAL_INSTRUCTION = 3;
 
         public enum ContextType {
             TOP_LEVEL,
@@ -277,10 +278,13 @@ public final class R5CPUGenerator {
         @Override
         public void visitEnd() {
             context.methodVisitor.visitLabel(context.illegalInstructionLabel);
-            context.methodVisitor.visitTypeInsn(NEW, Type.getInternalName(R5IllegalInstructionException.class));
-            context.methodVisitor.visitInsn(DUP);
-            context.methodVisitor.visitMethodInsn(INVOKESPECIAL, Type.getInternalName(R5IllegalInstructionException.class), "<init>", "()V", false);
-            context.methodVisitor.visitInsn(ATHROW);
+            context.emitSavePC();
+            context.methodVisitor.visitVarInsn(ALOAD, 0);
+            context.methodVisitor.visitLdcInsn(R5.EXCEPTION_ILLEGAL_INSTRUCTION);
+            context.methodVisitor.visitVarInsn(ILOAD, context.localInst);
+            context.methodVisitor.visitMethodInsn(INVOKESPECIAL, Type.getInternalName(R5CPUTemplate.class),
+                    "raiseException", "(II)V", false);
+            context.methodVisitor.visitInsn(RETURN);
 
             context.methodVisitor.visitLabel(context.continueLabel);
         }
@@ -315,24 +319,31 @@ public final class R5CPUGenerator {
         @Override
         public void visitEnd() {
             if (childContext != null) {
-                childContext.methodVisitor.visitLabel(childContext.illegalInstructionLabel);
-                childContext.methodVisitor.visitTypeInsn(NEW, Type.getInternalName(R5IllegalInstructionException.class));
-                childContext.methodVisitor.visitInsn(DUP);
-                childContext.methodVisitor.visitMethodInsn(INVOKESPECIAL, Type.getInternalName(R5IllegalInstructionException.class), "<init>", "()V", false);
-                childContext.methodVisitor.visitInsn(ATHROW);
-
-
-                childContext.methodVisitor.visitLabel(childContext.continueLabel);
                 switch (childContext.type) {
-                    case VOID_METHOD:
+                    case VOID_METHOD: {
+                        childContext.methodVisitor.visitLabel(childContext.illegalInstructionLabel);
+                        childContext.methodVisitor.visitTypeInsn(NEW, Type.getInternalName(R5IllegalInstructionException.class));
+                        childContext.methodVisitor.visitInsn(DUP);
+                        childContext.methodVisitor.visitMethodInsn(INVOKESPECIAL, Type.getInternalName(R5IllegalInstructionException.class), "<init>", "()V", false);
+                        childContext.methodVisitor.visitInsn(ATHROW);
+
+                        childContext.methodVisitor.visitLabel(childContext.continueLabel);
                         childContext.methodVisitor.visitInsn(RETURN);
                         break;
-                    case CONDITIONAL_METHOD:
+                    }
+                    case CONDITIONAL_METHOD: {
+                        childContext.methodVisitor.visitLabel(childContext.illegalInstructionLabel);
+                        childContext.methodVisitor.visitInsn(ICONST_0 + GeneratorContext.RETURN_ILLEGAL_INSTRUCTION);
+                        childContext.methodVisitor.visitInsn(IRETURN);
+
+                        childContext.methodVisitor.visitLabel(childContext.continueLabel);
                         childContext.methodVisitor.visitInsn(ICONST_0 + GeneratorContext.RETURN_CONTINUE);
                         childContext.methodVisitor.visitInsn(IRETURN);
                         break;
-                    default:
+                    }
+                    default: {
                         throw new IllegalStateException();
+                    }
                 }
 
                 childContext.methodVisitor.visitMaxs(-1, -1);
@@ -393,14 +404,14 @@ public final class R5CPUGenerator {
                     methodName, methodDescriptor, false);
 
             if (containsReturns) {
-                final Label[] conditionalLabels = new Label[3];
+                final Label[] conditionalLabels = new Label[4];
                 for (int i = 0; i < conditionalLabels.length; i++) {
                     conditionalLabels[i] = new Label();
                 }
 
                 switch (context.type) {
                     case TOP_LEVEL: {
-                        context.methodVisitor.visitTableSwitchInsn(0, 2, context.illegalInstructionLabel, conditionalLabels);
+                        context.methodVisitor.visitTableSwitchInsn(0, conditionalLabels.length - 1, context.illegalInstructionLabel, conditionalLabels);
 
                         context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_CONTINUE]);
                         context.emitIncrementPC(commonInstructionSize.getAsInt());
@@ -413,6 +424,9 @@ public final class R5CPUGenerator {
                         context.emitIncrementPC(commonInstructionSize.getAsInt());
                         context.emitSavePC();
                         context.methodVisitor.visitInsn(RETURN);
+
+                        context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_ILLEGAL_INSTRUCTION]);
+                        context.emitThrowIllegalInstruction();
 
                         break;
                     }
