@@ -204,23 +204,22 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
         }
     }
 
-    private enum ContextType {
+    protected enum ContextType {
         TOP_LEVEL,
         VOID_METHOD,
         CONDITIONAL_METHOD,
     }
 
     protected final class GeneratorContext implements Opcodes {
-        private static final int LOCAL_THIS = 0;
-        private static final int LOCAL_INST = 2;
-        private static final int LOCAL_PC = 3;
-        private static final int LOCAL_INST_OFFSET = 4;
-        private static final int LOCAL_FIRST_FIELD = 6;
+        public static final int LOCAL_THIS = 0;
+        public static final int LOCAL_INST = 2;
+        public static final int LOCAL_PC = 3;
+        public static final int LOCAL_INST_OFFSET = 4;
+        public static final int LOCAL_FIRST_FIELD = 6;
 
         public static final int RETURN_CONTINUE = 0;
         public static final int RETURN_EXIT = 1;
         public static final int RETURN_EXIT_INC_PC = 2;
-        public static final int RETURN_ILLEGAL_INSTRUCTION = 3;
 
         public final ClassVisitor classVisitor;
         public final MethodVisitor methodVisitor;
@@ -232,7 +231,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
 
         public final Label continueLabel;
         public final Label illegalInstructionLabel;
-        private final Object2IntArrayMap<FieldInstructionArgument> localVariables;
+        public final Object2IntArrayMap<FieldInstructionArgument> localVariables;
 
         // Constructor for new top-level context.
         private GeneratorContext(final ClassVisitor classVisitor,
@@ -494,7 +493,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                     methodName, methodDescriptor, false);
 
             if (containsReturns) {
-                final Label[] conditionalLabels = new Label[4];
+                final Label[] conditionalLabels = new Label[3];
                 for (int i = 0; i < conditionalLabels.length; i++) {
                     conditionalLabels[i] = new Label();
                 }
@@ -514,9 +513,6 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                         context.emitIncrementPC(commonInstructionSize.getAsInt());
                         context.emitSavePC();
                         context.methodVisitor.visitInsn(RETURN);
-
-                        context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_ILLEGAL_INSTRUCTION]);
-                        context.emitThrowIllegalInstruction();
 
                         break;
                     }
