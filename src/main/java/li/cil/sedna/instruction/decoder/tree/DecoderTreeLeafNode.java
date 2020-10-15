@@ -14,7 +14,7 @@ import java.util.stream.Stream;
 public final class DecoderTreeLeafNode extends AbstractDecoderTreeNode {
     public final InstructionDeclaration declaration;
 
-    DecoderTreeLeafNode(final InstructionDeclaration declaration) {
+    public DecoderTreeLeafNode(final InstructionDeclaration declaration) {
         this.declaration = declaration;
     }
 

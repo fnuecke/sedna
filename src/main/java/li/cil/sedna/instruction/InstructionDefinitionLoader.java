@@ -76,47 +76,51 @@ public final class InstructionDefinitionLoader {
                 }
             }
 
-            int argumentCount = 0;
-            for (int i = 0; i < visitor.parameterAnnotations.length; i++) {
+            final int argumentCount = visitor.parameterAnnotations.length;
+            int fieldArgumentCount = 0;
+            for (int i = 0; i < argumentCount; i++) {
                 if (visitor.parameterAnnotations[i] == null) {
                     throw new IllegalArgumentException(String.format(
                             "Instruction definition [%s] parameter [%d] has no usage annotation. Annotate arguments with the @Field annotations and instruction size parameters with the @InstructionSize annotation.",
                             visitor.name, i + 1));
                 }
                 if (visitor.parameterAnnotations[i].argumentName != null) {
-                    argumentCount++;
+                    fieldArgumentCount++;
                 }
             }
 
-            if (argumentCount != declaration.arguments.size()) {
+            if (fieldArgumentCount != declaration.arguments.size()) {
                 throw new IllegalArgumentException(String.format(
                         "Number of @Field parameters [%d] in instruction definition [%s] does not match number of " +
                         "expected arguments [%d] in instruction declaration of instruction [%s].",
-                        argumentCount, visitor.name, declaration.arguments.size(), declaration.displayName));
+                        fieldArgumentCount, visitor.name, declaration.arguments.size(), declaration.displayName));
             }
 
-            final InstructionArgument[] arguments = new InstructionArgument[visitor.parameterAnnotations.length];
-            for (int i = 0; i < visitor.parameterAnnotations.length; i++) {
+            final InstructionArgument[] arguments = new InstructionArgument[argumentCount];
+            final String[] argumentNames = new String[argumentCount];
+            for (int i = 0; i < argumentCount; i++) {
                 final ParameterAnnotation annotation = visitor.parameterAnnotations[i];
-                final InstructionArgument argument;
                 if (annotation.argumentName != null) {
                     final String argumentName = annotation.argumentName;
-                    argument = declaration.arguments.get(argumentName);
+                    final InstructionArgument argument = declaration.arguments.get(argumentName);
+
                     if (argument == null) {
                         throw new IllegalArgumentException(String.format(
                                 "Required argument [%s] for instruction definition [%s] not defined in instruction " +
                                 "declaration.",
                                 argumentName, declaration.displayName));
                     }
-                } else if (annotation.isInstructionSize) {
-                    argument = new ConstantInstructionArgument(declaration.size);
-                } else if (annotation.isProgramCounter) {
-                    argument = new ProgramCounterInstructionArgument();
-                } else {
-                    throw new AssertionError("Annotation info was generated but for neither @Field nor @InstructionSize annotation.");
-                }
 
-                arguments[i] = argument;
+                    arguments[i] = argument;
+                    argumentNames[i] = argumentName;
+                } else if (annotation.isInstructionSize) {
+                    arguments[i] = new ConstantInstructionArgument(declaration.size);
+                } else if (annotation.isProgramCounter) {
+                    arguments[i] = new ProgramCounterInstructionArgument();
+                } else {
+                    throw new AssertionError("Annotation info was generated but for neither @Field nor " +
+                                             "@InstructionSize annotation.");
+                }
             }
 
             final InstructionDefinition definition = new InstructionDefinition(
@@ -125,7 +129,8 @@ public final class InstructionDefinitionLoader {
                     visitor.writesPC,
                     returnsBoolean,
                     visitor.thrownExceptions,
-                    arguments);
+                    arguments,
+                    argumentNames);
             definitions.put(declaration, definition);
         }
 

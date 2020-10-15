@@ -7,7 +7,7 @@ import li.cil.sedna.instruction.decoder.DecoderTreeVisitor;
 import javax.annotation.Nullable;
 
 public final class DecoderTreeSwitchNode extends AbstractDecoderTreeInnerNode {
-    DecoderTreeSwitchNode(final AbstractDecoderTreeNode[] children) {
+    public DecoderTreeSwitchNode(final AbstractDecoderTreeNode[] children) {
         super(children);
     }
 

@@ -12,7 +12,7 @@ public final class FieldInstructionArgument implements InstructionArgument {
     public final ArrayList<InstructionFieldMapping> mappings;
     public final FieldPostprocessor postprocessor;
 
-    FieldInstructionArgument(final ArrayList<InstructionFieldMapping> mappings, final FieldPostprocessor postprocessor) {
+    public FieldInstructionArgument(final ArrayList<InstructionFieldMapping> mappings, final FieldPostprocessor postprocessor) {
         this.mappings = mappings;
         this.postprocessor = postprocessor;
         Collections.sort(mappings);

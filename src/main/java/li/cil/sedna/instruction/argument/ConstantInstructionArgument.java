@@ -5,7 +5,7 @@ import java.util.Objects;
 public final class ConstantInstructionArgument implements InstructionArgument {
     public final int value;
 
-    ConstantInstructionArgument(final int value) {
+    public ConstantInstructionArgument(final int value) {
         this.value = value;
     }
 

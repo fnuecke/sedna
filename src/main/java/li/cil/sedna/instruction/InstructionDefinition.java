@@ -41,18 +41,21 @@ public final class InstructionDefinition {
     public final boolean returnsBoolean;
     public final String[] thrownExceptions;
     public final InstructionArgument[] parameters;
+    public final String[] parameterNames;
 
     InstructionDefinition(final String instructionName,
                           final String methodName,
                           final boolean writesPC,
                           final boolean returnsBoolean,
                           final String[] thrownExceptions,
-                          final InstructionArgument[] parameters) {
+                          final InstructionArgument[] parameters,
+                          final String[] parameterNames) {
         this.instructionName = instructionName;
         this.methodName = methodName;
         this.writesPC = writesPC;
         this.returnsBoolean = returnsBoolean;
         this.thrownExceptions = thrownExceptions;
         this.parameters = parameters;
+        this.parameterNames = parameterNames;
     }
 }
