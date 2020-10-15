@@ -9,8 +9,7 @@ import li.cil.sedna.instruction.InstructionType;
 import li.cil.sedna.riscv.R5CPU;
 import li.cil.sedna.riscv.R5CPUGenerator;
 import li.cil.sedna.riscv.R5Instructions;
-import li.cil.sedna.riscv.exception.R5Exception;
-import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
+import li.cil.sedna.riscv.R5IllegalInstructionException;
 import li.cil.sedna.utils.UnsafeGetter;
 import org.objectweb.asm.*;
 import sun.misc.Unsafe;
@@ -115,7 +114,7 @@ public final class Translator implements Opcodes {
 
     private static boolean generateExecuteMethod(final ClassVisitor cv, final String className, final TranslatorJob request) {
         final MethodVisitor mv = cv.visitMethod(ACC_PUBLIC + ACC_FINAL, "execute", "()V", null, new String[]{
-                Type.getInternalName(R5Exception.class),
+                Type.getInternalName(R5IllegalInstructionException.class),
                 Type.getInternalName(MemoryAccessException.class)
         });
 
@@ -146,7 +145,7 @@ public final class Translator implements Opcodes {
         mv.visitLocalVariable("mcycle", Type.LONG_TYPE.getDescriptor(), null, startLabel, returnLabel, MCYCLE_LOCAL_INDEX);
 
         mv.visitTryCatchBlock(startLabel, endExceptionsLabel, catchIllegalInstructionLabel, Type.getInternalName(R5IllegalInstructionException.class));
-        mv.visitTryCatchBlock(startLabel, endExceptionsLabel, catchR5AndMemoryLabel, Type.getInternalName(R5Exception.class));
+        mv.visitTryCatchBlock(startLabel, endExceptionsLabel, catchR5AndMemoryLabel, Type.getInternalName(R5IllegalInstructionException.class));
         mv.visitTryCatchBlock(startLabel, endExceptionsLabel, catchR5AndMemoryLabel, Type.getInternalName(MemoryAccessException.class));
 
         generateCPULocal();
@@ -238,7 +237,7 @@ public final class Translator implements Opcodes {
 
             mv.visitTypeInsn(NEW, ILLEGAL_INSTRUCTION_EXCEPTION_TYPE.getInternalName());
             mv.visitInsn(DUP);
-            mv.visitLdcInsn(e.getExceptionValue());
+            mv.visitLdcInsn(e.getInstruction());
             mv.visitMethodInsn(INVOKESPECIAL, ILLEGAL_INSTRUCTION_EXCEPTION_TYPE.getInternalName(), "<init>", "(I)V", false);
             mv.visitInsn(ATHROW);
         } catch (final MemoryAccessException e) {

@@ -1,12 +1,12 @@
 package li.cil.sedna.riscv;
 
-import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.Sizes;
-import li.cil.sedna.memory.SimpleMemoryMap;
+import li.cil.sedna.api.device.MemoryMappedDevice;
+import li.cil.sedna.api.memory.MemoryAccessException;
+import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.device.memory.Memory;
 import li.cil.sedna.elf.*;
+import li.cil.sedna.memory.SimpleMemoryMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -66,7 +66,7 @@ public final class ISATests {
                         final int toHostAddress = getToHostAddress(elf);
 
                         final MemoryMap memoryMap = new SimpleMemoryMap();
-                        final R5CPU cpu = new R5CPU(memoryMap);
+                        final R5CPU cpu = R5CPU.create(memoryMap);
                         final HostTargetInterface htif = new HostTargetInterface();
 
                         // RAM block below and potentially up to HTIF.

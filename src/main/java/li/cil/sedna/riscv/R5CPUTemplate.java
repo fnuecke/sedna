@@ -9,10 +9,6 @@ import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MemoryRange;
 import li.cil.sedna.instruction.InstructionDefinition.*;
 import li.cil.sedna.memory.exception.*;
-import li.cil.sedna.riscv.exception.R5BreakpointException;
-import li.cil.sedna.riscv.exception.R5ECallException;
-import li.cil.sedna.riscv.exception.R5Exception;
-import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -260,8 +256,6 @@ final class R5CPUTemplate implements R5CPU {
                 raiseException(R5.EXCEPTION_MISALIGNED_FETCH, e.getAddress());
             } catch (final MemoryAccessException e) {
                 throw new AssertionError();
-            } catch (final R5Exception e) {
-                raiseException(e.getExceptionCause(), e.getExceptionValue());
             }
         }
 
@@ -270,7 +264,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    private void interpret() throws R5Exception, MemoryAccessException {
+    private void interpret() throws MemoryAccessException {
         // The idea here is to run many sequential instructions with very little overhead.
         // We only need to exit the inner loop when we either leave the page we started in,
         // jump around (jumps, conditionals) or some state that influences how memory access
@@ -303,7 +297,8 @@ final class R5CPUTemplate implements R5CPU {
         interpretTrace(cache, inst, pc, instOffset, instEnd);
     }
 
-    private void interpretTrace(final R5CPUTLBEntry cache, int inst, int pc, int instOffset, final int instEnd) throws R5Exception, MemoryAccessException {
+    @SuppressWarnings("LocalCanBeFinal") // `pc` and `instOffset` get updated by the generated code replacing decode().
+    private void interpretTrace(final R5CPUTLBEntry cache, int inst, int pc, int instOffset, final int instEnd) throws MemoryAccessException {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
                 mcycle++;
@@ -323,19 +318,19 @@ final class R5CPUTemplate implements R5CPU {
             }
         } catch (final R5IllegalInstructionException e) {
             this.pc = pc;
-            throw new R5IllegalInstructionException(inst, e);
-        } catch (final R5Exception | MemoryAccessException e) {
+            raiseException(R5.EXCEPTION_ILLEGAL_INSTRUCTION, inst);
+        } catch (final MemoryAccessException e) {
             this.pc = pc;
             throw e;
         }
     }
 
     @SuppressWarnings("RedundantThrows")
-    private static void decode() throws R5Exception, MemoryAccessException {
+    private static void decode() throws R5IllegalInstructionException, MemoryAccessException {
         throw new UnsupportedOperationException();
     }
 
-    private boolean csrrw_impl(final int rd, final int a, final int csr) throws R5Exception {
+    private boolean csrrw_impl(final int rd, final int a, final int csr) throws R5IllegalInstructionException {
         final boolean exitTrace;
 
         checkCSR(csr, true);
@@ -350,7 +345,7 @@ final class R5CPUTemplate implements R5CPU {
         return exitTrace;
     }
 
-    private boolean csrrx_impl(final int rd, final int rs1, final int csr, final int a, final boolean isSet) throws R5Exception {
+    private boolean csrrx_impl(final int rd, final int rs1, final int csr, final int a, final boolean isSet) throws R5IllegalInstructionException {
         final boolean exitTrace;
 
         final boolean mayChange = rs1 != 0;
@@ -374,7 +369,7 @@ final class R5CPUTemplate implements R5CPU {
         return exitTrace;
     }
 
-    private void checkCSR(final int csr, final boolean throwIfReadonly) throws R5Exception {
+    private void checkCSR(final int csr, final boolean throwIfReadonly) throws R5IllegalInstructionException {
         if (throwIfReadonly && ((csr >= 0xC00 && csr <= 0xC1F) || (csr >= 0xC80 && csr <= 0xC9F)))
             throw new R5IllegalInstructionException();
 
@@ -388,7 +383,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @SuppressWarnings("DuplicateBranchesInSwitch")
-    private int readCSR(final int csr) throws R5Exception {
+    private int readCSR(final int csr) throws R5IllegalInstructionException {
         switch (csr) {
             // Floating-Point Control and Status Registers
 //            case 0x001: { // fflags, Floating-Point Accrued Exceptions.
@@ -636,7 +631,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @SuppressWarnings("DuplicateBranchesInSwitch")
-    private boolean writeCSR(final int csr, final int value) throws R5Exception {
+    private boolean writeCSR(final int csr, final int value) throws R5IllegalInstructionException {
         switch (csr) {
             // Floating-Point Control and Status Registers
 //            case 0x001: { // fflags, Floating-Point Accrued Exceptions.
@@ -1609,14 +1604,16 @@ final class R5CPUTemplate implements R5CPU {
 
     @ContainsNonStaticMethodInvocations
     @Instruction("ECALL")
-    private void ecall() throws R5Exception {
-        throw new R5ECallException(priv);
+    private void ecall(@ProgramCounter final int pc) {
+        this.pc = pc;
+        raiseException(R5.EXCEPTION_USER_ECALL + priv);
     }
 
     @ContainsNonStaticMethodInvocations
     @Instruction("EBREAK")
-    private void ebreak() throws R5Exception {
-        throw new R5BreakpointException();
+    private void ebreak(@ProgramCounter final int pc) {
+        this.pc = pc;
+        raiseException(R5.EXCEPTION_BREAKPOINT);
     }
 
     ///////////////////////////////////////////////////////////////////
@@ -1634,7 +1631,7 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("CSRRW")
     private boolean csrrw(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
-                          @Field("csr") final int csr) throws R5Exception {
+                          @Field("csr") final int csr) throws R5IllegalInstructionException {
         return csrrw_impl(rd, x[rs1], csr);
     }
 
@@ -1642,7 +1639,7 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("CSRRS")
     private boolean csrrs(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
-                          @Field("csr") final int csr) throws R5Exception {
+                          @Field("csr") final int csr) throws R5IllegalInstructionException {
         return csrrx_impl(rd, rs1, csr, x[rs1], true);
     }
 
@@ -1650,7 +1647,7 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("CSRRC")
     private boolean csrrc(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
-                          @Field("csr") final int csr) throws R5Exception {
+                          @Field("csr") final int csr) throws R5IllegalInstructionException {
         return csrrx_impl(rd, rs1, csr, x[rs1], false);
     }
 
@@ -1658,7 +1655,7 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("CSRRWI")
     private boolean csrrwi(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
-                           @Field("csr") final int csr) throws R5Exception {
+                           @Field("csr") final int csr) throws R5IllegalInstructionException {
         return csrrw_impl(rd, rs1, csr);
     }
 
@@ -1666,7 +1663,7 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("CSRRSI")
     private boolean csrrsi(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
-                           @Field("csr") final int csr) throws R5Exception {
+                           @Field("csr") final int csr) throws R5IllegalInstructionException {
         return csrrx_impl(rd, rs1, csr, rs1, true);
     }
 
@@ -1674,7 +1671,7 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("CSRRCI")
     private boolean csrrci(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
-                           @Field("csr") final int csr) throws R5Exception {
+                           @Field("csr") final int csr) throws R5IllegalInstructionException {
         return csrrx_impl(rd, rs1, csr, rs1, false);
     }
 
@@ -1961,7 +1958,7 @@ final class R5CPUTemplate implements R5CPU {
 
     @ContainsNonStaticMethodInvocations
     @Instruction("SRET")
-    private void sret() throws R5Exception {
+    private void sret() throws R5IllegalInstructionException {
         if (priv < R5.PRIVILEGE_S) {
             throw new R5IllegalInstructionException();
         }
@@ -1986,7 +1983,7 @@ final class R5CPUTemplate implements R5CPU {
 
     @ContainsNonStaticMethodInvocations
     @Instruction("MRET")
-    private void mret() throws R5Exception {
+    private void mret() throws R5IllegalInstructionException {
         if (priv < R5.PRIVILEGE_M) {
             throw new R5IllegalInstructionException();
         }
@@ -2007,7 +2004,7 @@ final class R5CPUTemplate implements R5CPU {
 
     @ContainsNonStaticMethodInvocations
     @Instruction("WFI")
-    private boolean wfi() throws R5Exception {
+    private boolean wfi() throws R5IllegalInstructionException {
         if (priv == R5.PRIVILEGE_U) {
             throw new R5IllegalInstructionException();
         }
@@ -2030,7 +2027,7 @@ final class R5CPUTemplate implements R5CPU {
     @ContainsNonStaticMethodInvocations
     @Instruction("SFENCE.VMA")
     private boolean sfence_vma(@Field("rs1") final int rs1,
-                               @Field("rs2") final int rs2) throws R5Exception {
+                               @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         if (priv == R5.PRIVILEGE_U) {
             throw new R5IllegalInstructionException();
         }

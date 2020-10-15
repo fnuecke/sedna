@@ -6,8 +6,6 @@ import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.instruction.*;
 import li.cil.sedna.instruction.decoder.*;
-import li.cil.sedna.riscv.exception.R5Exception;
-import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
 import li.cil.sedna.utils.BitUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.core.util.Throwables;
@@ -437,7 +435,7 @@ public final class R5CPUGenerator {
             final MethodVisitor childVisitor = context.classVisitor.visitMethod(ACC_PRIVATE,
                     methodName, methodDescriptor, null, new String[]{
                             // TODO Build this from the actual set of exceptions in the wrapped methods not just the worst-case?
-                            Type.getInternalName(R5Exception.class),
+                            Type.getInternalName(R5IllegalInstructionException.class),
                             Type.getInternalName(MemoryAccessException.class)
                     });
             childVisitor.visitCode();
