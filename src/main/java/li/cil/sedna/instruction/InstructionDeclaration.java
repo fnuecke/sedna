@@ -1,5 +1,7 @@
 package li.cil.sedna.instruction;
 
+import li.cil.sedna.instruction.argument.InstructionArgument;
+
 import java.util.LinkedHashMap;
 
 public final class InstructionDeclaration {

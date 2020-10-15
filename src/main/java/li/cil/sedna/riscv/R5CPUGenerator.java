@@ -4,7 +4,14 @@ import it.unimi.dsi.fastutil.objects.Object2IntArrayMap;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.instruction.*;
+import li.cil.sedna.instruction.argument.ConstantInstructionArgument;
+import li.cil.sedna.instruction.argument.FieldInstructionArgument;
+import li.cil.sedna.instruction.argument.InstructionArgument;
+import li.cil.sedna.instruction.argument.ProgramCounterInstructionArgument;
 import li.cil.sedna.instruction.decoder.*;
+import li.cil.sedna.instruction.decoder.tree.AbstractDecoderTreeNode;
+import li.cil.sedna.instruction.decoder.tree.DecoderTreeBranchNode;
+import li.cil.sedna.instruction.decoder.tree.DecoderTreeSwitchNode;
 import li.cil.sedna.utils.BitUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.core.util.Throwables;
@@ -479,7 +486,7 @@ public final class R5CPUGenerator {
         }
 
         @Override
-        public void visit(final int mask, final int[] patterns, final DecoderTreeNodeFieldInstructionArguments arguments) {
+        public void visit(final int mask, final int[] patterns, final DecoderTreeNodeArguments arguments) {
             pushLocalVariables(arguments);
 
             final int caseCount = patterns.length;
@@ -669,7 +676,7 @@ public final class R5CPUGenerator {
         }
 
         @Override
-        public void visit(final int count, final DecoderTreeNodeFieldInstructionArguments arguments) {
+        public void visit(final int count, final DecoderTreeNodeArguments arguments) {
             pushLocalVariables(arguments);
         }
 
@@ -814,7 +821,7 @@ public final class R5CPUGenerator {
             this.context = context;
         }
 
-        protected void pushLocalVariables(final DecoderTreeNodeFieldInstructionArguments arguments) {
+        protected void pushLocalVariables(final DecoderTreeNodeArguments arguments) {
             final int threshold = Math.max(2, (int) (arguments.totalLeafCount * THRESHOLD));
             arguments.arguments.forEach((argument, entry) -> {
                 if (entry.count >= threshold && !context.localVariables.containsKey(argument)) {

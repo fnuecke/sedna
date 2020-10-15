@@ -1,5 +1,8 @@
 package li.cil.sedna.instruction;
 
+import li.cil.sedna.instruction.argument.ConstantInstructionArgument;
+import li.cil.sedna.instruction.argument.InstructionArgument;
+import li.cil.sedna.instruction.argument.ProgramCounterInstructionArgument;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.objectweb.asm.*;

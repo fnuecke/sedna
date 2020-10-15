@@ -4,8 +4,9 @@ import li.cil.sedna.instruction.InstructionDeclaration;
 import li.cil.sedna.instruction.InstructionDeclarationLoader;
 import li.cil.sedna.instruction.InstructionDefinition;
 import li.cil.sedna.instruction.InstructionDefinitionLoader;
-import li.cil.sedna.instruction.decoder.AbstractDecoderTreeNode;
+import li.cil.sedna.instruction.decoder.tree.AbstractDecoderTreeNode;
 import li.cil.sedna.instruction.decoder.DecoderTree;
+import li.cil.sedna.instruction.decoder.PrintStreamDecoderTreeVisitor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -54,5 +55,11 @@ public final class R5Instructions {
     @Nullable
     public static InstructionDefinition getDefinition(final InstructionDeclaration declaration) {
         return DEFINITIONS.get(declaration);
+    }
+
+    public static void main(final String[] args) {
+        final ArrayList<InstructionDeclaration> declarations = R5Instructions.getDeclarations();
+        final AbstractDecoderTreeNode switchTree = DecoderTree.create(declarations);
+        switchTree.accept(new PrintStreamDecoderTreeVisitor(switchTree.getMaxDepth()));
     }
 }

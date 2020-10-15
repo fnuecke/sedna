@@ -1,6 +1,8 @@
 package li.cil.sedna.instruction.decoder;
 
 import li.cil.sedna.instruction.InstructionDeclaration;
+import li.cil.sedna.instruction.decoder.tree.DecoderTreeBranchNode;
+import li.cil.sedna.instruction.decoder.tree.DecoderTreeSwitchNode;
 import li.cil.sedna.utils.BitUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -152,12 +154,12 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
         }
 
         @Override
-        public void visit(final int mask, final int[] patterns, final DecoderTreeNodeFieldInstructionArguments arguments) {
+        public void visit(final int mask, final int[] patterns, final DecoderTreeNodeArguments arguments) {
             this.count = patterns.length;
             this.switchMask = mask & ~processedMask;
 
             if (depth > 0) {
-                for (final DecoderTreeNodeFieldInstructionArguments.Entry entry : arguments.arguments.values()) {
+                for (final DecoderTreeNodeArguments.Entry entry : arguments.arguments.values()) {
                     stream.print(String.join("=", entry.names));
                     stream.printf(" (%d/%d) ", entry.count, arguments.totalLeafCount);
                 }
@@ -189,11 +191,11 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
         }
 
         @Override
-        public void visit(final int count, final DecoderTreeNodeFieldInstructionArguments arguments) {
+        public void visit(final int count, final DecoderTreeNodeArguments arguments) {
             this.count = count;
 
             if (depth > 0) {
-                for (final DecoderTreeNodeFieldInstructionArguments.Entry entry : arguments.arguments.values()) {
+                for (final DecoderTreeNodeArguments.Entry entry : arguments.arguments.values()) {
                     stream.print(String.join("=", entry.names));
                     stream.printf(" (%d/%d) ", entry.count, arguments.totalLeafCount);
                 }

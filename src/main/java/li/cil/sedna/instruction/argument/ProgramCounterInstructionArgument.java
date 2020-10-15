@@ -1,4 +1,4 @@
-package li.cil.sedna.instruction;
+package li.cil.sedna.instruction.argument;
 
 public final class ProgramCounterInstructionArgument implements InstructionArgument {
     @Override

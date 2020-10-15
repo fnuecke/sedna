@@ -1,5 +1,7 @@
-package li.cil.sedna.instruction;
+package li.cil.sedna.instruction.argument;
 
+import li.cil.sedna.instruction.FieldPostprocessor;
+import li.cil.sedna.instruction.InstructionFieldMapping;
 import li.cil.sedna.utils.BitUtils;
 
 import java.util.ArrayList;

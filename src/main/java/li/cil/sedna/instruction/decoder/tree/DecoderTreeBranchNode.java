@@ -1,6 +1,8 @@
-package li.cil.sedna.instruction.decoder;
+package li.cil.sedna.instruction.decoder.tree;
 
 import li.cil.sedna.instruction.InstructionDeclaration;
+import li.cil.sedna.instruction.decoder.DecoderTreeBranchVisitor;
+import li.cil.sedna.instruction.decoder.DecoderTreeVisitor;
 
 import javax.annotation.Nullable;
 

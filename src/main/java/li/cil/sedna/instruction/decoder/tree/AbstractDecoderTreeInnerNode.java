@@ -1,7 +1,8 @@
-package li.cil.sedna.instruction.decoder;
+package li.cil.sedna.instruction.decoder.tree;
 
-import li.cil.sedna.instruction.FieldInstructionArgument;
+import li.cil.sedna.instruction.argument.FieldInstructionArgument;
 import li.cil.sedna.instruction.InstructionDeclaration;
+import li.cil.sedna.instruction.decoder.DecoderTreeNodeArguments;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,28 +51,28 @@ public abstract class AbstractDecoderTreeInnerNode extends AbstractDecoderTreeNo
     }
 
     @Override
-    public DecoderTreeNodeFieldInstructionArguments getArguments() {
+    public DecoderTreeNodeArguments getArguments() {
         int totalLeafCount = 0;
-        final HashMap<FieldInstructionArgument, ArrayList<DecoderTreeNodeFieldInstructionArguments.Entry>> childEntries = new HashMap<>();
+        final HashMap<FieldInstructionArgument, ArrayList<DecoderTreeNodeArguments.Entry>> childEntries = new HashMap<>();
         for (final AbstractDecoderTreeNode child : children) {
-            final DecoderTreeNodeFieldInstructionArguments childArguments = child.getArguments();
+            final DecoderTreeNodeArguments childArguments = child.getArguments();
             totalLeafCount += childArguments.totalLeafCount;
             childArguments.arguments.forEach((argument, entry) ->
                     childEntries.computeIfAbsent(argument, arg -> new ArrayList<>()).add(entry));
         }
 
-        final HashMap<FieldInstructionArgument, DecoderTreeNodeFieldInstructionArguments.Entry> entries = new HashMap<>();
+        final HashMap<FieldInstructionArgument, DecoderTreeNodeArguments.Entry> entries = new HashMap<>();
         childEntries.forEach((argument, childEntriesForArgument) -> {
             int count = 0;
             final HashSet<String> names = new HashSet<>();
-            for (final DecoderTreeNodeFieldInstructionArguments.Entry entry : childEntriesForArgument) {
+            for (final DecoderTreeNodeArguments.Entry entry : childEntriesForArgument) {
                 count += entry.count;
                 names.addAll(entry.names);
             }
-            entries.put(argument, new DecoderTreeNodeFieldInstructionArguments.Entry(count, new ArrayList<>(names)));
+            entries.put(argument, new DecoderTreeNodeArguments.Entry(count, new ArrayList<>(names)));
         });
 
-        return new DecoderTreeNodeFieldInstructionArguments(totalLeafCount, entries);
+        return new DecoderTreeNodeArguments(totalLeafCount, entries);
     }
 
     @Override

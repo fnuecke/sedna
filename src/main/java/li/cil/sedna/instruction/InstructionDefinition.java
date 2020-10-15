@@ -1,5 +1,7 @@
 package li.cil.sedna.instruction;
 
+import li.cil.sedna.instruction.argument.InstructionArgument;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;

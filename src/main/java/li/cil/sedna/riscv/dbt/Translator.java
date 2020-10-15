@@ -2,7 +2,7 @@ package li.cil.sedna.riscv.dbt;
 
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.instruction.InstructionArgument;
+import li.cil.sedna.instruction.argument.InstructionArgument;
 import li.cil.sedna.instruction.InstructionDeclaration;
 import li.cil.sedna.instruction.InstructionDefinition;
 import li.cil.sedna.instruction.InstructionType;

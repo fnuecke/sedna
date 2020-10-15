@@ -2,7 +2,10 @@ package li.cil.sedna.instruction.decoder;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectArrayMap;
 import li.cil.sedna.instruction.InstructionDeclaration;
-import li.cil.sedna.riscv.R5Instructions;
+import li.cil.sedna.instruction.decoder.tree.AbstractDecoderTreeNode;
+import li.cil.sedna.instruction.decoder.tree.DecoderTreeBranchNode;
+import li.cil.sedna.instruction.decoder.tree.DecoderTreeLeafNode;
+import li.cil.sedna.instruction.decoder.tree.DecoderTreeSwitchNode;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -130,11 +133,5 @@ public final class DecoderTree {
             }
         }
         return node;
-    }
-
-    public static void main(final String[] args) {
-        final ArrayList<InstructionDeclaration> declarations = R5Instructions.getDeclarations();
-        final AbstractDecoderTreeNode switchTree = create(declarations);
-        switchTree.accept(new PrintStreamDecoderTreeVisitor(switchTree.getMaxDepth()));
     }
 }

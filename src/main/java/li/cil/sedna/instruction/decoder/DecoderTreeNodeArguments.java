@@ -1,11 +1,11 @@
 package li.cil.sedna.instruction.decoder;
 
-import li.cil.sedna.instruction.FieldInstructionArgument;
+import li.cil.sedna.instruction.argument.FieldInstructionArgument;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 
-public final class DecoderTreeNodeFieldInstructionArguments {
+public final class DecoderTreeNodeArguments {
     /**
      * The total number of leaf nodes taken into account in this information collection.
      * <p>
@@ -20,7 +20,7 @@ public final class DecoderTreeNodeFieldInstructionArguments {
      */
     public final HashMap<FieldInstructionArgument, Entry> arguments;
 
-    public DecoderTreeNodeFieldInstructionArguments(final int totalLeafCount, final HashMap<FieldInstructionArgument, Entry> arguments) {
+    public DecoderTreeNodeArguments(final int totalLeafCount, final HashMap<FieldInstructionArgument, Entry> arguments) {
         this.totalLeafCount = totalLeafCount;
         this.arguments = arguments;
     }

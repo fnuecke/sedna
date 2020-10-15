@@ -1,5 +1,9 @@
 package li.cil.sedna.instruction;
 
+import li.cil.sedna.instruction.argument.ConstantInstructionArgument;
+import li.cil.sedna.instruction.argument.FieldInstructionArgument;
+import li.cil.sedna.instruction.argument.InstructionArgument;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;

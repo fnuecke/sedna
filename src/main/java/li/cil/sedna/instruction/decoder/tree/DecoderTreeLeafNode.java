@@ -1,7 +1,10 @@
-package li.cil.sedna.instruction.decoder;
+package li.cil.sedna.instruction.decoder.tree;
 
-import li.cil.sedna.instruction.FieldInstructionArgument;
+import li.cil.sedna.instruction.argument.FieldInstructionArgument;
 import li.cil.sedna.instruction.InstructionDeclaration;
+import li.cil.sedna.instruction.decoder.DecoderTreeLeafVisitor;
+import li.cil.sedna.instruction.decoder.DecoderTreeNodeArguments;
+import li.cil.sedna.instruction.decoder.DecoderTreeVisitor;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -31,7 +34,7 @@ public final class DecoderTreeLeafNode extends AbstractDecoderTreeNode {
     }
 
     @Override
-    public DecoderTreeNodeFieldInstructionArguments getArguments() {
+    public DecoderTreeNodeArguments getArguments() {
         final HashMap<FieldInstructionArgument, ArrayList<String>> argumentNames = new HashMap<>();
         declaration.arguments.forEach((key, argument) -> {
             if (argument instanceof FieldInstructionArgument) {
@@ -39,10 +42,10 @@ public final class DecoderTreeLeafNode extends AbstractDecoderTreeNode {
             }
         });
 
-        final HashMap<FieldInstructionArgument, DecoderTreeNodeFieldInstructionArguments.Entry> arguments = new HashMap<>();
-        argumentNames.forEach((key, value) -> arguments.put(key, new DecoderTreeNodeFieldInstructionArguments.Entry(1, value)));
+        final HashMap<FieldInstructionArgument, DecoderTreeNodeArguments.Entry> arguments = new HashMap<>();
+        argumentNames.forEach((key, value) -> arguments.put(key, new DecoderTreeNodeArguments.Entry(1, value)));
 
-        return new DecoderTreeNodeFieldInstructionArguments(1, arguments);
+        return new DecoderTreeNodeArguments(1, arguments);
     }
 
     @Override
