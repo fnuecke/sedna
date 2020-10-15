@@ -28,12 +28,12 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
     }
 
     @Override
-    public DecoderTreeSwitchVisitor visitSwitch() {
+    public DecoderTreeSwitchVisitor visitSwitch(final DecoderTreeSwitchNode node) {
         return new SwitchVisitor(0, 0, 0);
     }
 
     @Override
-    public DecoderTreeBranchVisitor visitBranch() {
+    public DecoderTreeBranchVisitor visitBranch(final DecoderTreeBranchNode node) {
         return new BranchVisitor(0, 0, 0);
     }
 
@@ -109,7 +109,7 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
         }
 
         @Override
-        public DecoderTreeSwitchVisitor visitSwitch() {
+        public DecoderTreeSwitchVisitor visitSwitch(final DecoderTreeSwitchNode node) {
             printNodeHeader(depth, branchMask, true, isLastChild);
             stream.print(formatMasked(pattern, parentMask, processedMask));
             stream.print("    ");
@@ -119,7 +119,7 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
         }
 
         @Override
-        public DecoderTreeBranchVisitor visitBranch() {
+        public DecoderTreeBranchVisitor visitBranch(final DecoderTreeBranchNode node) {
             printNodeHeader(depth, branchMask, true, isLastChild);
             stream.print(formatMasked(pattern, parentMask, processedMask));
             stream.print("    ");
@@ -152,12 +152,11 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
         }
 
         @Override
-        public void visit(final DecoderTreeSwitchNode node) {
-            this.count = node.children.length;
-            this.switchMask = node.getMask() & ~processedMask;
+        public void visit(final int mask, final int[] patterns, final DecoderTreeNodeFieldInstructionArguments arguments) {
+            this.count = patterns.length;
+            this.switchMask = mask & ~processedMask;
 
             if (depth > 0) {
-                final DecoderTreeNodeFieldInstructionArguments arguments = node.getArguments();
                 for (final DecoderTreeNodeFieldInstructionArguments.Entry entry : arguments.arguments.values()) {
                     stream.print(String.join("=", entry.names));
                     stream.printf(" (%d/%d) ", entry.count, arguments.totalLeafCount);

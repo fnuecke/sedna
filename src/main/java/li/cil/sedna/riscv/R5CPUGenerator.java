@@ -17,10 +17,7 @@ import javax.annotation.Nullable;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public final class R5CPUGenerator {
@@ -139,12 +136,12 @@ public final class R5CPUGenerator {
         }
 
         @Override
-        public DecoderTreeSwitchVisitor visitSwitch() {
+        public DecoderTreeSwitchVisitor visitSwitch(final DecoderTreeSwitchNode node) {
             return new SwitchVisitor(0);
         }
 
         @Override
-        public DecoderTreeBranchVisitor visitBranch() {
+        public DecoderTreeBranchVisitor visitBranch(final DecoderTreeBranchNode node) {
             return new BranchVisitor(0);
         }
 
@@ -172,12 +169,12 @@ public final class R5CPUGenerator {
             }
 
             @Override
-            public DecoderTreeSwitchVisitor visitSwitch() {
+            public DecoderTreeSwitchVisitor visitSwitch(final DecoderTreeSwitchNode node) {
                 return new SwitchVisitor(processedMask);
             }
 
             @Override
-            public DecoderTreeBranchVisitor visitBranch() {
+            public DecoderTreeBranchVisitor visitBranch(final DecoderTreeBranchNode node) {
                 return new BranchVisitor(processedMask);
             }
 
@@ -205,20 +202,18 @@ public final class R5CPUGenerator {
             }
 
             @Override
-            public void visit(final DecoderTreeSwitchNode node) {
-                pushLocalVariables(node.getArguments());
+            public void visit(final int mask, final int[] patterns, final DecoderTreeNodeFieldInstructionArguments arguments) {
+                pushLocalVariables(arguments);
 
-                final AbstractDecoderTreeNode[] children = node.children;
-                final int caseCount = children.length;
-
+                final int caseCount = patterns.length;
                 cases = new Label[caseCount];
                 for (int i = 0; i < caseCount; i++) {
                     cases[i] = new Label();
                 }
 
-                switchMask = node.getMask() & ~processedMask;
-                final int mask = node.getMask() & ~processedMask;
-                final ArrayList<MaskField> maskFields = computeMaskFields(mask);
+                switchMask = mask & ~processedMask;
+                final int unprocessedMask = mask & ~processedMask;
+                final ArrayList<MaskField> maskFields = computeMaskFields(unprocessedMask);
 
                 // If we have mask fields that are the same in all patterns, generate an early-out if.
                 // Not so much because of the early out, but because it allows us to simplify the switch
@@ -226,11 +221,11 @@ public final class R5CPUGenerator {
                 final ArrayList<MaskField> maskFieldsWithEqualPatterns = new ArrayList<>();
                 for (int i = maskFields.size() - 1; i >= 0; i--) {
                     final int fieldMask = maskFields.get(i).asMask();
-                    final int pattern = children[0].getPattern() & fieldMask;
+                    final int pattern = patterns[0] & fieldMask;
 
                     boolean patternsMatch = true;
                     for (int j = 1; j < caseCount; j++) {
-                        if ((children[j].getPattern() & fieldMask) != pattern) {
+                        if ((patterns[j] & fieldMask) != pattern) {
                             patternsMatch = false;
                             break;
                         }
@@ -242,8 +237,8 @@ public final class R5CPUGenerator {
                 }
 
                 if (maskFields.isEmpty()) {
-                    throw new IllegalStateException(String.format("All cases in a switch node have the same pattern: [%s]",
-                            Arrays.stream(children).map(Object::toString).collect(Collectors.joining(", "))));
+                    throw new IllegalStateException(String.format("All cases in a switch node have the same patterns: [%s]",
+                            maskFieldsWithEqualPatterns.stream().map(f -> Integer.toBinaryString(patterns[0] & f.asMask())).collect(Collectors.joining(", "))));
                 }
 
                 if (!maskFieldsWithEqualPatterns.isEmpty()) {
@@ -251,7 +246,7 @@ public final class R5CPUGenerator {
                     for (final MaskField maskField : maskFieldsWithEqualPatterns) {
                         commonMask |= maskField.asMask();
                     }
-                    final int commonPattern = children[0].getPattern() & commonMask;
+                    final int commonPattern = patterns[0] & commonMask;
 
                     final Label switchLabel = new Label();
 
@@ -272,7 +267,7 @@ public final class R5CPUGenerator {
                     int tablePattern = 0;
                     int offset = 0;
                     for (final MaskField maskField : maskFields) {
-                        tablePattern |= ((children[i].getPattern() & maskField.asMask()) >>> maskField.srcLSB) << offset;
+                        tablePattern |= ((patterns[i] & maskField.asMask()) >>> maskField.srcLSB) << offset;
                         offset += maskField.srcMSB - maskField.srcLSB + 1;
                     }
                     tablePatterns[i] = tablePattern;
@@ -312,10 +307,10 @@ public final class R5CPUGenerator {
                     if (maskFields.size() == 1 && maskFields.get(0).srcLSB == 0) {
                         // Trivial case: no shifting needed to mask instruction.
                         for (int i = 0; i < caseCount; i++) {
-                            assert (children[i].getPattern() & mask) == (tablePatterns[i] & mask);
+                            assert (patterns[i] & unprocessedMask) == (tablePatterns[i] & unprocessedMask);
                         }
                         methodVisitor.visitVarInsn(ILOAD, LOCAL_INST);
-                        methodVisitor.visitLdcInsn(mask);
+                        methodVisitor.visitLdcInsn(unprocessedMask);
                         methodVisitor.visitInsn(IAND);
                     } else {
                         // General case: mask out fields from instruction and most importantly shift them down
@@ -343,17 +338,17 @@ public final class R5CPUGenerator {
                     // Java requires switch values to be in signed sorted order. We'll get visited in the original
                     // order of the patterns in the node's pattern list (which we must not change), so we need to
                     // pass a remapped labels array to the switch instruction.
-                    final int[] patterns = new int[caseCount];
+                    final int[] sortedPatterns = new int[caseCount];
                     for (int i = 0; i < caseCount; i++) {
-                        patterns[i] = children[i].getPattern() & node.getMask();
+                        sortedPatterns[i] = patterns[i] & mask;
                     }
-                    final Label[] labels = sortPatternsAndGetRemappedLabels(patterns);
+                    final Label[] labels = sortPatternsAndGetRemappedLabels(sortedPatterns);
 
                     // For non-sequential patterns we have to create a lookup switch.
                     methodVisitor.visitVarInsn(ILOAD, LOCAL_INST);
-                    methodVisitor.visitLdcInsn(node.getMask());
+                    methodVisitor.visitLdcInsn(mask);
                     methodVisitor.visitInsn(IAND);
-                    methodVisitor.visitLookupSwitchInsn(defaultCase, patterns, labels);
+                    methodVisitor.visitLookupSwitchInsn(defaultCase, sortedPatterns, labels);
                 }
             }
 
