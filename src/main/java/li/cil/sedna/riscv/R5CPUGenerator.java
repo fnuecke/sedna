@@ -2,9 +2,11 @@ package li.cil.sedna.riscv;
 
 import it.unimi.dsi.fastutil.objects.Object2IntArrayMap;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
+import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.instruction.*;
 import li.cil.sedna.instruction.decoder.*;
+import li.cil.sedna.riscv.exception.R5Exception;
 import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
 import li.cil.sedna.utils.BitUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -257,15 +259,15 @@ public final class R5CPUGenerator {
 
             if (context.isTopLevel) {
                 context.methodVisitor.visitLabel(context.continueLabel);
-            } else {
-                context.methodVisitor.visitInsn(RETURN); // TODO Should not be necessary.
             }
         }
     }
 
-    private static final class InnerNodeVisitor implements DecoderTreeVisitor {
+    private static final class InnerNodeVisitor implements DecoderTreeVisitor, Opcodes {
         private final GeneratorContext context;
         private final Label endLabel;
+
+        private GeneratorContext childContext;
 
         public InnerNodeVisitor(final GeneratorContext context, final Label endLabel) {
             this.context = context;
@@ -274,12 +276,12 @@ public final class R5CPUGenerator {
 
         @Override
         public DecoderTreeSwitchVisitor visitSwitch(final DecoderTreeSwitchNode node) {
-            return generateMethodInvocation(node) ? null : new SwitchVisitor(context);
+            return new SwitchVisitor(generateMethodInvocation(node));
         }
 
         @Override
         public DecoderTreeBranchVisitor visitBranch(final DecoderTreeBranchNode node) {
-            return generateMethodInvocation(node) ? null : new BranchVisitor(context);
+            return new BranchVisitor(generateMethodInvocation(node));
         }
 
         @Override
@@ -289,37 +291,72 @@ public final class R5CPUGenerator {
 
         @Override
         public void visitEnd() {
+            if (childContext != null) {
+                childContext.methodVisitor.visitLabel(childContext.illegalInstructionLabel);
+                childContext.methodVisitor.visitTypeInsn(NEW, Type.getInternalName(R5IllegalInstructionException.class));
+                childContext.methodVisitor.visitInsn(DUP);
+                childContext.methodVisitor.visitMethodInsn(INVOKESPECIAL, Type.getInternalName(R5IllegalInstructionException.class), "<init>", "()V", false);
+                childContext.methodVisitor.visitInsn(ATHROW);
+
+                childContext.methodVisitor.visitMaxs(-1, -1);
+                childContext.methodVisitor.visitEnd();
+            }
+
             if (endLabel != null) {
                 context.methodVisitor.visitLabel(endLabel);
             }
         }
 
-        private boolean generateMethodInvocation(final AbstractDecoderTreeNode node) {
-            return false;
-//                final OptionalInt commonInstructionSize = computeCommonInstructionSize(node);
-//                final boolean containsReturns = computeContainsReturns(node);
-//                final boolean canGenerateMethod = commonInstructionSize.isPresent() && !containsReturns;
-//                if (!canGenerateMethod) {
-//                    return false;
-//                }
-//
-//                final String methodName = node.getInstructions().map(i -> i.name.replaceAll("^[a-zA-Z]", "_")).collect(Collectors.joining("$")) + "." + System.currentTimeMillis();
-//                final ArrayList<FieldInstructionArgument> parameters = new ArrayList<>(node.getArguments().arguments.keySet());
-//                parameters.retainAll(context.localVariables.keySet());
-//
-//                pendingMethods.add(new MethodInvocation(methodName, parameters, node, processedMask));
-//
-//                methodVisitor.visitVarInsn(ALOAD, LOCAL_THIS);
-//                for (final FieldInstructionArgument parameter : parameters) {
-//                    generateGetField(parameter);
-//                }
-//                methodVisitor.visitMethodInsn(INVOKESPECIAL, Type.getInternalName(R5CPUTemplate.class),
-//                        methodName, "(" + StringUtils.repeat('I', parameters.size()) + ")V", false);
-//
-//                generateInstOffsetInc(commonInstructionSize.getAsInt());
-//                generateContinue();
-//
-//                return true;
+        private GeneratorContext generateMethodInvocation(final AbstractDecoderTreeNode node) {
+            final OptionalInt commonInstructionSize = computeCommonInstructionSize(node);
+            final boolean containsReturns = computeContainsReturns(node);
+            final boolean canGenerateMethod = commonInstructionSize.isPresent() && !containsReturns;
+            if (!canGenerateMethod) {
+                return context;
+            }
+
+            final ArrayList<FieldInstructionArgument> parameters = new ArrayList<>(node.getArguments().arguments.keySet());
+            parameters.retainAll(context.localVariables.keySet());
+
+            final Object2IntArrayMap<FieldInstructionArgument> localsInMethod = new Object2IntArrayMap<>();
+            for (int i = 0; i < parameters.size(); i++) {
+                localsInMethod.put(parameters.get(i), i + 1 /* this */ + 1 /* inst */);
+            }
+
+            final String methodName = node.getInstructions().map(i -> i.displayName.replaceAll("[^a-z^A-Z]", "_")).collect(Collectors.joining("$")) + "." + System.nanoTime();
+            final String methodDescriptor = "(" + StringUtils.repeat('I', 1 + parameters.size()) + ")V";
+
+            context.methodVisitor.visitVarInsn(ALOAD, GeneratorContext.LOCAL_THIS);
+            context.methodVisitor.visitVarInsn(ILOAD, context.localInst);
+            for (final FieldInstructionArgument parameter : parameters) {
+                final int localIndex = context.localVariables.getInt(parameter);
+                context.methodVisitor.visitVarInsn(ILOAD, localIndex);
+            }
+            context.methodVisitor.visitMethodInsn(INVOKESPECIAL, Type.getInternalName(R5CPUTemplate.class),
+                    methodName, methodDescriptor, false);
+
+            context.generateInstOffsetInc(commonInstructionSize.getAsInt());
+            context.generateContinue();
+
+            final MethodVisitor childVisitor = context.classVisitor.visitMethod(ACC_PRIVATE,
+                    methodName, methodDescriptor, null, new String[]{
+                            // TODO Build this from the actual set of exceptions in the wrapped methods not just the worst-case?
+                            Type.getInternalName(R5Exception.class),
+                            Type.getInternalName(MemoryAccessException.class)
+                    });
+            childVisitor.visitCode();
+
+            childContext = new GeneratorContext(context.classVisitor,
+                    childVisitor,
+                    false,
+                    context.processedMask,
+                    1,
+                    1 /* this */ + 1 /* inst */ + parameters.size(),
+                    null,
+                    new Label(),
+                    localsInMethod);
+
+            return childContext;
         }
 
         private OptionalInt computeCommonInstructionSize(final AbstractDecoderTreeNode node) {
