@@ -2,7 +2,6 @@ package li.cil.sedna.riscv;
 
 import it.unimi.dsi.fastutil.objects.Object2IntArrayMap;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
-import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.instruction.*;
 import li.cil.sedna.instruction.decoder.*;
@@ -192,7 +191,7 @@ public final class R5CPUGenerator {
                     localInst, localPc, localFirstField, continueLabel, illegalInstructionLabel, localVariables);
         }
 
-        public void generateContinue() {
+        public void emitContinue() {
             switch (type) {
                 case TOP_LEVEL:
                     methodVisitor.visitJumpInsn(GOTO, continueLabel);
@@ -209,25 +208,25 @@ public final class R5CPUGenerator {
             }
         }
 
-        public void generateIllegalInstruction() {
+        public void emitThrowIllegalInstruction() {
             methodVisitor.visitJumpInsn(GOTO, illegalInstructionLabel);
         }
 
-        public void generateIncrementPC(final int value) {
+        public void emitIncrementPC(final int value) {
             if (type == ContextType.TOP_LEVEL) {
                 methodVisitor.visitIincInsn(LOCAL_PC, value);
                 methodVisitor.visitIincInsn(LOCAL_INST_OFFSET, value);
             } // else: caller will increment for us.
         }
 
-        public void generateSavePC() {
+        public void emitSavePC() {
             assert type == ContextType.TOP_LEVEL;
             methodVisitor.visitVarInsn(ALOAD, LOCAL_THIS);
             methodVisitor.visitVarInsn(ILOAD, LOCAL_PC);
             methodVisitor.visitFieldInsn(PUTFIELD, Type.getInternalName(R5CPUTemplate.class), "pc", "I");
         }
 
-        public void generateGetField(final FieldInstructionArgument argument) {
+        public void emitGetField(final FieldInstructionArgument argument) {
             methodVisitor.visitInsn(ICONST_0);
             for (final InstructionFieldMapping mapping : argument.mappings) {
                 methodVisitor.visitVarInsn(ILOAD, localInst);
@@ -350,7 +349,8 @@ public final class R5CPUGenerator {
         }
 
         private GeneratorContext generateMethodInvocation(final AbstractDecoderTreeNode node) {
-            if (node.getInstructions().count() == 1) {
+            final List<InstructionDeclaration> instructions = node.getInstructions().collect(Collectors.toList());
+            if (instructions.size() == 1) {
                 return context;
             }
 
@@ -375,12 +375,13 @@ public final class R5CPUGenerator {
             // because caches have been invalidated, we need to pass this along from our generated method.
             // As such, the generated method must have a return type. We use three int values to indicate
             // the different states: 0 = advance PC and continue, 1 = exit, 2 = advance PC and exit.
-            final boolean containsReturns = node.getInstructions()
+            final List<InstructionDefinition> definitions = instructions.stream()
                     .map(R5Instructions::getDefinition)
                     .filter(Objects::nonNull)
-                    .anyMatch(d -> d.writesPC || d.returnsBoolean);
+                    .collect(Collectors.toList());
+            final boolean containsReturns = definitions.stream().anyMatch(d -> d.writesPC || d.returnsBoolean);
 
-            final String methodName = node.getInstructions()
+            final String methodName = instructions.stream()
                                               .map(i -> i.displayName.replaceAll("[^a-z^A-Z]", "_"))
                                               .collect(Collectors.joining("$")) + "." + System.nanoTime();
             final String methodDescriptor = "(" + StringUtils.repeat('I', 2 + parameters.size()) + ")" + (containsReturns ? "I" : "V");
@@ -406,15 +407,15 @@ public final class R5CPUGenerator {
                         context.methodVisitor.visitTableSwitchInsn(0, 2, context.illegalInstructionLabel, conditionalLabels);
 
                         context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_CONTINUE]);
-                        context.generateIncrementPC(commonInstructionSize.getAsInt());
+                        context.emitIncrementPC(commonInstructionSize.getAsInt());
                         context.methodVisitor.visitJumpInsn(GOTO, context.continueLabel);
 
                         context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_EXIT]);
                         context.methodVisitor.visitInsn(RETURN);
 
                         context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_EXIT_INC_PC]);
-                        context.generateIncrementPC(commonInstructionSize.getAsInt());
-                        context.generateSavePC();
+                        context.emitIncrementPC(commonInstructionSize.getAsInt());
+                        context.emitSavePC();
                         context.methodVisitor.visitInsn(RETURN);
 
                         break;
@@ -428,16 +429,19 @@ public final class R5CPUGenerator {
                         throw new IllegalStateException();
                 }
             } else {
-                context.generateIncrementPC(commonInstructionSize.getAsInt());
-                context.generateContinue();
+                context.emitIncrementPC(commonInstructionSize.getAsInt());
+                context.emitContinue();
             }
 
+            final String[] exceptions = definitions.stream()
+                    .map(d -> d.thrownExceptions)
+                    .filter(Objects::nonNull)
+                    .flatMap(Arrays::stream)
+                    .distinct()
+                    .toArray(String[]::new);
+
             final MethodVisitor childVisitor = context.classVisitor.visitMethod(ACC_PRIVATE,
-                    methodName, methodDescriptor, null, new String[]{
-                            // TODO Build this from the actual set of exceptions in the wrapped methods not just the worst-case?
-                            Type.getInternalName(R5IllegalInstructionException.class),
-                            Type.getInternalName(MemoryAccessException.class)
-                    });
+                    methodName, methodDescriptor, null, exceptions);
             childVisitor.visitCode();
 
             childContext = new GeneratorContext(context.classVisitor,
@@ -518,7 +522,7 @@ public final class R5CPUGenerator {
                 context.methodVisitor.visitInsn(IAND);
                 context.methodVisitor.visitLdcInsn(commonPattern);
                 context.methodVisitor.visitJumpInsn(IF_ICMPEQ, switchLabel);
-                context.generateIllegalInstruction();
+                context.emitThrowIllegalInstruction();
                 context.methodVisitor.visitLabel(switchLabel);
             }
 
@@ -624,7 +628,7 @@ public final class R5CPUGenerator {
         @Override
         public void visitEnd() {
             context.methodVisitor.visitLabel(defaultCase);
-            context.generateIllegalInstruction();
+            context.emitThrowIllegalInstruction();
 
             popVariables();
         }
@@ -677,7 +681,7 @@ public final class R5CPUGenerator {
 
         @Override
         public void visitEnd() {
-            context.generateIllegalInstruction();
+            context.emitThrowIllegalInstruction();
 
             popVariables();
         }
@@ -693,19 +697,19 @@ public final class R5CPUGenerator {
         @Override
         public void visitInstruction(final InstructionDeclaration declaration) {
             if (declaration.type == InstructionType.ILLEGAL) {
-                context.generateIllegalInstruction();
+                context.emitThrowIllegalInstruction();
                 return;
             }
 
             if (declaration.type == InstructionType.HINT) {
-                context.generateIncrementPC(declaration.size);
-                context.generateContinue();
+                context.emitIncrementPC(declaration.size);
+                context.emitContinue();
                 return;
             }
 
             final InstructionDefinition definition = R5Instructions.getDefinition(declaration);
             if (definition == null) {
-                context.generateIllegalInstruction();
+                context.emitThrowIllegalInstruction();
                 return;
             }
 
@@ -722,7 +726,7 @@ public final class R5CPUGenerator {
                         final int localIndex = context.localVariables.getInt(fieldArgument);
                         context.methodVisitor.visitVarInsn(ILOAD, localIndex);
                     } else {
-                        context.generateGetField(fieldArgument);
+                        context.emitGetField(fieldArgument);
                     }
                 } else {
                     throw new IllegalArgumentException();
@@ -740,8 +744,8 @@ public final class R5CPUGenerator {
                 switch (context.type) {
                     case TOP_LEVEL:
                         if (!definition.writesPC) {
-                            context.generateIncrementPC(declaration.size);
-                            context.generateSavePC();
+                            context.emitIncrementPC(declaration.size);
+                            context.emitSavePC();
                         }
                         context.methodVisitor.visitInsn(RETURN);
                         break;
@@ -758,8 +762,8 @@ public final class R5CPUGenerator {
                 }
 
                 context.methodVisitor.visitLabel(updateOffsetAndContinueLabel);
-                context.generateIncrementPC(declaration.size);
-                context.generateContinue();
+                context.emitIncrementPC(declaration.size);
+                context.emitContinue();
             } else if (definition.writesPC) {
                 switch (context.type) {
                     case TOP_LEVEL:
@@ -773,8 +777,8 @@ public final class R5CPUGenerator {
                         throw new IllegalStateException();
                 }
             } else {
-                context.generateIncrementPC(declaration.size);
-                context.generateContinue();
+                context.emitIncrementPC(declaration.size);
+                context.emitContinue();
             }
         }
 
@@ -817,7 +821,7 @@ public final class R5CPUGenerator {
                 final int localIndex = context.localFirstField + context.localVariables.size();
                 context.localVariables.put(argument, localIndex);
 
-                context.generateGetField(argument);
+                context.emitGetField(argument);
                 context.methodVisitor.visitVarInsn(ISTORE, localIndex);
             }
 

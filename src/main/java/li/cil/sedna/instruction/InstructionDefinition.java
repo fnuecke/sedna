@@ -37,20 +37,20 @@ public final class InstructionDefinition {
     public final String methodName;
     public final boolean writesPC;
     public final boolean returnsBoolean;
-    public final boolean throwsException;
+    public final String[] thrownExceptions;
     public final InstructionArgument[] parameters;
 
     InstructionDefinition(final String instructionName,
                           final String methodName,
                           final boolean writesPC,
                           final boolean returnsBoolean,
-                          final boolean throwsException,
+                          final String[] thrownExceptions,
                           final InstructionArgument[] parameters) {
         this.instructionName = instructionName;
         this.methodName = methodName;
         this.writesPC = writesPC;
         this.returnsBoolean = returnsBoolean;
-        this.throwsException = throwsException;
+        this.thrownExceptions = thrownExceptions;
         this.parameters = parameters;
     }
 }

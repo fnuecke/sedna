@@ -121,7 +121,7 @@ public final class InstructionDefinitionLoader {
                     visitor.name,
                     visitor.writesPC,
                     returnsBoolean,
-                    visitor.throwsException,
+                    visitor.thrownExceptions,
                     arguments);
             definitions.put(declaration, definition);
         }
@@ -133,7 +133,7 @@ public final class InstructionDefinitionLoader {
         private final Class<?> implementation;
         private final String name;
         private final String descriptor;
-        private final boolean throwsException;
+        private final String[] thrownExceptions;
         private final ParameterAnnotation[] parameterAnnotations;
         private boolean isImplementation;
         private String instructionName;
@@ -146,7 +146,7 @@ public final class InstructionDefinitionLoader {
             this.name = name;
             this.descriptor = descriptor;
             this.parameterAnnotations = new ParameterAnnotation[Type.getArgumentTypes(descriptor).length];
-            this.throwsException = exceptions != null && exceptions.length > 0;
+            this.thrownExceptions = exceptions;
         }
 
         @Override

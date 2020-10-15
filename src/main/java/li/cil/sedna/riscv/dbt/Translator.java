@@ -181,10 +181,10 @@ public final class Translator implements Opcodes {
                         throw new R5IllegalInstructionException(inst);
                     }
 
-                    if (definition.throwsException) {
-                        generateSavePCInLocal();
-                        generateSaveInstInLocal(inst);
-                    }
+//                    if (definition.throwsException) {
+//                        generateSavePCInLocal();
+//                        generateSaveInstInLocal(inst);
+//                    }
 
 //                    if (definition.readsPC) {
 //                        generateSavePCInCPU();
