@@ -1,10 +1,13 @@
 package li.cil.sedna.instruction.decoder;
 
 import li.cil.sedna.instruction.FieldInstructionArgument;
+import li.cil.sedna.instruction.InstructionDeclaration;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.stream.Stream;
 
 public abstract class AbstractDecoderTreeInnerNode extends AbstractDecoderTreeNode {
     public final AbstractDecoderTreeNode[] children;
@@ -69,5 +72,10 @@ public abstract class AbstractDecoderTreeInnerNode extends AbstractDecoderTreeNo
         });
 
         return new DecoderTreeNodeFieldInstructionArguments(totalLeafCount, entries);
+    }
+
+    @Override
+    public Stream<InstructionDeclaration> getInstructions() {
+        return Arrays.stream(children).flatMap(AbstractDecoderTreeNode::getInstructions).distinct();
     }
 }

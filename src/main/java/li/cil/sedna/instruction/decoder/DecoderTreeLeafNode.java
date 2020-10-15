@@ -6,6 +6,7 @@ import li.cil.sedna.instruction.InstructionDeclaration;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.stream.Stream;
 
 public final class DecoderTreeLeafNode extends AbstractDecoderTreeNode {
     public final InstructionDeclaration declaration;
@@ -42,6 +43,11 @@ public final class DecoderTreeLeafNode extends AbstractDecoderTreeNode {
         argumentNames.forEach((key, value) -> arguments.put(key, new DecoderTreeNodeFieldInstructionArguments.Entry(1, value)));
 
         return new DecoderTreeNodeFieldInstructionArguments(1, arguments);
+    }
+
+    @Override
+    public Stream<InstructionDeclaration> getInstructions() {
+        return Stream.of(declaration);
     }
 
     @Nullable
