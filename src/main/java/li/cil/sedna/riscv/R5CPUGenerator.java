@@ -199,7 +199,7 @@ public final class R5CPUGenerator {
                     methodVisitor.visitInsn(RETURN);
                     break;
                 case CONDITIONAL_METHOD:
-                    methodVisitor.visitInsn(ICONST_0);
+                    methodVisitor.visitInsn(ICONST_0 + GeneratorContext.RETURN_CONTINUE);
                     methodVisitor.visitInsn(IRETURN);
                     break;
             }
@@ -357,6 +357,9 @@ public final class R5CPUGenerator {
                 return context;
             }
 
+            // Build list of arguments needed by instructions we're grouping into a method that we
+            // have already sitting around in a local variable, so we can just pass those along as
+            // parameters instead of having to re-compute them in the method.
             final ArrayList<FieldInstructionArgument> parameters = new ArrayList<>(node.getArguments().arguments.keySet());
             parameters.retainAll(context.localVariables.keySet());
 
@@ -365,23 +368,30 @@ public final class R5CPUGenerator {
                 localsInMethod.put(parameters.get(i), i + 1 /* this */ + 1 /* inst */);
             }
 
-            final boolean containsReturns = node.getInstructions()
-                    .map(R5Instructions::getDefinition)
-                    .filter(Objects::nonNull)
-                    .anyMatch(d -> d.writesPC || d.returnsBoolean);
+            // We have to update the PC on top-level, so check if any instruction in the method we
+            // will generate needs an up-to-date PC.
             final boolean containsPCReads = node.getInstructions()
                     .map(R5Instructions::getDefinition)
                     .filter(Objects::nonNull)
                     .anyMatch(d -> d.readsPC);
+            if (containsPCReads && context.type == GeneratorContext.ContextType.TOP_LEVEL) {
+                context.generateSavePC();
+            }
+
+            // If any of the instructions we're about to group into a method can lead to an early return,
+            // either after updating the PC themselves, or just to break out of the current trace, e.g.
+            // because caches have been invalidated, we need to pass this along from our generated method.
+            // As such, the generated method must have a return type. We use three int values to indicate
+            // the different states: 0 = advance PC and continue, 1 = exit, 2 = advance PC and exit.
+            final boolean containsReturns = node.getInstructions()
+                    .map(R5Instructions::getDefinition)
+                    .filter(Objects::nonNull)
+                    .anyMatch(d -> d.writesPC || d.returnsBoolean);
 
             final String methodName = node.getInstructions()
                                               .map(i -> i.displayName.replaceAll("[^a-z^A-Z]", "_"))
                                               .collect(Collectors.joining("$")) + "." + System.nanoTime();
             final String methodDescriptor = "(" + StringUtils.repeat('I', 1 + parameters.size()) + ")" + (containsReturns ? "I" : "V");
-
-            if (containsPCReads && context.type == GeneratorContext.ContextType.TOP_LEVEL) {
-                context.generateSavePC();
-            }
 
             context.methodVisitor.visitVarInsn(ALOAD, GeneratorContext.LOCAL_THIS);
             context.methodVisitor.visitVarInsn(ILOAD, context.localInst);
@@ -425,10 +435,24 @@ public final class R5CPUGenerator {
                         throw new IllegalStateException();
                 }
             } else {
-                if (context.type == GeneratorContext.ContextType.TOP_LEVEL) {
-                    context.generateInstOffsetInc(commonInstructionSize.getAsInt());
+                switch (context.type) {
+                    case TOP_LEVEL: {
+                        context.generateInstOffsetInc(commonInstructionSize.getAsInt());
+                        context.methodVisitor.visitJumpInsn(GOTO, context.continueLabel);
+                        break;
+                    }
+                    case VOID_METHOD: {
+                        context.methodVisitor.visitInsn(RETURN);
+                        break;
+                    }
+                    case CONDITIONAL_METHOD: {
+                        context.methodVisitor.visitInsn(ICONST_0 + GeneratorContext.RETURN_CONTINUE);
+                        context.methodVisitor.visitInsn(IRETURN);
+                        break;
+                    }
+                    default:
+                        throw new IllegalStateException();
                 }
-                context.generateContinue();
             }
 
             final MethodVisitor childVisitor = context.classVisitor.visitMethod(ACC_PRIVATE,
