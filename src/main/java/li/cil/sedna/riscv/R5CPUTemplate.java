@@ -1,12 +1,7 @@
 package li.cil.sedna.riscv;
 
-import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
-import it.unimi.dsi.fastutil.ints.IntSet;
 import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Sizes;
-import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.memory.MemoryAccessException;
@@ -17,10 +12,6 @@ import li.cil.sedna.instruction.InstructionDefinition.Field;
 import li.cil.sedna.instruction.InstructionDefinition.Instruction;
 import li.cil.sedna.instruction.InstructionDefinition.InstructionSize;
 import li.cil.sedna.memory.exception.*;
-import li.cil.sedna.riscv.dbt.Trace;
-import li.cil.sedna.riscv.dbt.Translator;
-import li.cil.sedna.riscv.dbt.TranslatorJob;
-import li.cil.sedna.riscv.dbt.TranslatorPool;
 import li.cil.sedna.riscv.exception.R5BreakpointException;
 import li.cil.sedna.riscv.exception.R5ECallException;
 import li.cil.sedna.riscv.exception.R5Exception;
@@ -80,11 +71,6 @@ final class R5CPUTemplate implements R5CPU {
     // Translation look-aside buffer config.
     private static final int TLB_SIZE = 256; // Must be a power of two for fast modulo via `& (TLB_SIZE - 1)`.
 
-    // Knobs for tweaking dynamic binary translation.
-    private static final int HOT_TRACE_COUNT = 16; // Must be a power of to for (x - 1) masking.
-    private static final int TRACE_COUNT_THRESHOLD = 20;
-    private static final int EXPECTED_MAX_TRACE_COUNT = 4 * 1024;
-
     ///////////////////////////////////////////////////////////////////
     // RV32I
     private int pc; // Program counter.
@@ -142,13 +128,6 @@ final class R5CPUTemplate implements R5CPU {
     private final transient MemoryMap physicalMemory;
 
     ///////////////////////////////////////////////////////////////////
-    // Dynamic binary translation
-    private final transient R5CPUWatchedTrace[] watchedTraces = new R5CPUWatchedTrace[HOT_TRACE_COUNT];
-    private final transient Int2ObjectMap<Trace> traces = new Int2ObjectOpenHashMap<>(EXPECTED_MAX_TRACE_COUNT);
-    private final transient IntSet tracesRequested = new IntOpenHashSet(EXPECTED_MAX_TRACE_COUNT);
-    private volatile transient R5CPUTranslatorDataExchange translatorDataExchange = new R5CPUTranslatorDataExchange();
-
-    ///////////////////////////////////////////////////////////////////
     // Real time counter -- at least in RISC-V Linux 5.1 the mtime CSR is needed in add_device_randomness
     // where it doesn't use the SBI. Not implementing it would cause an illegal instruction exception
     // halting the system.
@@ -172,10 +151,6 @@ final class R5CPUTemplate implements R5CPU {
             storeTLB[i] = new R5CPUTLBEntry();
         }
 
-        for (int i = 0; i < watchedTraces.length; i++) {
-            watchedTraces[i] = new R5CPUWatchedTrace();
-        }
-
         reset();
     }
 
@@ -196,7 +171,6 @@ final class R5CPUTemplate implements R5CPU {
         mcause = 0;
 
         flushTLB();
-        flushTraces();
 
         if (hard) {
             Arrays.fill(x, 0);
@@ -260,8 +234,6 @@ final class R5CPUTemplate implements R5CPU {
             return;
         }
 
-        processTranslatedTraces();
-
         final long cycleLimit = mcycle + cycles;
         while (!waitingForInterrupt && mcycle < cycleLimit) {
             final int pending = mip.get() & mie;
@@ -301,57 +273,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    private void runTranslator() {
-        for (; ; ) {
-            final R5CPUTranslatorDataExchange dataExchange = this.translatorDataExchange;
-            final TranslatorJob request = dataExchange.translatorRequests.poll();
-            if (request == null) {
-                break;
-            }
-
-            // May return null in case the translator decided the generated trace was too short.
-            request.trace = Translator.translateTrace(request);
-            if (request.trace != null) {
-                dataExchange.translationResponses.add(request);
-            }
-        }
-    }
-
-    private void processTranslatedTraces() {
-        TranslatorJob response;
-        while ((response = translatorDataExchange.translationResponses.poll()) != null) {
-            traces.put(response.pc, response.trace);
-            tracesRequested.remove(response.pc);
-        }
-    }
-
-    private void requestTraceTranslation(final MemoryMappedDevice device, final int instOffset, final int instEnd, final int toPC, final int inst) {
-        /*
-        if (tracesRequested.add(pc)) {
-            translatorDataExchange.translatorRequests.add(new TranslatorJob(this, pc, device, instOffset, instEnd, toPC, inst));
-
-            TranslatorPool.TRANSLATORS.submit(this::runTranslator);
-        }
-        /*/
-
-        if (!tracesRequested.contains(pc)) {
-            final int hotTraceIndex = (pc >> 1) & (HOT_TRACE_COUNT - 1);
-            final R5CPUWatchedTrace watchedTrace = watchedTraces[hotTraceIndex];
-            if (watchedTrace.pc != pc) {
-                watchedTrace.pc = pc;
-                watchedTrace.count = 1;
-            } else if (++watchedTrace.count >= TRACE_COUNT_THRESHOLD) {
-                watchedTrace.pc = -1;
-
-                tracesRequested.add(pc);
-                translatorDataExchange.translatorRequests.add(new TranslatorJob(this, pc, device, instOffset, instEnd, toPC, inst));
-
-                TranslatorPool.TRANSLATORS.submit(this::runTranslator);
-            }
-        }
-        //*/
-    }
-
     private void interpret() throws R5Exception, MemoryAccessException {
         // The idea here is to run many sequential instructions with very little overhead.
         // We only need to exit the inner loop when we either leave the page we started in,
@@ -365,11 +286,6 @@ final class R5CPUTemplate implements R5CPU {
         // Also noteworthy is that we actually only run until the last position where a 32bit
         // instruction would fully fit a page. The last 16bit in a page may be the start of
         // a 32bit instruction spanning two pages, a special case we handle outside the loop.
-
-        if (traces.containsKey(pc)) {
-            invokeTrace(traces.get(pc));
-            return;
-        }
 
         final R5CPUTLBEntry cache = fetchPage(pc);
         final int instOffset = pc + cache.toOffset;
@@ -388,13 +304,7 @@ final class R5CPUTemplate implements R5CPU {
             }
         }
 
-        requestTraceTranslation(cache.device, instOffset, instEnd, toPC, inst);
-
         interpretTrace(cache, inst, instOffset, toPC, instEnd);
-    }
-
-    private void invokeTrace(final Trace trace) throws R5Exception, MemoryAccessException {
-        trace.execute();
     }
 
     private void interpretTrace(final R5CPUTLBEntry cache, int inst, int instOffset, final int toPC, final int instEnd) throws R5Exception, MemoryAccessException {
@@ -816,7 +726,6 @@ final class R5CPUTemplate implements R5CPU {
 
                     satp = validatedValue;
                     flushTLB();
-                    flushTraces();
 
                     return true; // Invalidate fetch cache.
                 }
@@ -963,8 +872,6 @@ final class R5CPUTemplate implements R5CPU {
                 ((mstatus & R5.STATUS_MPRV_MASK) != 0 && (change & R5.STATUS_MPP_MASK) != 0);
         if (mmuConfigChanged) {
             flushTLB();
-
-            // TODO Need multiple trace lists for each combination of MPRV&MPP, SUM, MXR and priv, otherwise we have to flush traces here.
         }
 
         final boolean dirty = ((mstatus & R5.STATUS_FS_MASK) == R5.STATUS_FS_MASK) ||
@@ -983,8 +890,6 @@ final class R5CPUTemplate implements R5CPU {
         flushTLB();
 
         priv = level;
-
-        // TODO Need multiple trace lists for each combination of MPRV&MPP, SUM, MXR and priv, otherwise we have to flush traces here.
     }
 
     private void raiseException(final int exception, final int value) {
@@ -1324,21 +1229,6 @@ final class R5CPUTemplate implements R5CPU {
 
     private void flushTLB(final int address) {
         flushTLB();
-    }
-
-    private void flushTraces() {
-        for (int i = 0; i < HOT_TRACE_COUNT; i++) {
-            watchedTraces[i].pc = -1;
-        }
-
-        traces.clear();
-        tracesRequested.clear();
-
-        // We simply swap out for a new set of queues to avoid synchronization.
-        // This way any running workers will put their "in flight" result into
-        // an old queue from which we will not read anymore, and fetch their
-        // next job from the new queue.
-        translatorDataExchange = new R5CPUTranslatorDataExchange();
     }
 
     ///////////////////////////////////////////////////////////////////
@@ -2148,8 +2038,6 @@ final class R5CPUTemplate implements R5CPU {
         } else {
             flushTLB(x[rs1]);
         }
-
-        flushTraces();
 
         return true;
     }
