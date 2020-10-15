@@ -107,6 +107,8 @@ public final class InstructionDefinitionLoader {
                     }
                 } else if (annotation.isInstructionSize) {
                     argument = new ConstantInstructionArgument(declaration.size);
+                } else if (annotation.isProgramCounter) {
+                    argument = new ProgramCounterInstructionArgument();
                 } else {
                     throw new AssertionError("Annotation info was generated but for neither @Field nor @InstructionSize annotation.");
                 }
@@ -117,7 +119,6 @@ public final class InstructionDefinitionLoader {
             final InstructionDefinition definition = new InstructionDefinition(
                     declaration.name,
                     visitor.name,
-                    visitor.readsPC,
                     visitor.writesPC,
                     returnsBoolean,
                     visitor.throwsException,
@@ -137,7 +138,6 @@ public final class InstructionDefinitionLoader {
         private boolean isImplementation;
         private String instructionName;
         private boolean suppressNonStaticMethodInvocationWarnings;
-        private boolean readsPC;
         private boolean writesPC;
 
         public InstructionFunctionVisitor(final Class<?> implementation, final String name, final String descriptor, final String[] exceptions) {
@@ -167,6 +167,9 @@ public final class InstructionDefinitionLoader {
                 };
             } else if (Objects.equals(descriptor, Type.getDescriptor(InstructionDefinition.InstructionSize.class))) {
                 parameterAnnotations[parameter] = ParameterAnnotation.createInstructionSize();
+                return null;
+            } else if (Objects.equals(descriptor, Type.getDescriptor(InstructionDefinition.ProgramCounter.class))) {
+                parameterAnnotations[parameter] = ParameterAnnotation.createProgramCounter();
                 return null;
             }
 
@@ -203,7 +206,10 @@ public final class InstructionDefinitionLoader {
 
             if (Objects.equals(owner, Type.getInternalName(implementation)) && Objects.equals(name, "pc")) {
                 if (opcode == Opcodes.GETFIELD) {
-                    readsPC = true;
+                    throw new IllegalArgumentException(String.format("Instruction [%s] is reading from PC field. This " +
+                                                                     "value will most likely be incorrect. Use the " +
+                                                                     "`@ProgramCounter` annotation to have the current " +
+                                                                     "PC value passed to the instruction.", this.name));
                 }
                 if (opcode == Opcodes.PUTFIELD) {
                     writesPC = true;
@@ -230,6 +236,7 @@ public final class InstructionDefinitionLoader {
     private static final class ParameterAnnotation {
         public String argumentName;
         public boolean isInstructionSize;
+        public boolean isProgramCounter;
 
         public static ParameterAnnotation createField(final String name) {
             final ParameterAnnotation result = new ParameterAnnotation();
@@ -240,6 +247,12 @@ public final class InstructionDefinitionLoader {
         public static ParameterAnnotation createInstructionSize() {
             final ParameterAnnotation result = new ParameterAnnotation();
             result.isInstructionSize = true;
+            return result;
+        }
+
+        public static ParameterAnnotation createProgramCounter() {
+            final ParameterAnnotation result = new ParameterAnnotation();
+            result.isProgramCounter = true;
             return result;
         }
     }

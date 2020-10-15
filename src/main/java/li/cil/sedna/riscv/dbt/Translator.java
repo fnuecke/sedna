@@ -187,9 +187,9 @@ public final class Translator implements Opcodes {
                         generateSaveInstInLocal(inst);
                     }
 
-                    if (definition.readsPC) {
-                        generateSavePCInCPU();
-                    }
+//                    if (definition.readsPC) {
+//                        generateSavePCInCPU();
+//                    }
 
                     mv.visitVarInsn(ALOAD, CPU_LOCAL_INDEX);
 

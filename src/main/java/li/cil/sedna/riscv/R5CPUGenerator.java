@@ -121,8 +121,8 @@ public final class R5CPUGenerator {
     private static final class GeneratorContext implements Opcodes {
         private static final int LOCAL_THIS = 0;
         private static final int LOCAL_INST = 2;
-        private static final int LOCAL_INST_OFFSET = 3;
-        private static final int LOCAL_TO_PC = 4;
+        private static final int LOCAL_PC = 3;
+        private static final int LOCAL_INST_OFFSET = 4;
         private static final int LOCAL_FIRST_FIELD = 6;
 
         public static final int RETURN_CONTINUE = 0;
@@ -140,6 +140,7 @@ public final class R5CPUGenerator {
         public final ContextType type;
         public final int processedMask;
         public final int localInst;
+        public final int localPc;
         public final int localFirstField;
 
         public final Label continueLabel;
@@ -149,7 +150,7 @@ public final class R5CPUGenerator {
         // Constructor for new top-level context.
         private GeneratorContext(final ClassVisitor classVisitor, final MethodVisitor methodVisitor) {
             this(classVisitor, methodVisitor, ContextType.TOP_LEVEL, 0,
-                    LOCAL_INST, LOCAL_FIRST_FIELD,
+                    LOCAL_INST, LOCAL_PC, LOCAL_FIRST_FIELD,
                     new Label(), new Label(), new Object2IntArrayMap<>());
         }
 
@@ -160,8 +161,9 @@ public final class R5CPUGenerator {
                                  final int processedMask,
                                  final Object2IntArrayMap<FieldInstructionArgument> localVariables) {
             this(classVisitor, methodVisitor, type, processedMask,
-                    1, // always first arg
-                    1 + 1 + localVariables.size(), // this + inst + nargs
+                    1, // inst is always first arg
+                    2, // pc is always second arg
+                    3 + localVariables.size(), // this + pc + inst + nargs
                     new Label(), new Label(), localVariables);
         }
 
@@ -170,6 +172,7 @@ public final class R5CPUGenerator {
                                  final ContextType type,
                                  final int processedMask,
                                  final int localInst,
+                                 final int localPc,
                                  final int localFirstField,
                                  final Label continueLabel,
                                  final Label illegalInstructionLabel,
@@ -179,6 +182,7 @@ public final class R5CPUGenerator {
             this.type = type;
             this.processedMask = processedMask;
             this.localInst = localInst;
+            this.localPc = localPc;
             this.localFirstField = localFirstField;
             this.continueLabel = continueLabel;
             this.illegalInstructionLabel = illegalInstructionLabel;
@@ -187,7 +191,7 @@ public final class R5CPUGenerator {
 
         public GeneratorContext withProcessed(final int mask) {
             return new GeneratorContext(classVisitor, methodVisitor, type, processedMask | mask,
-                    localInst, localFirstField, continueLabel, illegalInstructionLabel, localVariables);
+                    localInst, localPc, localFirstField, continueLabel, illegalInstructionLabel, localVariables);
         }
 
         public void generateContinue() {
@@ -202,6 +206,8 @@ public final class R5CPUGenerator {
                     methodVisitor.visitInsn(ICONST_0 + GeneratorContext.RETURN_CONTINUE);
                     methodVisitor.visitInsn(IRETURN);
                     break;
+                default:
+                    throw new IllegalStateException();
             }
         }
 
@@ -209,23 +215,17 @@ public final class R5CPUGenerator {
             methodVisitor.visitJumpInsn(GOTO, illegalInstructionLabel);
         }
 
-        public void generateInstOffsetInc(final int value) {
+        public void generateIncrementPC(final int value) {
             if (type == ContextType.TOP_LEVEL) {
-                generateInstOffsetIncUnsafe(value);
+                methodVisitor.visitIincInsn(LOCAL_PC, value);
+                methodVisitor.visitIincInsn(LOCAL_INST_OFFSET, value);
             } // else: caller will increment for us.
-        }
-
-        public void generateInstOffsetIncUnsafe(final int value) {
-            assert type == ContextType.TOP_LEVEL;
-            methodVisitor.visitIincInsn(LOCAL_INST_OFFSET, value);
         }
 
         public void generateSavePC() {
             assert type == ContextType.TOP_LEVEL;
             methodVisitor.visitVarInsn(ALOAD, LOCAL_THIS);
-            methodVisitor.visitVarInsn(ILOAD, LOCAL_INST_OFFSET);
-            methodVisitor.visitVarInsn(ILOAD, LOCAL_TO_PC);
-            methodVisitor.visitInsn(IADD);
+            methodVisitor.visitVarInsn(ILOAD, LOCAL_PC);
             methodVisitor.visitFieldInsn(PUTFIELD, Type.getInternalName(R5CPUTemplate.class), "pc", "I");
         }
 
@@ -369,17 +369,7 @@ public final class R5CPUGenerator {
 
             final Object2IntArrayMap<FieldInstructionArgument> localsInMethod = new Object2IntArrayMap<>();
             for (int i = 0; i < parameters.size(); i++) {
-                localsInMethod.put(parameters.get(i), i + 1 /* this */ + 1 /* inst */);
-            }
-
-            // We have to update the PC on top-level, so check if any instruction in the method we
-            // will generate needs an up-to-date PC.
-            final boolean containsPCReads = node.getInstructions()
-                    .map(R5Instructions::getDefinition)
-                    .filter(Objects::nonNull)
-                    .anyMatch(d -> d.readsPC);
-            if (containsPCReads && context.type == GeneratorContext.ContextType.TOP_LEVEL) {
-                context.generateSavePC();
+                localsInMethod.put(parameters.get(i), 3 + i); // this + pc + inst
             }
 
             // If any of the instructions we're about to group into a method can lead to an early return,
@@ -395,10 +385,11 @@ public final class R5CPUGenerator {
             final String methodName = node.getInstructions()
                                               .map(i -> i.displayName.replaceAll("[^a-z^A-Z]", "_"))
                                               .collect(Collectors.joining("$")) + "." + System.nanoTime();
-            final String methodDescriptor = "(" + StringUtils.repeat('I', 1 + parameters.size()) + ")" + (containsReturns ? "I" : "V");
+            final String methodDescriptor = "(" + StringUtils.repeat('I', 2 + parameters.size()) + ")" + (containsReturns ? "I" : "V");
 
             context.methodVisitor.visitVarInsn(ALOAD, GeneratorContext.LOCAL_THIS);
             context.methodVisitor.visitVarInsn(ILOAD, context.localInst);
+            context.methodVisitor.visitVarInsn(ILOAD, context.localPc);
             for (final FieldInstructionArgument parameter : parameters) {
                 final int localIndex = context.localVariables.getInt(parameter);
                 context.methodVisitor.visitVarInsn(ILOAD, localIndex);
@@ -417,14 +408,14 @@ public final class R5CPUGenerator {
                         context.methodVisitor.visitTableSwitchInsn(0, 2, context.illegalInstructionLabel, conditionalLabels);
 
                         context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_CONTINUE]);
-                        context.generateInstOffsetInc(commonInstructionSize.getAsInt());
+                        context.generateIncrementPC(commonInstructionSize.getAsInt());
                         context.methodVisitor.visitJumpInsn(GOTO, context.continueLabel);
 
                         context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_EXIT]);
                         context.methodVisitor.visitInsn(RETURN);
 
                         context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_EXIT_INC_PC]);
-                        context.generateInstOffsetInc(commonInstructionSize.getAsInt());
+                        context.generateIncrementPC(commonInstructionSize.getAsInt());
                         context.generateSavePC();
                         context.methodVisitor.visitInsn(RETURN);
 
@@ -439,24 +430,8 @@ public final class R5CPUGenerator {
                         throw new IllegalStateException();
                 }
             } else {
-                switch (context.type) {
-                    case TOP_LEVEL: {
-                        context.generateInstOffsetInc(commonInstructionSize.getAsInt());
-                        context.methodVisitor.visitJumpInsn(GOTO, context.continueLabel);
-                        break;
-                    }
-                    case VOID_METHOD: {
-                        context.methodVisitor.visitInsn(RETURN);
-                        break;
-                    }
-                    case CONDITIONAL_METHOD: {
-                        context.methodVisitor.visitInsn(ICONST_0 + GeneratorContext.RETURN_CONTINUE);
-                        context.methodVisitor.visitInsn(IRETURN);
-                        break;
-                    }
-                    default:
-                        throw new IllegalStateException();
-                }
+                context.generateIncrementPC(commonInstructionSize.getAsInt());
+                context.generateContinue();
             }
 
             final MethodVisitor childVisitor = context.classVisitor.visitMethod(ACC_PRIVATE,
@@ -725,7 +700,7 @@ public final class R5CPUGenerator {
             }
 
             if (declaration.type == InstructionType.HINT) {
-                context.generateInstOffsetInc(declaration.size);
+                context.generateIncrementPC(declaration.size);
                 context.generateContinue();
                 return;
             }
@@ -736,15 +711,13 @@ public final class R5CPUGenerator {
                 return;
             }
 
-            if (definition.readsPC && context.type == GeneratorContext.ContextType.TOP_LEVEL) {
-                context.generateSavePC();
-            }
-
             context.methodVisitor.visitVarInsn(ALOAD, GeneratorContext.LOCAL_THIS);
             for (final InstructionArgument argument : definition.parameters) {
                 if (argument instanceof ConstantInstructionArgument) {
                     final ConstantInstructionArgument constantArgument = (ConstantInstructionArgument) argument;
                     context.methodVisitor.visitLdcInsn(constantArgument.value);
+                } else if (argument instanceof ProgramCounterInstructionArgument) {
+                    context.methodVisitor.visitVarInsn(ILOAD, context.localPc);
                 } else if (argument instanceof FieldInstructionArgument) {
                     final FieldInstructionArgument fieldArgument = (FieldInstructionArgument) argument;
                     if (context.localVariables.containsKey(fieldArgument)) {
@@ -769,7 +742,7 @@ public final class R5CPUGenerator {
                 switch (context.type) {
                     case TOP_LEVEL:
                         if (!definition.writesPC) {
-                            context.generateInstOffsetInc(declaration.size);
+                            context.generateIncrementPC(declaration.size);
                             context.generateSavePC();
                         }
                         context.methodVisitor.visitInsn(RETURN);
@@ -787,7 +760,7 @@ public final class R5CPUGenerator {
                 }
 
                 context.methodVisitor.visitLabel(updateOffsetAndContinueLabel);
-                context.generateInstOffsetInc(declaration.size);
+                context.generateIncrementPC(declaration.size);
                 context.generateContinue();
             } else if (definition.writesPC) {
                 switch (context.type) {
@@ -802,7 +775,7 @@ public final class R5CPUGenerator {
                         throw new IllegalStateException();
                 }
             } else {
-                context.generateInstOffsetInc(declaration.size);
+                context.generateIncrementPC(declaration.size);
                 context.generateContinue();
             }
         }

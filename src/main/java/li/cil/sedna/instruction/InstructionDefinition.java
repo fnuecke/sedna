@@ -28,9 +28,13 @@ public final class InstructionDefinition {
     public @interface InstructionSize {
     }
 
+    @Target(ElementType.PARAMETER)
+    @Retention(RetentionPolicy.CLASS)
+    public @interface ProgramCounter {
+    }
+
     public final String instructionName;
     public final String methodName;
-    public final boolean readsPC;
     public final boolean writesPC;
     public final boolean returnsBoolean;
     public final boolean throwsException;
@@ -38,14 +42,12 @@ public final class InstructionDefinition {
 
     InstructionDefinition(final String instructionName,
                           final String methodName,
-                          final boolean readsPC,
                           final boolean writesPC,
                           final boolean returnsBoolean,
                           final boolean throwsException,
                           final InstructionArgument[] parameters) {
         this.instructionName = instructionName;
         this.methodName = methodName;
-        this.readsPC = readsPC;
         this.writesPC = writesPC;
         this.returnsBoolean = returnsBoolean;
         this.throwsException = throwsException;

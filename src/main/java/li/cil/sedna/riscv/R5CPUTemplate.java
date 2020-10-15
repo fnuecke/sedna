@@ -7,10 +7,7 @@ import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MemoryRange;
-import li.cil.sedna.instruction.InstructionDefinition.ContainsNonStaticMethodInvocations;
-import li.cil.sedna.instruction.InstructionDefinition.Field;
-import li.cil.sedna.instruction.InstructionDefinition.Instruction;
-import li.cil.sedna.instruction.InstructionDefinition.InstructionSize;
+import li.cil.sedna.instruction.InstructionDefinition.*;
 import li.cil.sedna.memory.exception.*;
 import li.cil.sedna.riscv.exception.R5BreakpointException;
 import li.cil.sedna.riscv.exception.R5ECallException;
@@ -291,7 +288,6 @@ final class R5CPUTemplate implements R5CPU {
         final int instOffset = pc + cache.toOffset;
         final int instEnd = instOffset - (pc & R5.PAGE_ADDRESS_MASK) // Page start.
                             + ((1 << R5.PAGE_ADDRESS_SHIFT) - 2); // Page size minus 16bit.
-        final int toPC = pc - instOffset;
 
         int inst;
         if (instOffset < instEnd) { // Likely case, instruction fully inside page.
@@ -304,10 +300,10 @@ final class R5CPUTemplate implements R5CPU {
             }
         }
 
-        interpretTrace(cache, inst, instOffset, toPC, instEnd);
+        interpretTrace(cache, inst, pc, instOffset, instEnd);
     }
 
-    private void interpretTrace(final R5CPUTLBEntry cache, int inst, int instOffset, final int toPC, final int instEnd) throws R5Exception, MemoryAccessException {
+    private void interpretTrace(final R5CPUTLBEntry cache, int inst, int pc, int instOffset, final int instEnd) throws R5Exception, MemoryAccessException {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
                 mcycle++;
@@ -321,15 +317,15 @@ final class R5CPUTemplate implements R5CPU {
                 if (instOffset < instEnd) { // Likely case: we're still fully in the page.
                     inst = cache.device.load(instOffset, Sizes.SIZE_32_LOG2);
                 } else { // Unlikely case: we reached the end of the page. Leave to do interrupts and cycle check.
-                    pc = instOffset + toPC;
+                    this.pc = pc;
                     return;
                 }
             }
         } catch (final R5IllegalInstructionException e) {
-            pc = instOffset + toPC;
+            this.pc = pc;
             throw new R5IllegalInstructionException(inst, e);
         } catch (final R5Exception | MemoryAccessException e) {
-            pc = instOffset + toPC;
+            this.pc = pc;
             throw e;
         }
     }
@@ -1244,7 +1240,8 @@ final class R5CPUTemplate implements R5CPU {
 
     @Instruction("AUIPC")
     private void auipc(@Field("rd") final int rd,
-                       @Field("imm") final int imm) {
+                       @Field("imm") final int imm,
+                       @ProgramCounter final int pc) {
         if (rd != 0) {
             x[rd] = pc + imm;
         }
@@ -1253,18 +1250,20 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("JAL")
     private void jal(@Field("rd") final int rd,
                      @Field("imm") final int imm,
+                     @ProgramCounter final int pc,
                      @InstructionSize final int instructionSize) {
         if (rd != 0) {
             x[rd] = pc + instructionSize;
         }
 
-        pc += imm;
+        this.pc = pc + imm;
     }
 
     @Instruction("JALR")
     private void jalr(@Field("rd") final int rd,
                       @Field("rs1") final int rs1,
                       @Field("imm") final int imm,
+                      @ProgramCounter final int pc,
                       @InstructionSize final int instructionSize) {
         // Compute first in case rs1 == rd and force alignment.
         final int address = (x[rs1] + imm) & ~1;
@@ -1272,15 +1271,16 @@ final class R5CPUTemplate implements R5CPU {
             x[rd] = pc + instructionSize;
         }
 
-        pc = address;
+        this.pc = address;
     }
 
     @Instruction("BEQ")
     private boolean beq(@Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
-                        @Field("imm") final int imm) {
+                        @Field("imm") final int imm,
+                        @ProgramCounter final int pc) {
         if (x[rs1] == x[rs2]) {
-            pc += imm;
+            this.pc = pc + imm;
             return true;
         } else {
             return false;
@@ -1290,9 +1290,10 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("BNE")
     private boolean bne(@Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
-                        @Field("imm") final int imm) {
+                        @Field("imm") final int imm,
+                        @ProgramCounter final int pc) {
         if (x[rs1] != x[rs2]) {
-            pc += imm;
+            this.pc = pc + imm;
             return true;
         } else {
             return false;
@@ -1302,9 +1303,10 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("BLT")
     private boolean blt(@Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
-                        @Field("imm") final int imm) {
+                        @Field("imm") final int imm,
+                        @ProgramCounter final int pc) {
         if (x[rs1] < x[rs2]) {
-            pc += imm;
+            this.pc = pc + imm;
             return true;
         } else {
             return false;
@@ -1314,9 +1316,10 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("BGE")
     private boolean bge(@Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
-                        @Field("imm") final int imm) {
+                        @Field("imm") final int imm,
+                        @ProgramCounter final int pc) {
         if (x[rs1] >= x[rs2]) {
-            pc += imm;
+            this.pc = pc + imm;
             return true;
         } else {
             return false;
@@ -1326,9 +1329,10 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("BLTU")
     private boolean bltu(@Field("rs1") final int rs1,
                          @Field("rs2") final int rs2,
-                         @Field("imm") final int imm) {
+                         @Field("imm") final int imm,
+                         @ProgramCounter final int pc) {
         if (Integer.compareUnsigned(x[rs1], x[rs2]) < 0) {
-            pc += imm;
+            this.pc = pc + imm;
             return true;
         } else {
             return false;
@@ -1338,9 +1342,10 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("BGEU")
     private boolean bgeu(@Field("rs1") final int rs1,
                          @Field("rs2") final int rs2,
-                         @Field("imm") final int imm) {
+                         @Field("imm") final int imm,
+                         @ProgramCounter final int pc) {
         if (Integer.compareUnsigned(x[rs1], x[rs2]) >= 0) {
-            pc += imm;
+            this.pc = pc + imm;
             return true;
         } else {
             return false;
