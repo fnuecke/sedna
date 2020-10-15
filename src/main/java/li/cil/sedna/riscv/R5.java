@@ -1,5 +1,7 @@
 package li.cil.sedna.riscv;
 
+import li.cil.sedna.api.memory.MemoryAccessException;
+
 @SuppressWarnings({"unused", "RedundantSuppression", "PointlessBitwiseExpression"})
 public final class R5 {
     // Privilege levels.
@@ -189,6 +191,31 @@ public final class R5 {
                 return 0b11;
             default:
                 throw new IllegalArgumentException();
+        }
+    }
+
+    public static int convertMemoryException(final MemoryAccessException.Type type) {
+        switch (type) {
+            case FETCH_FAULT:
+                return R5.EXCEPTION_FAULT_FETCH;
+            case LOAD_FAULT:
+                return R5.EXCEPTION_FAULT_LOAD;
+            case STORE_FAULT:
+                return R5.EXCEPTION_FAULT_STORE;
+            case FETCH_PAGE_FAULT:
+                return R5.EXCEPTION_FETCH_PAGE_FAULT;
+            case LOAD_PAGE_FAULT:
+                return R5.EXCEPTION_LOAD_PAGE_FAULT;
+            case STORE_PAGE_FAULT:
+                return R5.EXCEPTION_STORE_PAGE_FAULT;
+            case MISALIGNED_FETCH:
+                return R5.EXCEPTION_MISALIGNED_FETCH;
+            case MISALIGNED_LOAD:
+                return R5.EXCEPTION_MISALIGNED_LOAD;
+            case MISALIGNED_STORE:
+                return R5.EXCEPTION_MISALIGNED_STORE;
+            default:
+                throw new AssertionError();
         }
     }
 }

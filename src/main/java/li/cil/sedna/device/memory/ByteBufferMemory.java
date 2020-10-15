@@ -3,8 +3,6 @@ package li.cil.sedna.device.memory;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.memory.exception.LoadFaultException;
-import li.cil.sedna.memory.exception.StoreFaultException;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -30,7 +28,7 @@ public class ByteBufferMemory implements PhysicalMemory {
     @Override
     public int load(final int offset, final int sizeLog2) throws MemoryAccessException {
         if (offset < 0 || offset > data.limit() - (1 << sizeLog2)) {
-            throw new LoadFaultException(offset);
+            throw new MemoryAccessException(offset, MemoryAccessException.Type.LOAD_FAULT);
         }
         switch (sizeLog2) {
             case Sizes.SIZE_8_LOG2:
@@ -47,7 +45,7 @@ public class ByteBufferMemory implements PhysicalMemory {
     @Override
     public void store(final int offset, final int value, final int sizeLog2) throws MemoryAccessException {
         if (offset < 0 || offset > data.limit() - (1 << sizeLog2)) {
-            throw new StoreFaultException(offset);
+            throw new MemoryAccessException(offset, MemoryAccessException.Type.STORE_FAULT);
         }
         switch (sizeLog2) {
             case Sizes.SIZE_8_LOG2:

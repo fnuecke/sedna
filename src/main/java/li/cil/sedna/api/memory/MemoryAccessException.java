@@ -11,14 +11,32 @@ import java.io.IOException;
  * is accessed, specifically any {@link MemoryMappedDevice} may throw these exceptions to signal an
  * invalid access.
  */
-public class MemoryAccessException extends IOException {
-    private final int address;
+public final class MemoryAccessException extends IOException {
+    public enum Type {
+        FETCH_FAULT,
+        LOAD_FAULT,
+        STORE_FAULT,
+        FETCH_PAGE_FAULT,
+        LOAD_PAGE_FAULT,
+        STORE_PAGE_FAULT,
+        MISALIGNED_FETCH,
+        MISALIGNED_LOAD,
+        MISALIGNED_STORE,
+    }
 
-    public MemoryAccessException(final int address) {
+    private final int address;
+    private final Type type;
+
+    public MemoryAccessException(final int address, final Type type) {
         this.address = address;
+        this.type = type;
     }
 
     public int getAddress() {
         return address;
+    }
+
+    public Type getType() {
+        return type;
     }
 }

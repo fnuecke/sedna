@@ -8,7 +8,6 @@ import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MemoryRange;
 import li.cil.sedna.instruction.InstructionDefinition.*;
-import li.cil.sedna.memory.exception.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -234,29 +233,7 @@ final class R5CPUTemplate implements R5CPU {
                 raiseInterrupt(pending);
             }
 
-            try {
-                interpret();
-            } catch (final LoadPageFaultException e) {
-                raiseException(R5.EXCEPTION_LOAD_PAGE_FAULT, e.getAddress());
-            } catch (final StorePageFaultException e) {
-                raiseException(R5.EXCEPTION_STORE_PAGE_FAULT, e.getAddress());
-            } catch (final FetchPageFaultException e) {
-                raiseException(R5.EXCEPTION_FETCH_PAGE_FAULT, e.getAddress());
-            } catch (final LoadFaultException e) {
-                raiseException(R5.EXCEPTION_FAULT_LOAD, e.getAddress());
-            } catch (final StoreFaultException e) {
-                raiseException(R5.EXCEPTION_FAULT_STORE, e.getAddress());
-            } catch (final FetchFaultException e) {
-                raiseException(R5.EXCEPTION_FAULT_FETCH, e.getAddress());
-            } catch (final MisalignedLoadException e) {
-                raiseException(R5.EXCEPTION_MISALIGNED_LOAD, e.getAddress());
-            } catch (final MisalignedStoreException e) {
-                raiseException(R5.EXCEPTION_MISALIGNED_STORE, e.getAddress());
-            } catch (final MisalignedFetchException e) {
-                raiseException(R5.EXCEPTION_MISALIGNED_FETCH, e.getAddress());
-            } catch (final MemoryAccessException e) {
-                throw new AssertionError();
-            }
+            interpret();
         }
 
         if (waitingForInterrupt && mcycle < cycleLimit) {
@@ -264,7 +241,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    private void interpret() throws MemoryAccessException {
+    private void interpret() {
         // The idea here is to run many sequential instructions with very little overhead.
         // We only need to exit the inner loop when we either leave the page we started in,
         // jump around (jumps, conditionals) or some state that influences how memory access
@@ -277,28 +254,31 @@ final class R5CPUTemplate implements R5CPU {
         // Also noteworthy is that we actually only run until the last position where a 32bit
         // instruction would fully fit a page. The last 16bit in a page may be the start of
         // a 32bit instruction spanning two pages, a special case we handle outside the loop.
+        try {
+            final R5CPUTLBEntry cache = fetchPage(pc);
+            final int instOffset = pc + cache.toOffset;
+            final int instEnd = instOffset - (pc & R5.PAGE_ADDRESS_MASK) // Page start.
+                                + ((1 << R5.PAGE_ADDRESS_SHIFT) - 2); // Page size minus 16bit.
 
-        final R5CPUTLBEntry cache = fetchPage(pc);
-        final int instOffset = pc + cache.toOffset;
-        final int instEnd = instOffset - (pc & R5.PAGE_ADDRESS_MASK) // Page start.
-                            + ((1 << R5.PAGE_ADDRESS_SHIFT) - 2); // Page size minus 16bit.
-
-        int inst;
-        if (instOffset < instEnd) { // Likely case, instruction fully inside page.
-            inst = cache.device.load(instOffset, Sizes.SIZE_32_LOG2);
-        } else { // Unlikely case, instruction may leave page if it is 32bit.
-            inst = cache.device.load(instOffset, Sizes.SIZE_16_LOG2) & 0xFFFF;
-            if ((inst & 0b11) == 0b11) { // 32bit instruction.
-                final R5CPUTLBEntry highCache = fetchPage(pc + 2);
-                inst |= highCache.device.load(pc + 2 + highCache.toOffset, Sizes.SIZE_16_LOG2) << 16;
+            int inst;
+            if (instOffset < instEnd) { // Likely case, instruction fully inside page.
+                inst = cache.device.load(instOffset, Sizes.SIZE_32_LOG2);
+            } else { // Unlikely case, instruction may leave page if it is 32bit.
+                inst = cache.device.load(instOffset, Sizes.SIZE_16_LOG2) & 0xFFFF;
+                if ((inst & 0b11) == 0b11) { // 32bit instruction.
+                    final R5CPUTLBEntry highCache = fetchPage(pc + 2);
+                    inst |= highCache.device.load(pc + 2 + highCache.toOffset, Sizes.SIZE_16_LOG2) << 16;
+                }
             }
-        }
 
-        interpretTrace(cache, inst, pc, instOffset, instEnd);
+            interpretTrace(cache, inst, pc, instOffset, instEnd);
+        } catch (final MemoryAccessException e) {
+            raiseException(R5.convertMemoryException(e.getType()), e.getAddress());
+        }
     }
 
     @SuppressWarnings("LocalCanBeFinal") // `pc` and `instOffset` get updated by the generated code replacing decode().
-    private void interpretTrace(final R5CPUTLBEntry cache, int inst, int pc, int instOffset, final int instEnd) throws MemoryAccessException {
+    private void interpretTrace(final R5CPUTLBEntry cache, int inst, int pc, int instOffset, final int instEnd) {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
                 mcycle++;
@@ -321,7 +301,7 @@ final class R5CPUTemplate implements R5CPU {
             raiseException(R5.EXCEPTION_ILLEGAL_INSTRUCTION, inst);
         } catch (final MemoryAccessException e) {
             this.pc = pc;
-            throw e;
+            raiseException(R5.convertMemoryException(e.getType()), e.getAddress());
         }
     }
 
@@ -993,7 +973,7 @@ final class R5CPUTemplate implements R5CPU {
 
     private R5CPUTLBEntry fetchPage(final int address) throws MemoryAccessException {
         if ((address & 1) != 0) {
-            throw new MisalignedFetchException(address);
+            throw new MemoryAccessException(address, MemoryAccessException.Type.MISALIGNED_FETCH);
         }
 
         final int index = (address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1);
@@ -1036,7 +1016,7 @@ final class R5CPUTemplate implements R5CPU {
         final int physicalAddress = getPhysicalAddress(address, R5MemoryAccessType.FETCH);
         final MemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
         if (range == null || !(range.device instanceof PhysicalMemory)) {
-            throw new FetchFaultException(address);
+            throw new MemoryAccessException(address, MemoryAccessException.Type.FETCH_FAULT);
         }
 
         return updateTLB(fetchTLB, address, physicalAddress, range);
@@ -1046,7 +1026,7 @@ final class R5CPUTemplate implements R5CPU {
         final int size = 1 << sizeLog2;
         final int alignment = address & (size - 1);
         if (alignment != 0) {
-            throw new MisalignedLoadException(address);
+            throw new MemoryAccessException(address, MemoryAccessException.Type.MISALIGNED_LOAD);
         } else {
             final int physicalAddress = getPhysicalAddress(address, R5MemoryAccessType.LOAD);
             final MemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
@@ -1066,7 +1046,7 @@ final class R5CPUTemplate implements R5CPU {
         final int size = 1 << sizeLog2;
         final int alignment = address & (size - 1);
         if (alignment != 0) {
-            throw new MisalignedStoreException(address);
+            throw new MemoryAccessException(address, MemoryAccessException.Type.MISALIGNED_STORE);
         } else {
             final int physicalAddress = getPhysicalAddress(address, R5MemoryAccessType.STORE);
             final MemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
@@ -1180,11 +1160,11 @@ final class R5CPUTemplate implements R5CPU {
     private static MemoryAccessException getPageFaultException(final R5MemoryAccessType accessType, final int address) {
         switch (accessType) {
             case LOAD:
-                return new LoadPageFaultException(address);
+                return new MemoryAccessException(address, MemoryAccessException.Type.LOAD_PAGE_FAULT);
             case STORE:
-                return new StorePageFaultException(address);
+                return new MemoryAccessException(address, MemoryAccessException.Type.STORE_PAGE_FAULT);
             case FETCH:
-                return new FetchPageFaultException(address);
+                return new MemoryAccessException(address, MemoryAccessException.Type.FETCH_PAGE_FAULT);
             default:
                 throw new AssertionError();
         }

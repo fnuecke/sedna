@@ -3,8 +3,6 @@ package li.cil.sedna.device.memory;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.memory.exception.LoadFaultException;
-import li.cil.sedna.memory.exception.StoreFaultException;
 import li.cil.sedna.utils.UnsafeGetter;
 import sun.misc.Cleaner;
 import sun.misc.Unsafe;
@@ -56,7 +54,7 @@ public final class UnsafeMemory implements PhysicalMemory {
     @Override
     public int load(final int offset, final int sizeLog2) throws MemoryAccessException {
         if (offset < 0 || offset > size - (1 << sizeLog2)) {
-            throw new LoadFaultException(offset);
+            throw new MemoryAccessException(offset, MemoryAccessException.Type.LOAD_FAULT);
         }
         switch (sizeLog2) {
             case Sizes.SIZE_8_LOG2:
@@ -73,7 +71,7 @@ public final class UnsafeMemory implements PhysicalMemory {
     @Override
     public void store(final int offset, final int value, final int sizeLog2) throws MemoryAccessException {
         if (offset < 0 || offset > size - (1 << sizeLog2)) {
-            throw new StoreFaultException(offset);
+            throw new MemoryAccessException(offset, MemoryAccessException.Type.STORE_FAULT);
         }
         switch (sizeLog2) {
             case Sizes.SIZE_8_LOG2:
@@ -93,7 +91,7 @@ public final class UnsafeMemory implements PhysicalMemory {
     @Override
     public void load(int offset, final ByteBuffer dst) throws MemoryAccessException {
         if (offset < 0 || offset > size - dst.remaining()) {
-            throw new LoadFaultException(offset);
+            throw new MemoryAccessException(offset, MemoryAccessException.Type.LOAD_FAULT);
         }
         while (dst.hasRemaining()) {
             dst.put(UNSAFE.getByte(address + offset++));
@@ -103,7 +101,7 @@ public final class UnsafeMemory implements PhysicalMemory {
     @Override
     public void store(int offset, final ByteBuffer src) throws MemoryAccessException {
         if (offset < 0 || offset > size - src.remaining()) {
-            throw new StoreFaultException(offset);
+            throw new MemoryAccessException(offset, MemoryAccessException.Type.STORE_FAULT);
         }
         while (src.hasRemaining()) {
             UNSAFE.putByte(address + offset++, src.get());
