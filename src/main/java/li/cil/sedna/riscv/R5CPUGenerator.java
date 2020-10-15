@@ -90,10 +90,6 @@ public final class R5CPUGenerator {
                 return super.visitMethod(access, name, descriptor, signature, exceptions);
             }
         }
-
-        @Override
-        public void visitInnerClass(final String name, final String outerName, final String innerName, final int access) {
-        }
     }
 
     private static final class TemplateMethodVisitor extends MethodVisitor implements Opcodes {
