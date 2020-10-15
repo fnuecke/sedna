@@ -125,9 +125,19 @@ public final class R5CPUGenerator {
         private static final int LOCAL_TO_PC = 4;
         private static final int LOCAL_FIRST_FIELD = 6;
 
+        public static final int RETURN_CONTINUE = 0;
+        public static final int RETURN_EXIT = 1;
+        public static final int RETURN_EXIT_INC_PC = 2;
+
+        public enum ContextType {
+            TOP_LEVEL,
+            VOID_METHOD,
+            CONDITIONAL_METHOD,
+        }
+
         public final ClassVisitor classVisitor;
         public final MethodVisitor methodVisitor;
-        public final boolean isTopLevel;
+        public final ContextType type;
         public final int processedMask;
         public final int localInst;
         public final int localFirstField;
@@ -136,13 +146,28 @@ public final class R5CPUGenerator {
         public final Label illegalInstructionLabel;
         private final Object2IntArrayMap<FieldInstructionArgument> localVariables;
 
+        // Constructor for new top-level context.
         private GeneratorContext(final ClassVisitor classVisitor, final MethodVisitor methodVisitor) {
-            this(classVisitor, methodVisitor, true, 0, LOCAL_INST, LOCAL_FIRST_FIELD, new Label(), new Label(), new Object2IntArrayMap<>());
+            this(classVisitor, methodVisitor, ContextType.TOP_LEVEL, 0,
+                    LOCAL_INST, LOCAL_FIRST_FIELD,
+                    new Label(), new Label(), new Object2IntArrayMap<>());
+        }
+
+        // Constructor for nested context.
+        private GeneratorContext(final ClassVisitor classVisitor,
+                                 final MethodVisitor methodVisitor,
+                                 final ContextType type,
+                                 final int processedMask,
+                                 final Object2IntArrayMap<FieldInstructionArgument> localVariables) {
+            this(classVisitor, methodVisitor, type, processedMask,
+                    1, // always first arg
+                    1 + 1 + localVariables.size(), // this + inst + nargs
+                    new Label(), new Label(), localVariables);
         }
 
         private GeneratorContext(final ClassVisitor classVisitor,
                                  final MethodVisitor methodVisitor,
-                                 final boolean isTopLevel,
+                                 final ContextType type,
                                  final int processedMask,
                                  final int localInst,
                                  final int localFirstField,
@@ -151,7 +176,7 @@ public final class R5CPUGenerator {
                                  final Object2IntArrayMap<FieldInstructionArgument> localVariables) {
             this.classVisitor = classVisitor;
             this.methodVisitor = methodVisitor;
-            this.isTopLevel = isTopLevel;
+            this.type = type;
             this.processedMask = processedMask;
             this.localInst = localInst;
             this.localFirstField = localFirstField;
@@ -161,15 +186,22 @@ public final class R5CPUGenerator {
         }
 
         public GeneratorContext withProcessed(final int mask) {
-            return new GeneratorContext(classVisitor, methodVisitor, isTopLevel, processedMask | mask,
+            return new GeneratorContext(classVisitor, methodVisitor, type, processedMask | mask,
                     localInst, localFirstField, continueLabel, illegalInstructionLabel, localVariables);
         }
 
         public void generateContinue() {
-            if (isTopLevel) {
-                methodVisitor.visitJumpInsn(GOTO, continueLabel);
-            } else {
-                methodVisitor.visitInsn(RETURN);
+            switch (type) {
+                case TOP_LEVEL:
+                    methodVisitor.visitJumpInsn(GOTO, continueLabel);
+                    break;
+                case VOID_METHOD:
+                    methodVisitor.visitInsn(RETURN);
+                    break;
+                case CONDITIONAL_METHOD:
+                    methodVisitor.visitInsn(ICONST_0);
+                    methodVisitor.visitInsn(IRETURN);
+                    break;
             }
         }
 
@@ -178,18 +210,18 @@ public final class R5CPUGenerator {
         }
 
         public void generateInstOffsetInc(final int value) {
-            if (isTopLevel) {
+            if (type == ContextType.TOP_LEVEL) {
                 generateInstOffsetIncUnsafe(value);
-            }
+            } // else: caller will increment for us.
         }
 
         public void generateInstOffsetIncUnsafe(final int value) {
-            assert isTopLevel;
+            assert type == ContextType.TOP_LEVEL;
             methodVisitor.visitIincInsn(LOCAL_INST_OFFSET, value);
         }
 
         public void generateSavePC() {
-            assert isTopLevel;
+            assert type == ContextType.TOP_LEVEL;
             methodVisitor.visitVarInsn(ALOAD, LOCAL_THIS);
             methodVisitor.visitVarInsn(ILOAD, LOCAL_INST_OFFSET);
             methodVisitor.visitVarInsn(ILOAD, LOCAL_TO_PC);
@@ -257,9 +289,7 @@ public final class R5CPUGenerator {
             context.methodVisitor.visitMethodInsn(INVOKESPECIAL, Type.getInternalName(R5IllegalInstructionException.class), "<init>", "()V", false);
             context.methodVisitor.visitInsn(ATHROW);
 
-            if (context.isTopLevel) {
-                context.methodVisitor.visitLabel(context.continueLabel);
-            }
+            context.methodVisitor.visitLabel(context.continueLabel);
         }
     }
 
@@ -298,6 +328,20 @@ public final class R5CPUGenerator {
                 childContext.methodVisitor.visitMethodInsn(INVOKESPECIAL, Type.getInternalName(R5IllegalInstructionException.class), "<init>", "()V", false);
                 childContext.methodVisitor.visitInsn(ATHROW);
 
+
+                childContext.methodVisitor.visitLabel(childContext.continueLabel);
+                switch (childContext.type) {
+                    case VOID_METHOD:
+                        childContext.methodVisitor.visitInsn(RETURN);
+                        break;
+                    case CONDITIONAL_METHOD:
+                        childContext.methodVisitor.visitInsn(ICONST_0 + GeneratorContext.RETURN_CONTINUE);
+                        childContext.methodVisitor.visitInsn(IRETURN);
+                        break;
+                    default:
+                        throw new IllegalStateException();
+                }
+
                 childContext.methodVisitor.visitMaxs(-1, -1);
                 childContext.methodVisitor.visitEnd();
             }
@@ -309,9 +353,7 @@ public final class R5CPUGenerator {
 
         private GeneratorContext generateMethodInvocation(final AbstractDecoderTreeNode node) {
             final OptionalInt commonInstructionSize = computeCommonInstructionSize(node);
-            final boolean containsReturns = computeContainsReturns(node);
-            final boolean canGenerateMethod = commonInstructionSize.isPresent() && !containsReturns;
-            if (!canGenerateMethod) {
+            if (!commonInstructionSize.isPresent()) {
                 return context;
             }
 
@@ -323,8 +365,23 @@ public final class R5CPUGenerator {
                 localsInMethod.put(parameters.get(i), i + 1 /* this */ + 1 /* inst */);
             }
 
-            final String methodName = node.getInstructions().map(i -> i.displayName.replaceAll("[^a-z^A-Z]", "_")).collect(Collectors.joining("$")) + "." + System.nanoTime();
-            final String methodDescriptor = "(" + StringUtils.repeat('I', 1 + parameters.size()) + ")V";
+            final boolean containsReturns = node.getInstructions()
+                    .map(R5Instructions::getDefinition)
+                    .filter(Objects::nonNull)
+                    .anyMatch(d -> d.writesPC || d.returnsBoolean);
+            final boolean containsPCReads = node.getInstructions()
+                    .map(R5Instructions::getDefinition)
+                    .filter(Objects::nonNull)
+                    .anyMatch(d -> d.readsPC);
+
+            final String methodName = node.getInstructions()
+                                              .map(i -> i.displayName.replaceAll("[^a-z^A-Z]", "_"))
+                                              .collect(Collectors.joining("$")) + "." + System.nanoTime();
+            final String methodDescriptor = "(" + StringUtils.repeat('I', 1 + parameters.size()) + ")" + (containsReturns ? "I" : "V");
+
+            if (containsPCReads && context.type == GeneratorContext.ContextType.TOP_LEVEL) {
+                context.generateSavePC();
+            }
 
             context.methodVisitor.visitVarInsn(ALOAD, GeneratorContext.LOCAL_THIS);
             context.methodVisitor.visitVarInsn(ILOAD, context.localInst);
@@ -335,8 +392,44 @@ public final class R5CPUGenerator {
             context.methodVisitor.visitMethodInsn(INVOKESPECIAL, Type.getInternalName(R5CPUTemplate.class),
                     methodName, methodDescriptor, false);
 
-            context.generateInstOffsetInc(commonInstructionSize.getAsInt());
-            context.generateContinue();
+            if (containsReturns) {
+                final Label[] conditionalLabels = new Label[3];
+                for (int i = 0; i < conditionalLabels.length; i++) {
+                    conditionalLabels[i] = new Label();
+                }
+
+                switch (context.type) {
+                    case TOP_LEVEL: {
+                        context.methodVisitor.visitTableSwitchInsn(0, 2, context.illegalInstructionLabel, conditionalLabels);
+
+                        context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_CONTINUE]);
+                        context.generateInstOffsetInc(commonInstructionSize.getAsInt());
+                        context.methodVisitor.visitJumpInsn(GOTO, context.continueLabel);
+
+                        context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_EXIT]);
+                        context.methodVisitor.visitInsn(RETURN);
+
+                        context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_EXIT_INC_PC]);
+                        context.generateInstOffsetInc(commonInstructionSize.getAsInt());
+                        context.generateSavePC();
+                        context.methodVisitor.visitInsn(RETURN);
+
+                        break;
+                    }
+                    case CONDITIONAL_METHOD: {
+                        // We can't do any changes to PC either, so keep bubbling up.
+                        context.methodVisitor.visitInsn(IRETURN);
+                        break;
+                    }
+                    default:
+                        throw new IllegalStateException();
+                }
+            } else {
+                if (context.type == GeneratorContext.ContextType.TOP_LEVEL) {
+                    context.generateInstOffsetInc(commonInstructionSize.getAsInt());
+                }
+                context.generateContinue();
+            }
 
             final MethodVisitor childVisitor = context.classVisitor.visitMethod(ACC_PRIVATE,
                     methodName, methodDescriptor, null, new String[]{
@@ -348,12 +441,8 @@ public final class R5CPUGenerator {
 
             childContext = new GeneratorContext(context.classVisitor,
                     childVisitor,
-                    false,
+                    containsReturns ? GeneratorContext.ContextType.CONDITIONAL_METHOD : GeneratorContext.ContextType.VOID_METHOD,
                     context.processedMask,
-                    1,
-                    1 /* this */ + 1 /* inst */ + parameters.size(),
-                    null,
-                    new Label(),
                     localsInMethod);
 
             return childContext;
@@ -362,13 +451,6 @@ public final class R5CPUGenerator {
         private OptionalInt computeCommonInstructionSize(final AbstractDecoderTreeNode node) {
             final List<Integer> sizes = node.getInstructions().map(i -> i.size).distinct().collect(Collectors.toList());
             return sizes.size() == 1 ? OptionalInt.of(sizes.get(0)) : OptionalInt.empty();
-        }
-
-        private boolean computeContainsReturns(final AbstractDecoderTreeNode node) {
-            return node.getInstructions()
-                    .map(R5Instructions::getDefinition)
-                    .filter(Objects::nonNull)
-                    .anyMatch(d -> d.writesPC || d.returnsBoolean);
         }
     }
 
@@ -626,7 +708,7 @@ public final class R5CPUGenerator {
                 return;
             }
 
-            if (definition.readsPC) {
+            if (definition.readsPC && context.type == GeneratorContext.ContextType.TOP_LEVEL) {
                 context.generateSavePC();
             }
 
@@ -654,21 +736,43 @@ public final class R5CPUGenerator {
                     definition.methodName, methodDescriptor, false);
 
             if (definition.returnsBoolean) {
-                assert context.isTopLevel;
                 final Label updateOffsetAndContinueLabel = new Label();
                 context.methodVisitor.visitJumpInsn(IFEQ, updateOffsetAndContinueLabel);
-                if (!definition.writesPC) {
-                    context.generateInstOffsetInc(declaration.size);
-                    context.generateSavePC();
+                switch (context.type) {
+                    case TOP_LEVEL:
+                        if (!definition.writesPC) {
+                            context.generateInstOffsetInc(declaration.size);
+                            context.generateSavePC();
+                        }
+                        context.methodVisitor.visitInsn(RETURN);
+                        break;
+                    case CONDITIONAL_METHOD:
+                        if (!definition.writesPC) {
+                            context.methodVisitor.visitInsn(ICONST_0 + GeneratorContext.RETURN_EXIT_INC_PC);
+                        } else {
+                            context.methodVisitor.visitInsn(ICONST_0 + GeneratorContext.RETURN_EXIT);
+                        }
+                        context.methodVisitor.visitInsn(IRETURN);
+                        break;
+                    default:
+                        throw new IllegalStateException();
                 }
-                context.methodVisitor.visitInsn(RETURN);
 
                 context.methodVisitor.visitLabel(updateOffsetAndContinueLabel);
                 context.generateInstOffsetInc(declaration.size);
                 context.generateContinue();
             } else if (definition.writesPC) {
-                assert context.isTopLevel;
-                context.methodVisitor.visitInsn(RETURN);
+                switch (context.type) {
+                    case TOP_LEVEL:
+                        context.methodVisitor.visitInsn(RETURN);
+                        break;
+                    case CONDITIONAL_METHOD:
+                        context.methodVisitor.visitInsn(ICONST_0 + GeneratorContext.RETURN_EXIT);
+                        context.methodVisitor.visitInsn(IRETURN);
+                        break;
+                    default:
+                        throw new IllegalStateException();
+                }
             } else {
                 context.generateInstOffsetInc(declaration.size);
                 context.generateContinue();
