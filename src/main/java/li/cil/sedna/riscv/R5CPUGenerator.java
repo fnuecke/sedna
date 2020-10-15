@@ -352,6 +352,10 @@ public final class R5CPUGenerator {
         }
 
         private GeneratorContext generateMethodInvocation(final AbstractDecoderTreeNode node) {
+            if (node.getInstructions().count() == 1) {
+                return context;
+            }
+
             final OptionalInt commonInstructionSize = computeCommonInstructionSize(node);
             if (!commonInstructionSize.isPresent()) {
                 return context;
