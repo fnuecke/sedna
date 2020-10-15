@@ -722,12 +722,16 @@ public final class R5CPUGenerator {
         }
 
         protected void popVariables() {
+            if (ownedLocals.isEmpty()) {
+                return;
+            }
+
+            final Label endVariableScopeLabel = new Label();
+            context.methodVisitor.visitLabel(endVariableScopeLabel);
+
             for (final Map.Entry<FieldInstructionArgument, String> entry : ownedLocals.entrySet()) {
                 final FieldInstructionArgument argument = entry.getKey();
                 final int localIndex = context.localVariables.removeInt(argument);
-
-                final Label endVariableScopeLabel = new Label(); // todo one label for all
-                context.methodVisitor.visitLabel(endVariableScopeLabel);
                 context.methodVisitor.visitLocalVariable(entry.getValue(), "I", null, beginVariableScopeLabel, endVariableScopeLabel, localIndex);
             }
         }
