@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
  *     constructor parameter. It must be structured as described below.</li>
  *     <li>The class being visited <em>must</em> have a <em>static</em> method with the signature {@code ()V}. It must
  *     be named exactly as specified in the {@code decoderHook} constructor parameter.</li>
- *     <li>The class being visited <em>must</em> have a field of type {@code int} named {@code pc. This must be the
+ *     <li>The class being visited <em>must</em> have a field of type {@code int} named {@code pc}. This must be the
  *     actual program counter of the implementation. It will be updated by the generated code in case of early exits
  *     from the decoder loop, e.g. due to jumps.</li>
  * </ul>
