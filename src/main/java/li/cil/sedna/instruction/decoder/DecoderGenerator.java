@@ -870,8 +870,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
         // a switch or branch node. 0 = pull up everything used more than once, 1 = pull up nothing,
         // everything in-between is the relative value of used/total that has to be exceeded for a field
         // extraction to be pulled up.
-        // The value of 0.5 has been empirically determined as roughly a sweet-spot for the time being.
-        private static final float THRESHOLD = 0.5f;
+        private static final float THRESHOLD = 0.99f;
 
         private final HashMap<FieldInstructionArgument, String> ownedLocals = new HashMap<>();
         private final Label beginVariableScopeLabel = new Label();
