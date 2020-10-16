@@ -17,7 +17,7 @@ import java.nio.ByteBuffer;
  * they occupy can be used as a continuous whole, without any inaccessible areas in
  * it.
  */
-public interface PhysicalMemory extends MemoryMappedDevice {
+public abstract class PhysicalMemory implements MemoryMappedDevice {
     /**
      * Block-copy data from this physical memory into the specified buffer.
      *
@@ -25,7 +25,7 @@ public interface PhysicalMemory extends MemoryMappedDevice {
      * @param dst    the buffer to copy into.
      * @throws MemoryAccessException if the device fails copying the data.
      */
-    default void load(int offset, final ByteBuffer dst) throws MemoryAccessException {
+    public void load(int offset, final ByteBuffer dst) throws MemoryAccessException {
         while (dst.hasRemaining()) {
             dst.put((byte) load(offset++, Sizes.SIZE_8_LOG2));
         }
@@ -38,7 +38,7 @@ public interface PhysicalMemory extends MemoryMappedDevice {
      * @param src    the buffer to copy from.
      * @throws MemoryAccessException if the device fails copying the data.
      */
-    default void store(int offset, final ByteBuffer src) throws MemoryAccessException {
+    public void store(int offset, final ByteBuffer src) throws MemoryAccessException {
         while (src.hasRemaining()) {
             store(offset++, src.get(), Sizes.SIZE_8_LOG2);
         }

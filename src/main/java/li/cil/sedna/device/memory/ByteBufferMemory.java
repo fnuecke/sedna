@@ -10,7 +10,7 @@ import java.nio.ByteOrder;
 /**
  * Simple physical memory implementation backed by a {@link ByteBuffer}.
  */
-public class ByteBufferMemory implements PhysicalMemory {
+public class ByteBufferMemory extends PhysicalMemory {
     private final ByteBuffer data;
 
     public ByteBufferMemory(final int size) {

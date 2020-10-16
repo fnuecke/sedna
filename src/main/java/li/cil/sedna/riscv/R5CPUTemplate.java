@@ -2,7 +2,6 @@ package li.cil.sedna.riscv;
 
 import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Sizes;
-import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.memory.MemoryAccessException;
@@ -257,29 +256,31 @@ final class R5CPUTemplate implements R5CPU {
         // a 32bit instruction spanning two pages, a special case we handle outside the loop.
         try {
             final R5CPUTLBEntry cache = fetchPage(pc);
+            final PhysicalMemory device = (PhysicalMemory) cache.device;
             final int instOffset = pc + cache.toOffset;
             final int instEnd = instOffset - (pc & R5.PAGE_ADDRESS_MASK) // Page start.
                                 + ((1 << R5.PAGE_ADDRESS_SHIFT) - 2); // Page size minus 16bit.
 
             int inst;
             if (instOffset < instEnd) { // Likely case, instruction fully inside page.
-                inst = cache.device.load(instOffset, Sizes.SIZE_32_LOG2);
+                inst = device.load(instOffset, Sizes.SIZE_32_LOG2);
             } else { // Unlikely case, instruction may leave page if it is 32bit.
-                inst = cache.device.load(instOffset, Sizes.SIZE_16_LOG2) & 0xFFFF;
+                inst = device.load(instOffset, Sizes.SIZE_16_LOG2) & 0xFFFF;
                 if ((inst & 0b11) == 0b11) { // 32bit instruction.
                     final R5CPUTLBEntry highCache = fetchPage(pc + 2);
-                    inst |= highCache.device.load(pc + 2 + highCache.toOffset, Sizes.SIZE_16_LOG2) << 16;
+                    final PhysicalMemory highDevice = (PhysicalMemory) cache.device;
+                    inst |= highDevice.load(pc + 2 + highCache.toOffset, Sizes.SIZE_16_LOG2) << 16;
                 }
             }
 
-            interpretTrace(cache.device, inst, pc, instOffset, instEnd);
+            interpretTrace(device, inst, pc, instOffset, instEnd);
         } catch (final MemoryAccessException e) {
             raiseException(R5.convertMemoryException(e.getType()), e.getAddress());
         }
     }
 
     @SuppressWarnings("LocalCanBeFinal") // `pc` and `instOffset` get updated by the generated code replacing decode().
-    private void interpretTrace(final MemoryMappedDevice device, int inst, int pc, int instOffset, final int instEnd) {
+    private void interpretTrace(final PhysicalMemory device, int inst, int pc, int instOffset, final int instEnd) {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
                 mcycle++;

@@ -11,7 +11,7 @@ import sun.misc.VM;
 import java.nio.ByteBuffer;
 
 // Tends to be around 10% faster than ByteBufferMemory during regular emulation.
-public final class UnsafeMemory implements PhysicalMemory {
+public final class UnsafeMemory extends PhysicalMemory {
     private static final Unsafe UNSAFE = UnsafeGetter.get();
 
     private final long address;
