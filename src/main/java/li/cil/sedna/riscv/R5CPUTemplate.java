@@ -2,6 +2,7 @@ package li.cil.sedna.riscv;
 
 import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Sizes;
+import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.memory.MemoryAccessException;
@@ -271,14 +272,14 @@ final class R5CPUTemplate implements R5CPU {
                 }
             }
 
-            interpretTrace(cache, inst, pc, instOffset, instEnd);
+            interpretTrace(cache.device, inst, pc, instOffset, instEnd);
         } catch (final MemoryAccessException e) {
             raiseException(R5.convertMemoryException(e.getType()), e.getAddress());
         }
     }
 
     @SuppressWarnings("LocalCanBeFinal") // `pc` and `instOffset` get updated by the generated code replacing decode().
-    private void interpretTrace(final R5CPUTLBEntry cache, int inst, int pc, int instOffset, final int instEnd) {
+    private void interpretTrace(final MemoryMappedDevice device, int inst, int pc, int instOffset, final int instEnd) {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
                 mcycle++;
@@ -290,7 +291,7 @@ final class R5CPUTemplate implements R5CPU {
                 ///////////////////////////////////////////////////////////////////
 
                 if (instOffset < instEnd) { // Likely case: we're still fully in the page.
-                    inst = cache.device.load(instOffset, Sizes.SIZE_32_LOG2);
+                    inst = device.load(instOffset, Sizes.SIZE_32_LOG2);
                 } else { // Unlikely case: we reached the end of the page. Leave to do interrupts and cycle check.
                     this.pc = pc;
                     return;
