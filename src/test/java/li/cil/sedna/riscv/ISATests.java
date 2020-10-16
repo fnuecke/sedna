@@ -58,7 +58,7 @@ public final class ISATests {
                         return null;
                     }
 
-                    return DynamicTest.dynamicTest(file.getName(), () -> {
+                    return DynamicTest.dynamicTest(file.getName(), file.toURI(), () -> {
                         LOGGER.info("Running test for file [{}].", file.getName());
 
                         final ELF elf = ELFParser.parse(file);
