@@ -105,7 +105,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
         for (final InstructionArgument argument : definition.parameters) {
             if (argument instanceof ConstantInstructionArgument) {
                 final ConstantInstructionArgument constantArgument = (ConstantInstructionArgument) argument;
-                context.methodVisitor.visitLdcInsn(constantArgument.value);
+                context.emitFastLdc(constantArgument.value);
             } else if (argument instanceof ProgramCounterInstructionArgument) {
                 context.methodVisitor.visitVarInsn(ILOAD, context.localPc);
             } else if (argument instanceof FieldInstructionArgument) {
@@ -284,6 +284,14 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                     continueLabel, illegalInstructionLabel, localVariables);
         }
 
+        private void emitFastLdc(final int value) {
+            if (value >= 0 && value <= 5) {
+                methodVisitor.visitInsn(ICONST_0 + value);
+            } else {
+                methodVisitor.visitLdcInsn(value);
+            }
+        }
+
         public void emitContinue() {
             switch (type) {
                 case TOP_LEVEL:
@@ -323,13 +331,20 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
             methodVisitor.visitInsn(ICONST_0);
             for (final InstructionFieldMapping mapping : argument.mappings) {
                 methodVisitor.visitVarInsn(ILOAD, localInst);
-                methodVisitor.visitLdcInsn(mapping.srcLSB);
-                methodVisitor.visitLdcInsn(mapping.srcMSB);
-                methodVisitor.visitLdcInsn(mapping.dstLSB);
-                methodVisitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(BitUtils.class),
-                        "getField", "(IIII)I", false);
+                if (mapping.dstLSB >= mapping.srcLSB) {
+                    final int shiftAmount = mapping.dstLSB - mapping.srcLSB;
+                    emitFastLdc(shiftAmount);
+                    methodVisitor.visitInsn(ISHL);
+                } else {
+                    final int shiftAmount = mapping.srcLSB - mapping.dstLSB;
+                    emitFastLdc(shiftAmount);
+                    methodVisitor.visitInsn(IUSHR);
+                }
+                final int mask = ((1 << (mapping.srcMSB - mapping.srcLSB + 1)) - 1) << mapping.dstLSB;
+                emitFastLdc(mask);
+                methodVisitor.visitInsn(IAND);
                 if (mapping.signExtend) {
-                    methodVisitor.visitLdcInsn(mapping.dstLSB + (mapping.srcMSB - mapping.srcLSB) + 1);
+                    emitFastLdc(mapping.dstLSB + (mapping.srcMSB - mapping.srcLSB) + 1);
                     methodVisitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(BitUtils.class),
                             "extendSign", "(II)I", false);
                 }
@@ -340,7 +355,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                 case NONE:
                     break;
                 case ADD_8:
-                    methodVisitor.visitLdcInsn(8);
+                    emitFastLdc(8);
                     methodVisitor.visitInsn(IADD);
                     break;
                 default:
@@ -647,9 +662,9 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                 final Label switchLabel = new Label();
 
                 context.methodVisitor.visitVarInsn(ILOAD, context.localInst);
-                context.methodVisitor.visitLdcInsn(commonMask);
+                context.emitFastLdc(commonMask);
                 context.methodVisitor.visitInsn(IAND);
-                context.methodVisitor.visitLdcInsn(commonPattern);
+                context.emitFastLdc(commonPattern);
                 context.methodVisitor.visitJumpInsn(IF_ICMPEQ, switchLabel);
                 context.emitThrowIllegalInstruction();
                 context.methodVisitor.visitLabel(switchLabel);
@@ -706,7 +721,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                         assert (patterns[i] & unprocessedMask) == (tablePatterns[i] & unprocessedMask);
                     }
                     context.methodVisitor.visitVarInsn(ILOAD, context.localInst);
-                    context.methodVisitor.visitLdcInsn(unprocessedMask);
+                    context.emitFastLdc(unprocessedMask);
                     context.methodVisitor.visitInsn(IAND);
                 } else {
                     // General case: mask out fields from instruction and most importantly shift them down
@@ -715,13 +730,13 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                     int offset = 0;
                     for (final MaskField maskField : maskFields) {
                         context.methodVisitor.visitVarInsn(ILOAD, context.localInst);
-                        context.methodVisitor.visitLdcInsn(maskField.asMask());
+                        context.emitFastLdc(maskField.asMask());
                         context.methodVisitor.visitInsn(IAND);
                         if (maskField.srcLSB > 0) {
-                            context.methodVisitor.visitLdcInsn(maskField.srcLSB);
+                            context.emitFastLdc(maskField.srcLSB);
                             context.methodVisitor.visitInsn(IUSHR);
                             if (offset > 0) {
-                                context.methodVisitor.visitLdcInsn(offset);
+                                context.emitFastLdc(offset);
                                 context.methodVisitor.visitInsn(ISHL);
                             }
                         }
@@ -742,7 +757,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
 
                 // For non-sequential patterns we have to create a lookup switch.
                 context.methodVisitor.visitVarInsn(ILOAD, context.localInst);
-                context.methodVisitor.visitLdcInsn(mask);
+                context.emitFastLdc(mask);
                 context.methodVisitor.visitInsn(IAND);
                 context.methodVisitor.visitLookupSwitchInsn(defaultCase, sortedPatterns, labels);
             }
@@ -798,9 +813,9 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
             if (remainingMask != 0) {
                 final Label elseLabel = new Label();
                 context.methodVisitor.visitVarInsn(ILOAD, context.localInst); // inst
-                context.methodVisitor.visitLdcInsn(remainingMask); // inst, mask
+                context.emitFastLdc(remainingMask); // inst, mask
                 context.methodVisitor.visitInsn(IAND); // instMasked
-                context.methodVisitor.visitLdcInsn(pattern & ~context.processedMask); // inst, pattern
+                context.emitFastLdc(pattern & ~context.processedMask); // inst, pattern
                 context.methodVisitor.visitJumpInsn(IF_ICMPNE, elseLabel);
                 return new InnerNodeVisitor(context.withProcessed(remainingMask), elseLabel);
             } else {
