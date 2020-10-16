@@ -155,10 +155,11 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
         } else if (definition.writesPC) {
             switch (context.type) {
                 case TOP_LEVEL:
-                    context.methodVisitor.visitInsn(RETURN);
+                    context.emitJumpHandler();
+
                     break;
                 case CONDITIONAL_METHOD:
-                    context.methodVisitor.visitInsn(ICONST_0 + GeneratorContext.RETURN_EXIT);
+                    context.methodVisitor.visitInsn(ICONST_0 + GeneratorContext.RETURN_JUMP);
                     context.methodVisitor.visitInsn(IRETURN);
                     break;
                 default:
@@ -217,9 +218,10 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
         public static final int LOCAL_INST_OFFSET = 4;
         public static final int LOCAL_FIRST_FIELD = 6;
 
-        public static final int RETURN_CONTINUE = 0;
-        public static final int RETURN_EXIT = 1;
-        public static final int RETURN_EXIT_INC_PC = 2;
+        public static final int RETURN_CONTINUE = 0; // update pc then keep going
+        public static final int RETURN_EXIT_INC_PC = 1; // update pc then exit the decoder loop
+        public static final int RETURN_EXIT = 2; // exit the decoder loop
+        public static final int RETURN_JUMP = 3; // check pc; if forward jump and in bounds, keep going
 
         public final ClassVisitor classVisitor;
         public final MethodVisitor methodVisitor;
@@ -344,6 +346,33 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                 default:
                     throw new IllegalArgumentException();
             }
+        }
+
+        public void emitJumpHandler() {
+            // If we had a write to PC we had a jump. We break the loop if we jumped backwards to prevent
+            // infinite loops in the decoder (because cycle limit checks are done outside of it for
+            // performance). If we're jumping forward, apply the delta to our instOffset instead.
+
+            // if (this.pc - pc <= 0) return;
+            methodVisitor.visitVarInsn(ILOAD, localPc); // [pc]
+            methodVisitor.visitVarInsn(ALOAD, GeneratorContext.LOCAL_THIS); // [pc, this]
+            methodVisitor.visitFieldInsn(GETFIELD, hostClassInternalName, "pc", "I"); // [pc, this.pc]
+            methodVisitor.visitInsn(DUP); // [pc, this.pc, this.pc]
+            methodVisitor.visitVarInsn(ISTORE, localPc); // [pc, this.pc]
+            methodVisitor.visitInsn(SWAP); // [this.pc, pc]
+            methodVisitor.visitInsn(ISUB); // [this.pc - pc]
+            methodVisitor.visitInsn(DUP); // [this.pc - pc, this.pc - pc]
+            final Label forwardJumpLabel = new Label();
+            methodVisitor.visitJumpInsn(IFGT, forwardJumpLabel); // [this.pc - pc]
+            methodVisitor.visitInsn(POP); // []
+            methodVisitor.visitInsn(RETURN);
+            methodVisitor.visitLabel(forwardJumpLabel); // [this.pc - pc]
+
+            // instOffset += this.pc - pc;
+            methodVisitor.visitVarInsn(ILOAD, GeneratorContext.LOCAL_INST_OFFSET); // [this.pc - pc, instOffset]
+            methodVisitor.visitInsn(IADD); // [this.pc - pc + instOffset]
+            methodVisitor.visitVarInsn(ISTORE, GeneratorContext.LOCAL_INST_OFFSET); // []
+            methodVisitor.visitJumpInsn(GOTO, continueLabel); // []
         }
     }
 
@@ -493,7 +522,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                     methodName, methodDescriptor, false);
 
             if (containsReturns) {
-                final Label[] conditionalLabels = new Label[3];
+                final Label[] conditionalLabels = new Label[4];
                 for (int i = 0; i < conditionalLabels.length; i++) {
                     conditionalLabels[i] = new Label();
                 }
@@ -506,13 +535,16 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                         context.emitIncrementPC(commonInstructionSize.getAsInt());
                         context.methodVisitor.visitJumpInsn(GOTO, context.continueLabel);
 
-                        context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_EXIT]);
-                        context.methodVisitor.visitInsn(RETURN);
-
                         context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_EXIT_INC_PC]);
                         context.emitIncrementPC(commonInstructionSize.getAsInt());
                         context.emitSavePC();
                         context.methodVisitor.visitInsn(RETURN);
+
+                        context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_EXIT]);
+                        context.methodVisitor.visitInsn(RETURN);
+
+                        context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_JUMP]);
+                        context.emitJumpHandler();
 
                         break;
                     }
