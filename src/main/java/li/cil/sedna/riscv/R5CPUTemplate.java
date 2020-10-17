@@ -125,12 +125,11 @@ final class R5CPUTemplate implements R5CPU {
     // halting the system.
     private final transient RealTimeCounter rtc;
 
-    @SuppressWarnings("RedundantCast")
     public R5CPUTemplate(final MemoryMap physicalMemory, @Nullable final RealTimeCounter rtc) {
         // This cast is necessary so that stack frame computation in ASM does not throw
         // an exception from trying to load the realization class we're generating while
         // we're generating it.
-        this.rtc = rtc != null ? rtc : (RealTimeCounter) (Object) this;
+        this.rtc = rtc != null ? rtc : this;
         this.physicalMemory = physicalMemory;
 
         for (int i = 0; i < TLB_SIZE; i++) {

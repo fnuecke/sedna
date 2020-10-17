@@ -16,6 +16,9 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 public final class R5CPUGenerator {
+    private static final String TEMPLATE_NAME = Type.getInternalName(R5CPUTemplate.class);
+    private static final String GENERATED_NAME = TEMPLATE_NAME + "$Generated";
+
     @SuppressWarnings("unchecked")
     private static final Class<R5CPU> GENERATED_CLASS = (Class<R5CPU>) generateClass();
     private static final Constructor<R5CPU> GENERATED_CLASS_CTOR;
@@ -46,14 +49,29 @@ public final class R5CPUGenerator {
 
     private static Class<?> generateClass() {
         try {
-            final ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
-            final ClassRemapper remapper = new ClassRemapper(writer, new Remapper() {
-                private final String TEMPLATE_NAME = Type.getInternalName(R5CPUTemplate.class);
+            final ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES) {
+                @Override
+                protected String getCommonSuperClass(final String type1, final String type2) {
+                    final String commonSuperClass;
+                    if (type1.equals(GENERATED_NAME)) {
+                        commonSuperClass = super.getCommonSuperClass(Type.getInternalName(R5CPUTemplate.class), type2);
+                    } else if (type2.equals(GENERATED_NAME)) {
+                        commonSuperClass = super.getCommonSuperClass(type1, Type.getInternalName(R5CPUTemplate.class));
+                    } else {
+                        return super.getCommonSuperClass(type1, type2);
+                    }
 
+                    if (commonSuperClass.equals(TEMPLATE_NAME)) {
+                        return GENERATED_NAME;
+                    }
+                    return commonSuperClass;
+                }
+            };
+            final ClassRemapper remapper = new ClassRemapper(writer, new Remapper() {
                 @Override
                 public String map(final String internalName) {
                     if (internalName.equals(TEMPLATE_NAME)) {
-                        return TEMPLATE_NAME + "$Generated";
+                        return GENERATED_NAME;
                     } else {
                         return super.map(internalName);
                     }
