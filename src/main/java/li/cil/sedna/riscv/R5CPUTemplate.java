@@ -1939,7 +1939,7 @@ final class R5CPUTemplate implements R5CPU {
 
     @ContainsNonStaticMethodInvocations
     @Instruction("SRET")
-    private void sret() throws R5IllegalInstructionException {
+    private boolean sret() throws R5IllegalInstructionException {
         if (priv < R5.PRIVILEGE_S) {
             throw new R5IllegalInstructionException();
         }
@@ -1960,11 +1960,12 @@ final class R5CPUTemplate implements R5CPU {
         setPrivilege(spp);
 
         pc = sepc;
+        return true; // Exit trace; virtual memory access may have changed.
     }
 
     @ContainsNonStaticMethodInvocations
     @Instruction("MRET")
-    private void mret() throws R5IllegalInstructionException {
+    private boolean mret() throws R5IllegalInstructionException {
         if (priv < R5.PRIVILEGE_M) {
             throw new R5IllegalInstructionException();
         }
@@ -1981,6 +1982,7 @@ final class R5CPUTemplate implements R5CPU {
         setPrivilege(mpp);
 
         pc = mepc;
+        return true; // Exit trace; virtual memory access may have changed.
     }
 
     @ContainsNonStaticMethodInvocations
@@ -2002,7 +2004,7 @@ final class R5CPUTemplate implements R5CPU {
         }
 
         waitingForInterrupt = true;
-        return true;
+        return true; // Exit trace.
     }
 
     @ContainsNonStaticMethodInvocations
@@ -2022,7 +2024,7 @@ final class R5CPUTemplate implements R5CPU {
             flushTLB(x[rs1]);
         }
 
-        return true;
+        return true; // Exit trace, need to re-fetch.
     }
 
     public R5CPUStateSnapshot getState() {
