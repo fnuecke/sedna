@@ -7,9 +7,9 @@ public final class R5CPUStateSnapshot {
     public int pc;
     public final int[] x = new int[32];
 
-//    public final float[] f = new float[32];
-//    public byte fflags;
-//    public byte frm;
+    public final int[] f = new int[32];
+    public byte fflags;
+    public byte frm;
 
     public int reservation_set = -1;
 

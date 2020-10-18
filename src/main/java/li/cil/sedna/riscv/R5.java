@@ -52,8 +52,8 @@ public final class R5 {
     public static final int STATUS_MPIE_SHIFT = 7; // Prior M-mode interrupt-enabled bit.
     public static final int STATUS_SPP_SHIFT = 8; // Prior S-mode privilege mode.
     public static final int STATUS_MPP_SHIFT = 11; // Prior M-mode privilege mode.
-    public static final int STATUS_FS_SHIFT = 13;
-    public static final int STATUS_XS_SHIFT = 15;
+    public static final int STATUS_FS_SHIFT = 13; // Floating point unit status.
+    public static final int STATUS_XS_SHIFT = 15; // User-mode extension status.
     public static final int STATUS_MPRV_SHIFT = 17; // Modify PRiVilege.
     public static final int STATUS_SUM_SHIFT = 18; // Permit Supervisor User Memory access.
     public static final int STATUS_MXR_SHIFT = 19; // Make eXecutable Readable.
@@ -155,6 +155,12 @@ public final class R5 {
     public static final int FCSR_FRM_RUP = 0b011; // Round up (towards positive infinity).
     public static final int FCSR_FRM_RMM = 0b100; // Round to nearest, ties to max magnitude.
     public static final int FCSR_FRM_DYN = 0b111; // Use rm field of instruction to determine rounding mode.
+
+    // States for FS field in mstatus.
+    public static final int FS_OFF = 0; // All off.
+    public static final int FS_INITIAL = 1; // None dirty or clean, some on.
+    public static final int FS_CLEAN = 2; // None dirty, some clean.
+    public static final int FS_DIRTY = 3; // Some dirty.
 
     /**
      * Computes flags for the machine ISA CSR given a list of extension letters.

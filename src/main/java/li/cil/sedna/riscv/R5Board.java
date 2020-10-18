@@ -207,7 +207,7 @@ public final class R5Board implements Steppable, Resettable {
                         .addProp(DevicePropertyNames.REG, 0)
                         .addProp(DevicePropertyNames.STATUS, "okay")
                         .addProp(DevicePropertyNames.COMPATIBLE, "riscv")
-                        .addProp("riscv,isa", "rv32imacsu")
+                        .addProp("riscv,isa", "rv32imacfsu")
 
                         .addProp(DevicePropertyNames.MMU_TYPE, "riscv,sv32")
                         .addProp(DevicePropertyNames.CLOCK_FREQUENCY, cpu.getFrequency())
