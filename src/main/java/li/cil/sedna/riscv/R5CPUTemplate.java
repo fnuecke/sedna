@@ -1602,13 +1602,13 @@ final class R5CPUTemplate implements R5CPU {
 
     @Instruction("ECALL")
     private void ecall(@ProgramCounter final int pc) {
-        this.pc = pc;
+        this.pc = pc; // raiseException reads the field to store it in mepc/sepc.
         raiseException(R5.EXCEPTION_USER_ECALL + priv);
     }
 
     @Instruction("EBREAK")
     private void ebreak(@ProgramCounter final int pc) {
-        this.pc = pc;
+        this.pc = pc; // raiseException reads the field to store it in mepc/sepc.
         raiseException(R5.EXCEPTION_BREAKPOINT);
     }
 

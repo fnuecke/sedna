@@ -28,16 +28,18 @@ public final class InstructionDefinitionLoader {
                 return visitor;
             }
         }, 0);
+        visitors.removeIf(v -> !v.isImplementation);
 
+        // Used to only having to check invoked methods once. We only expect few unique invocations,
+        // so just a list we search linearly is fine.
+        final ArrayList<NonStaticMethodInvocation> knownMethodInvocations = new ArrayList<>();
         final HashMap<String, InstructionFunctionVisitor> visitorByInstructionName = new HashMap<>();
         for (final InstructionFunctionVisitor visitor : visitors) {
-            if (!visitor.isImplementation) {
-                continue;
-            }
-
             if (visitor.instructionName == null || visitor.instructionName.isEmpty()) {
                 throw new IllegalArgumentException(String.format("Instruction definition on [%s] has no name.", visitor.name));
             }
+
+            visitor.resolveInvokedMethods(knownMethodInvocations);
 
             if (visitorByInstructionName.containsKey(visitor.instructionName)) {
                 LOGGER.warn("Duplicate instruction definitions for instruction [{}]. Using [{}].",
@@ -143,6 +145,7 @@ public final class InstructionDefinitionLoader {
         private final String descriptor;
         private final String[] thrownExceptions;
         private final ParameterAnnotation[] parameterAnnotations;
+        private final ArrayList<NonStaticMethodInvocation> nonStaticMethodInvocations = new ArrayList<>();
         private boolean isImplementation;
         private String instructionName;
         private boolean writesPC;
@@ -225,14 +228,182 @@ public final class InstructionDefinitionLoader {
         @Override
         public void visitMethodInsn(final int opcode, final String owner, final String name, final String descriptor, final boolean isInterface) {
             super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
+
             if (!isImplementation) {
                 return;
             }
 
-            if (opcode != Opcodes.INVOKESTATIC) {
-                // TODO Might cause PC writes we're not aware of. However, this may involve interface calls, where
-                //      cannot statically determine this. So for now, we just trust ourselves... famous last words.
+            if (owner.startsWith("Ljava/lang/")) { // Skip built-ins.
+                return;
             }
+
+            if (opcode != Opcodes.INVOKESTATIC) {
+                nonStaticMethodInvocations.add(new NonStaticMethodInvocation(implementation, owner, name, descriptor));
+            }
+        }
+
+        public void resolveInvokedMethods(final ArrayList<NonStaticMethodInvocation> knownMethodInvocations) throws IOException {
+            if (writesPC) {
+                return;
+            }
+
+            for (final NonStaticMethodInvocation invocation : nonStaticMethodInvocations) {
+                if (invocation.computeWritesPC(knownMethodInvocations)) {
+                    writesPC = true;
+                    break;
+                }
+            }
+        }
+
+        @Override
+        public String toString() {
+            return instructionName;
+        }
+    }
+
+    private static final class NonStaticMethodInvocation {
+        private final Class<?> implementation;
+        private final String owner;
+        private final String name;
+        private final String descriptor;
+        private final ArrayList<NonStaticMethodInvocation> invocations = new ArrayList<>();
+        private boolean hasResolvedInvocations;
+        private boolean writesPC;
+        private boolean hasComputedWritesPC;
+
+        private NonStaticMethodInvocation(final Class<?> implementation, final String owner, final String name, final String descriptor) {
+            this.implementation = implementation;
+            this.owner = owner;
+            this.name = name;
+            this.descriptor = descriptor;
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            final NonStaticMethodInvocation that = (NonStaticMethodInvocation) o;
+            return owner.equals(that.owner) &&
+                   name.equals(that.name) &&
+                   descriptor.equals(that.descriptor);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(owner, name, descriptor);
+        }
+
+        public boolean computeWritesPC(final ArrayList<NonStaticMethodInvocation> knownMethodInvocations) throws IOException {
+            final NonStaticMethodInvocation invocation = getUniqueInvocation(this, knownMethodInvocations);
+            invocation.resolveInvocations(knownMethodInvocations);
+            invocation.resolveWritesPC();
+            return invocation.writesPC;
+        }
+
+        private static NonStaticMethodInvocation getUniqueInvocation(final NonStaticMethodInvocation invocation, final ArrayList<NonStaticMethodInvocation> knownMethodInvocations) {
+            final int index = knownMethodInvocations.indexOf(invocation);
+            if (index >= 0) {
+                return knownMethodInvocations.get(index);
+            } else {
+                knownMethodInvocations.add(invocation);
+                return invocation;
+            }
+        }
+
+        private void resolveInvocations(final ArrayList<NonStaticMethodInvocation> knownMethodInvocations) throws IOException {
+            if (hasResolvedInvocations) {
+                return;
+            }
+
+            final String ownerClassName = Type.getObjectType(owner).getClassName();
+            final ClassReader reader = new ClassReader(ownerClassName);
+            reader.accept(new ClassVisitor(Opcodes.ASM7) {
+                @Override
+                public MethodVisitor visitMethod(final int access, final String methodName, final String methodDescriptor, final String signature, final String[] exceptions) {
+                    if (methodName.equals(NonStaticMethodInvocation.this.name) &&
+                        methodDescriptor.equals(NonStaticMethodInvocation.this.descriptor)) {
+                        return new MethodVisitor(Opcodes.ASM7) {
+                            @Override
+                            public void visitMethodInsn(final int opcode, final String invokedMethodOwner, final String invokedMethodName, final String invokedMethodDescriptor, final boolean isInterface) {
+                                super.visitMethodInsn(opcode, invokedMethodOwner, invokedMethodName, invokedMethodDescriptor, isInterface);
+
+                                if (owner.startsWith("Ljava/lang/")) { // Skip built-ins.
+                                    return;
+                                }
+
+                                if (opcode != Opcodes.INVOKESTATIC) {
+                                    final NonStaticMethodInvocation invocation = new NonStaticMethodInvocation(implementation, invokedMethodOwner, invokedMethodName, invokedMethodDescriptor);
+                                    invocations.add(getUniqueInvocation(invocation, knownMethodInvocations));
+                                }
+                            }
+
+                            @Override
+                            public void visitFieldInsn(final int opcode, final String owner, final String name, final String descriptor) {
+                                super.visitFieldInsn(opcode, owner, name, descriptor);
+                                if (Objects.equals(owner, Type.getInternalName(implementation)) && Objects.equals(name, "pc")) {
+                                    if (opcode == Opcodes.GETFIELD) {
+                                        throw new IllegalArgumentException(
+                                                String.format("Method [%s] which is invoked by an instruction is " +
+                                                              "reading from PC field. This value will be incorrect. " +
+                                                              "Use the @ProgramCounter annotation to have the current " +
+                                                              "PC value passed to the instruction and pass it along.", methodName));
+                                    }
+                                    if (opcode == Opcodes.PUTFIELD) {
+                                        writesPC = true;
+                                    }
+                                }
+                            }
+                        };
+                    } else {
+                        return super.visitMethod(access, methodName, methodDescriptor, signature, exceptions);
+                    }
+                }
+            }, 0);
+
+            hasResolvedInvocations = true;
+
+            for (final NonStaticMethodInvocation invocation : invocations) {
+                invocation.resolveInvocations(knownMethodInvocations);
+            }
+        }
+
+        private void resolveWritesPC() {
+            if (hasComputedWritesPC) {
+                return;
+            }
+
+            propagateWrites();
+
+            hasComputedWritesPC = true;
+        }
+
+        private boolean propagateWrites() {
+            if (writesPC) {
+                return false;
+            }
+
+            for (; ; ) {
+                boolean didAnyChange = false;
+                for (final NonStaticMethodInvocation invocation : invocations) {
+                    final boolean didChange = invocation.propagateWrites();
+                    didAnyChange = didAnyChange || didChange;
+                }
+
+                if (!didAnyChange) {
+                    break;
+                }
+            }
+
+            for (final NonStaticMethodInvocation invocation : invocations) {
+                writesPC = writesPC || invocation.writesPC;
+            }
+
+            return writesPC;
+        }
+
+        @Override
+        public String toString() {
+            return name;
         }
     }
 
