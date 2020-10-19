@@ -2,6 +2,7 @@ package li.cil.sedna.riscv;
 
 import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Sizes;
+import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.memory.MemoryAccessException;
@@ -248,6 +249,9 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
+    ///////////////////////////////////////////////////////////////////
+    // Interpretation
+
     private void interpret() {
         // The idea here is to run many sequential instructions with very little overhead.
         // We only need to exit the inner loop when we either leave the page we started in,
@@ -318,6 +322,9 @@ final class R5CPUTemplate implements R5CPU {
     private static void decode() throws R5IllegalInstructionException, MemoryAccessException {
         throw new UnsupportedOperationException();
     }
+
+    ///////////////////////////////////////////////////////////////////
+    // CSR
 
     private boolean csrrwx(final int rd, final int a, final int csr) throws R5IllegalInstructionException {
         final boolean exitTrace;
@@ -851,6 +858,9 @@ final class R5CPUTemplate implements R5CPU {
         return false;
     }
 
+    ///////////////////////////////////////////////////////////////////
+    // Misc
+
     private int getStatus(final int mask) {
         final int status = (mstatus | (fs << R5.STATUS_FS_SHIFT)) & mask;
         final boolean dirty = ((mstatus & R5.STATUS_FS_MASK) == R5.STATUS_FS_MASK) ||
@@ -892,6 +902,9 @@ final class R5CPUTemplate implements R5CPU {
         }
         return rm;
     }
+
+    ///////////////////////////////////////////////////////////////////
+    // Exceptions
 
     private void raiseException(final int exception, final int value) {
         // Exceptions take cycle.
@@ -976,6 +989,9 @@ final class R5CPUTemplate implements R5CPU {
             raiseException(interrupt | R5.INTERRUPT);
         }
     }
+
+    ///////////////////////////////////////////////////////////////////
+    // MMU
 
     private R5CPUTLBEntry fetchPage(final int address) throws MemoryAccessException {
         if ((address & 1) != 0) {
@@ -1199,6 +1215,9 @@ final class R5CPUTemplate implements R5CPU {
                 throw new AssertionError();
         }
     }
+
+    ///////////////////////////////////////////////////////////////////
+    // TLB
 
     private static R5CPUTLBEntry updateTLB(final R5CPUTLBEntry[] tlb, final int address, final int physicalAddress, final MemoryRange range) {
         final int index = (address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1);
@@ -2538,5 +2557,26 @@ final class R5CPUTemplate implements R5CPU {
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.unsignedIntToDouble(x[rs1], rm);
         fs = R5.FS_DIRTY;
+    }
+
+    ///////////////////////////////////////////////////////////////////
+
+    private enum R5CPUMemoryAccessType {
+        LOAD(R5.PTE_R_MASK),
+        STORE(R5.PTE_W_MASK),
+        FETCH(R5.PTE_X_MASK),
+        ;
+
+        public final int mask;
+
+        R5CPUMemoryAccessType(final int mask) {
+            this.mask = mask;
+        }
+    }
+
+    private static final class R5CPUTLBEntry {
+        public int hash = -1;
+        public int toOffset;
+        public MemoryMappedDevice device;
     }
 }
