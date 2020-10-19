@@ -983,10 +983,32 @@ final class R5CPUTemplate implements R5CPU {
 
         final int interrupts = (pending & ~mideleg & mieMask) | (pending & mideleg & sieMask);
         if (interrupts != 0) {
-            // TODO p33: Interrupt order is handled in decreasing order of privilege mode,
-            //      and inside a single privilege mode in order E,S,T.
-            final int interrupt = Integer.numberOfTrailingZeros(interrupts);
-            raiseException(interrupt | R5.INTERRUPT);
+            // p33: Interrupt order is handled in decreasing order of privilege mode,
+            // and inside a single privilege mode in order E,S,T.
+            // Custom interrupts have highest priority and are processed low to high.
+            final int customInterrupts = interrupts >>> (R5.MEIP_SHIFT + 1);
+            if (customInterrupts != 0) {
+                final int interrupt = Integer.numberOfTrailingZeros(customInterrupts) + R5.MEIP_SHIFT + 1;
+                raiseException(interrupt | R5.INTERRUPT);
+            } else if ((pending & R5.MEIP_MASK) != 0) {
+                raiseException(R5.MEIP_SHIFT | R5.INTERRUPT);
+            } else if ((pending & R5.MSIP_MASK) != 0) {
+                raiseException(R5.MSIP_SHIFT | R5.INTERRUPT);
+            } else if ((pending & R5.MTIP_MASK) != 0) {
+                raiseException(R5.MTIP_SHIFT | R5.INTERRUPT);
+            } else if ((pending & R5.SEIP_MASK) != 0) {
+                raiseException(R5.SEIP_SHIFT | R5.INTERRUPT);
+            } else if ((pending & R5.SSIP_MASK) != 0) {
+                raiseException(R5.SSIP_SHIFT | R5.INTERRUPT);
+            } else if ((pending & R5.STIP_MASK) != 0) {
+                raiseException(R5.STIP_SHIFT | R5.INTERRUPT);
+            } else if ((pending & R5.UEIP_MASK) != 0) {
+                raiseException(R5.UEIP_SHIFT | R5.INTERRUPT);
+            } else if ((pending & R5.USIP_MASK) != 0) {
+                raiseException(R5.USIP_SHIFT | R5.INTERRUPT);
+            } else if ((pending & R5.UTIP_MASK) != 0) {
+                raiseException(R5.UTIP_SHIFT | R5.INTERRUPT);
+            }
         }
     }
 
