@@ -77,8 +77,8 @@ final class R5CPUTemplate implements R5CPU {
     private byte frm; // fcsr[7:5]
     private byte fs; // FS field of mstatus, separate for convenience.
 
-    private final SoftFloat fpu32 = new SoftFloat(fflags);
-    private final SoftDouble fpu64 = new SoftDouble(fflags);
+    private final transient SoftFloat fpu32 = new SoftFloat(fflags);
+    private final transient SoftDouble fpu64 = new SoftDouble(fflags);
 
     ///////////////////////////////////////////////////////////////////
     // RV32A

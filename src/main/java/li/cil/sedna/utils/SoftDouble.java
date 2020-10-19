@@ -9,7 +9,6 @@ import java.math.BigInteger;
  * <p>
  * Unlike Java, this supports different rounding modes and exposes exceptions via a flags register.
  */
-@Serialized
 public final class SoftDouble {
     public static final int FLAG_INEXACT = 0b1; // Inexact.
     public static final int FLAG_UNDERFLOW = 0b1 << 1; // Underflow.

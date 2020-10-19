@@ -7,7 +7,6 @@ import li.cil.ceres.api.Serialized;
  * <p>
  * Unlike Java, this supports different rounding modes and exposes exceptions via a flags register.
  */
-@Serialized
 public final class SoftFloat {
     @Serialized
     public static final class Flags {
