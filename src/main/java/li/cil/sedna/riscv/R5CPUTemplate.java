@@ -18,7 +18,7 @@ import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * RISC-V
+ * RISC-V RV32G implemenation (RV32IMAFDZicsr_Zifencei).
  * <p>
  * Based on ISA specifications found at https://riscv.org/technical/specifications/
  * <ul>
