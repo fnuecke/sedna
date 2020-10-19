@@ -1039,7 +1039,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     private R5CPUTLBEntry fetchPageSlow(final int address) throws MemoryAccessException {
-        final int physicalAddress = getPhysicalAddress(address, R5MemoryAccessType.FETCH);
+        final int physicalAddress = getPhysicalAddress(address, R5CPUMemoryAccessType.FETCH);
         final MemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
         if (range == null || !(range.device instanceof PhysicalMemory)) {
             throw new MemoryAccessException(address, MemoryAccessException.Type.FETCH_FAULT);
@@ -1054,7 +1054,7 @@ final class R5CPUTemplate implements R5CPU {
         if (alignment != 0) {
             throw new MemoryAccessException(address, MemoryAccessException.Type.MISALIGNED_LOAD);
         } else {
-            final int physicalAddress = getPhysicalAddress(address, R5MemoryAccessType.LOAD);
+            final int physicalAddress = getPhysicalAddress(address, R5CPUMemoryAccessType.LOAD);
             final MemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
             if (range == null) {
                 LOGGER.debug("Trying to load from invalid physical address [{}].", address);
@@ -1074,7 +1074,7 @@ final class R5CPUTemplate implements R5CPU {
         if (alignment != 0) {
             throw new MemoryAccessException(address, MemoryAccessException.Type.MISALIGNED_STORE);
         } else {
-            final int physicalAddress = getPhysicalAddress(address, R5MemoryAccessType.STORE);
+            final int physicalAddress = getPhysicalAddress(address, R5CPUMemoryAccessType.STORE);
             final MemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
             if (range == null) {
                 LOGGER.debug("Trying to store to invalid physical address [{}].", address);
@@ -1089,9 +1089,9 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    private int getPhysicalAddress(final int virtualAddress, final R5MemoryAccessType accessType) throws MemoryAccessException {
+    private int getPhysicalAddress(final int virtualAddress, final R5CPUMemoryAccessType accessType) throws MemoryAccessException {
         final int privilege;
-        if ((mstatus & R5.STATUS_MPRV_MASK) != 0 && accessType != R5MemoryAccessType.FETCH) {
+        if ((mstatus & R5.STATUS_MPRV_MASK) != 0 && accessType != R5CPUMemoryAccessType.FETCH) {
             privilege = (mstatus & R5.STATUS_MPP_MASK) >>> R5.STATUS_MPP_SHIFT;
         } else {
             privilege = this.priv;
@@ -1139,7 +1139,7 @@ final class R5CPUTemplate implements R5CPU {
             final int userModeFlag = pte & R5.PTE_U_MASK;
             if (privilege == R5.PRIVILEGE_S) {
                 if (userModeFlag != 0 &&
-                    (accessType == R5MemoryAccessType.FETCH || (mstatus & R5.STATUS_SUM_MASK) == 0))
+                    (accessType == R5CPUMemoryAccessType.FETCH || (mstatus & R5.STATUS_SUM_MASK) == 0))
                     throw getPageFaultException(accessType, virtualAddress);
             } else if (userModeFlag == 0) {
                 throw getPageFaultException(accessType, virtualAddress);
@@ -1165,9 +1165,9 @@ final class R5CPUTemplate implements R5CPU {
 
             // 8. Update accessed and dirty flags.
             if ((pte & R5.PTE_A_MASK) == 0 ||
-                (accessType == R5MemoryAccessType.STORE && (pte & R5.PTE_D_MASK) == 0)) {
+                (accessType == R5CPUMemoryAccessType.STORE && (pte & R5.PTE_D_MASK) == 0)) {
                 pte |= R5.PTE_A_MASK;
-                if (accessType == R5MemoryAccessType.STORE) {
+                if (accessType == R5CPUMemoryAccessType.STORE) {
                     pte |= R5.PTE_D_MASK;
                 }
 
@@ -1183,7 +1183,7 @@ final class R5CPUTemplate implements R5CPU {
         throw getPageFaultException(accessType, virtualAddress);
     }
 
-    private static MemoryAccessException getPageFaultException(final R5MemoryAccessType accessType, final int address) {
+    private static MemoryAccessException getPageFaultException(final R5CPUMemoryAccessType accessType, final int address) {
         switch (accessType) {
             case LOAD:
                 return new MemoryAccessException(address, MemoryAccessException.Type.LOAD_PAGE_FAULT);
