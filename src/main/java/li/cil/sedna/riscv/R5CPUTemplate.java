@@ -7,7 +7,10 @@ import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MemoryRange;
-import li.cil.sedna.instruction.InstructionDefinition.*;
+import li.cil.sedna.instruction.InstructionDefinition.Field;
+import li.cil.sedna.instruction.InstructionDefinition.Instruction;
+import li.cil.sedna.instruction.InstructionDefinition.InstructionSize;
+import li.cil.sedna.instruction.InstructionDefinition.ProgramCounter;
 import li.cil.sedna.utils.SoftDouble;
 import li.cil.sedna.utils.SoftFloat;
 import org.apache.logging.log4j.LogManager;
@@ -20,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * RISC-V RV32G implementation (RV32IMAFDZicsr_Zifencei).
  * <p>
- * Based on ISA specifications found at https://github.com/riscv/riscv-isa-manual/releases/tag/archive
+ * Based on ISA specifications found at https://github.com/riscv/riscv-isa-manual/releases
  * <ul>
  * <li>Volume I: User-Level ISA 20191214-draft (October 18, 2020)</li>
  * <li>Volume II: Privileged Architecture v1.12-draft (October 18, 2020)</li>
@@ -40,7 +43,8 @@ final class R5CPUTemplate implements R5CPU {
     private static final int XLEN = 32; // Integer register width.
 
     // Base ISA descriptor CSR (misa) (V2p16).
-    private static final int MISA = (R5.mxl(XLEN) << (XLEN - 2)) | R5.isa('I', 'M', 'A', 'S', 'U', 'C', 'F', 'D');
+    private static final int MISA = (R5.mxl(XLEN) << (XLEN - 2)) |
+                                    R5.isa('I', 'M', 'A', 'C', 'F', 'D', 'S', 'U');
 
     // UBE, SBE, MBE hardcoded to zero for little endianness.
     private static final int MSTATUS_MASK = ~R5.STATUS_UBE_MASK;
