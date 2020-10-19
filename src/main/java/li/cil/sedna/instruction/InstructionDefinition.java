@@ -14,11 +14,6 @@ public final class InstructionDefinition {
         String value();
     }
 
-    @Target(ElementType.METHOD)
-    @Retention(RetentionPolicy.CLASS)
-    public @interface ContainsNonStaticMethodInvocations {
-    }
-
     @Target(ElementType.PARAMETER)
     @Retention(RetentionPolicy.CLASS)
     public @interface Field {

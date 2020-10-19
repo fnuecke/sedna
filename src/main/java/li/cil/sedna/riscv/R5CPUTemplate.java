@@ -879,6 +879,16 @@ final class R5CPUTemplate implements R5CPU {
         priv = level;
     }
 
+    private int resolveRoundingMode(int rm) throws R5IllegalInstructionException {
+        if (rm == R5.FCSR_FRM_DYN) {
+            rm = frm;
+        }
+        if (rm > R5.FCSR_FRM_RMM) {
+            throw new R5IllegalInstructionException();
+        }
+        return rm;
+    }
+
     private void raiseException(final int exception, final int value) {
         // Exceptions take cycle.
         mcycle++;
@@ -1343,7 +1353,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("LB")
     private void lb(@Field("rd") final int rd,
                     @Field("rs1") final int rs1,
@@ -1354,7 +1363,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("LH")
     private void lh(@Field("rd") final int rd,
                     @Field("rs1") final int rs1,
@@ -1365,7 +1373,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("LW")
     private void lw(@Field("rd") final int rd,
                     @Field("rs1") final int rs1,
@@ -1376,7 +1383,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("LBU")
     private void lbu(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
@@ -1387,7 +1393,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("LHU")
     private void lhu(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
@@ -1398,7 +1403,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("SB")
     private void sb(@Field("rs1") final int rs1,
                     @Field("rs2") final int rs2,
@@ -1406,7 +1410,6 @@ final class R5CPUTemplate implements R5CPU {
         store8(x[rs1] + imm, (byte) x[rs2]);
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("SH")
     private void sh(@Field("rs1") final int rs1,
                     @Field("rs2") final int rs2,
@@ -1414,7 +1417,6 @@ final class R5CPUTemplate implements R5CPU {
         store16(x[rs1] + imm, (short) x[rs2]);
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("SW")
     private void sw(@Field("rs1") final int rs1,
                     @Field("rs2") final int rs2,
@@ -1598,14 +1600,12 @@ final class R5CPUTemplate implements R5CPU {
         // no-op
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("ECALL")
     private void ecall(@ProgramCounter final int pc) {
         this.pc = pc;
         raiseException(R5.EXCEPTION_USER_ECALL + priv);
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("EBREAK")
     private void ebreak(@ProgramCounter final int pc) {
         this.pc = pc;
@@ -1623,7 +1623,6 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // RV32/RV64 Zicsr Standard Extension
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("CSRRW")
     private boolean csrrw(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -1631,7 +1630,6 @@ final class R5CPUTemplate implements R5CPU {
         return csrrwx(rd, x[rs1], csr);
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("CSRRS")
     private boolean csrrs(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -1639,7 +1637,6 @@ final class R5CPUTemplate implements R5CPU {
         return csrrscx(rd, rs1, csr, x[rs1], true);
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("CSRRC")
     private boolean csrrc(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -1647,7 +1644,6 @@ final class R5CPUTemplate implements R5CPU {
         return csrrscx(rd, rs1, csr, x[rs1], false);
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("CSRRWI")
     private boolean csrrwi(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
@@ -1655,7 +1651,6 @@ final class R5CPUTemplate implements R5CPU {
         return csrrwx(rd, rs1, csr);
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("CSRRSI")
     private boolean csrrsi(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
@@ -1663,7 +1658,6 @@ final class R5CPUTemplate implements R5CPU {
         return csrrscx(rd, rs1, csr, rs1, true);
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("CSRRCI")
     private boolean csrrci(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
@@ -1769,7 +1763,6 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // RV32A Standard Extension
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("LR.W")
     private void lr_w(@Field("rd") final int rd,
                       @Field("rs1") final int rs1) throws MemoryAccessException {
@@ -1783,7 +1776,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("SC.W")
     private void sc_w(@Field("rd") final int rd,
                       @Field("rs1") final int rs1,
@@ -1804,7 +1796,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("AMOSWAP.W")
     private void amoswap_w(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
@@ -1820,7 +1811,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("AMOADD.W")
     private void amoadd_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -1836,7 +1826,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("AMOXOR.W")
     private void amoxor_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -1852,7 +1841,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("AMOAND.W")
     private void amoand_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -1868,7 +1856,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("AMOOR.W")
     private void amoor_w(@Field("rd") final int rd,
                          @Field("rs1") final int rs1,
@@ -1884,7 +1871,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("AMOMIN.W")
     private void amomin_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -1900,7 +1886,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("AMOMAX.W")
     private void amomax_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -1917,7 +1902,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("AMOMINU.W")
     private void amominu_w(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
@@ -1933,7 +1917,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("AMOMAXU.W")
     private void amomaxu_w(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
@@ -1952,7 +1935,6 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // Privileged Instructions
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("SRET")
     private boolean sret() throws R5IllegalInstructionException {
         if (priv < R5.PRIVILEGE_S) {
@@ -1978,7 +1960,6 @@ final class R5CPUTemplate implements R5CPU {
         return true; // Exit trace; virtual memory access may have changed.
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("MRET")
     private boolean mret() throws R5IllegalInstructionException {
         if (priv < R5.PRIVILEGE_M) {
@@ -2000,7 +1981,6 @@ final class R5CPUTemplate implements R5CPU {
         return true; // Exit trace; virtual memory access may have changed.
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("WFI")
     private boolean wfi() throws R5IllegalInstructionException {
         if (priv == R5.PRIVILEGE_U) {
@@ -2022,7 +2002,6 @@ final class R5CPUTemplate implements R5CPU {
         return true; // Exit trace.
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("SFENCE.VMA")
     private boolean sfence_vma(@Field("rs1") final int rs1,
                                @Field("rs2") final int rs2) throws R5IllegalInstructionException {
@@ -2045,17 +2024,6 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // RV32F Standard Extension
 
-    private int resolveRoundingMode(int rm) throws R5IllegalInstructionException {
-        if (rm == R5.FCSR_FRM_DYN) {
-            rm = frm;
-        }
-        if (rm > R5.FCSR_FRM_RMM) {
-            throw new R5IllegalInstructionException();
-        }
-        return rm;
-    }
-
-    @ContainsNonStaticMethodInvocations
     @Instruction("FLW")
     private void flw(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
@@ -2064,7 +2032,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FSW")
     private void fsw(@Field("rs1") final int rs1,
                      @Field("rs2") final int rs2,
@@ -2073,7 +2040,6 @@ final class R5CPUTemplate implements R5CPU {
         store32(x[rs1] + imm, (int) f[rs2]);
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FMADD.S")
     private void fmadd_s(@Field("rd") final int rd,
                          @Field("rs1") final int rs1,
@@ -2085,7 +2051,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FMSUB.S")
     private void fmsub_s(@Field("rd") final int rd,
                          @Field("rs1") final int rs1,
@@ -2097,7 +2062,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FNMSUB.S")
     private void fnmsub_s(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -2109,7 +2073,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FNMADD.S")
     private void fnmadd_s(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -2121,7 +2084,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FADD.S")
     private void fadd_s(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
@@ -2132,7 +2094,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FSUB.S")
     private void fsub_s(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
@@ -2143,7 +2104,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FMUL.S")
     private void fmul_s(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
@@ -2154,7 +2114,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FDIV.S")
     private void fdiv_s(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
@@ -2165,7 +2124,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FSQRT.S")
     private void fsqrt_s(@Field("rd") final int rd,
                          @Field("rs1") final int rs1,
@@ -2201,7 +2159,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FMIN.S")
     private void fmin_s(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
@@ -2210,7 +2167,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FMAX.S")
     private void fmax_s(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
@@ -2219,7 +2175,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FCVT.W.S")
     private void fcvt_w_s(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -2231,7 +2186,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FCVT.WU.S")
     private void fcvt_wu_s(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
@@ -2251,7 +2205,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FEQ.S")
     private void feq_s(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
@@ -2262,7 +2215,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FLT.S")
     private void flt_s(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
@@ -2273,7 +2225,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FLE.S")
     private void fle_s(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
@@ -2284,7 +2235,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FCLASS.S")
     private void fclass_s(@Field("rd") final int rd,
                           @Field("rs1") final int rs1) {
@@ -2293,7 +2243,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FCVT.S.W")
     private void fcvt_s_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -2303,7 +2252,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FCVT.S.WU")
     private void fcvt_s_wu(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
@@ -2323,7 +2271,6 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // RV32D Standard Extension
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FLD")
     private void fld(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
@@ -2335,7 +2282,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FSD")
     private void fsd(@Field("rs1") final int rs1,
                      @Field("rs2") final int rs2,
@@ -2348,7 +2294,6 @@ final class R5CPUTemplate implements R5CPU {
         store32(address + 4, high);
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FMADD.D")
     private void fmadd_d(@Field("rd") final int rd,
                          @Field("rs1") final int rs1,
@@ -2360,7 +2305,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FMSUB.D")
     private void FMSUB_D(@Field("rd") final int rd,
                          @Field("rs1") final int rs1,
@@ -2372,7 +2316,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FNMSUB.D")
     private void fnmsub_d(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -2384,7 +2327,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FNMADD.D")
     private void fnmadd_d(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -2396,7 +2338,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FADD.D")
     private void fadd_d(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
@@ -2407,7 +2348,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FSUB.D")
     private void fsub_d(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
@@ -2418,7 +2358,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FMUL.D")
     private void fmul_d(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
@@ -2429,7 +2368,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FDIV.D")
     private void fdiv_d(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
@@ -2440,7 +2378,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FSQRT.D")
     private void fsqrt_d(@Field("rd") final int rd,
                          @Field("rs1") final int rs1,
@@ -2476,7 +2413,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FMIN.D")
     private void fmin_d(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
@@ -2485,7 +2421,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FMAX.D")
     private void fmax_d(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
@@ -2494,7 +2429,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FCVT.S.D")
     private void fcvt_s_d(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -2504,7 +2438,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FCVT.D.S")
     private void fcvt_d_s(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -2514,7 +2447,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FEQ.D")
     private void feq_d(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
@@ -2525,7 +2457,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FLT.D")
     private void flt_d(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
@@ -2536,7 +2467,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FLE.D")
     private void fle_d(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
@@ -2547,7 +2477,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FCLASS.D")
     private void fclass_d(@Field("rd") final int rd,
                           @Field("rs1") final int rs1) {
@@ -2556,7 +2485,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FCVT.W.D")
     private void fcvt_w_d(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -2568,7 +2496,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FCVT.WU.D")
     private void fcvt_wu_d(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
@@ -2580,7 +2507,6 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FCVT.D.W")
     private void fcvt_d_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
@@ -2590,7 +2516,6 @@ final class R5CPUTemplate implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    @ContainsNonStaticMethodInvocations
     @Instruction("FCVT.D.WU")
     private void fcvt_d_wu(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,

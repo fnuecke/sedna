@@ -145,7 +145,6 @@ public final class InstructionDefinitionLoader {
         private final ParameterAnnotation[] parameterAnnotations;
         private boolean isImplementation;
         private String instructionName;
-        private boolean suppressNonStaticMethodInvocationWarnings;
         private boolean writesPC;
 
         public InstructionFunctionVisitor(final Class<?> implementation, final String name, final String descriptor, final String[] exceptions) {
@@ -153,8 +152,8 @@ public final class InstructionDefinitionLoader {
             this.implementation = implementation;
             this.name = name;
             this.descriptor = descriptor;
-            this.parameterAnnotations = new ParameterAnnotation[Type.getArgumentTypes(descriptor).length];
             this.thrownExceptions = exceptions;
+            this.parameterAnnotations = new ParameterAnnotation[Type.getArgumentTypes(descriptor).length];
         }
 
         @Override
@@ -197,8 +196,6 @@ public final class InstructionDefinitionLoader {
                         }
                     }
                 };
-            } else if (Objects.equals(descriptor, Type.getDescriptor(InstructionDefinition.ContainsNonStaticMethodInvocations.class))) {
-                suppressNonStaticMethodInvocationWarnings = true;
             }
 
             return super.visitAnnotation(descriptor, visible);
@@ -215,9 +212,9 @@ public final class InstructionDefinitionLoader {
             if (Objects.equals(owner, Type.getInternalName(implementation)) && Objects.equals(name, "pc")) {
                 if (opcode == Opcodes.GETFIELD) {
                     throw new IllegalArgumentException(String.format("Instruction [%s] is reading from PC field. This " +
-                                                                     "value will most likely be incorrect. Use the " +
-                                                                     "`@ProgramCounter` annotation to have the current " +
-                                                                     "PC value passed to the instruction.", this.name));
+                                                                     "value will be incorrect. Use the @ProgramCounter " +
+                                                                     "annotation to have the current PC value passed " +
+                                                                     "to the instruction.", this.name));
                 }
                 if (opcode == Opcodes.PUTFIELD) {
                     writesPC = true;
@@ -228,15 +225,13 @@ public final class InstructionDefinitionLoader {
         @Override
         public void visitMethodInsn(final int opcode, final String owner, final String name, final String descriptor, final boolean isInterface) {
             super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
-            if (!isImplementation || suppressNonStaticMethodInvocationWarnings) {
+            if (!isImplementation) {
                 return;
             }
 
             if (opcode != Opcodes.INVOKESTATIC) {
-                throw new IllegalArgumentException(String.format("Instruction definition [%s] calls non-static method [%s.%s]. " +
-                                                                 "Static analysis will not detect access to PC if called method operates on PC. " +
-                                                                 "Suppress this error by adding `@ContainsNonStaticMethodInvocations` to the " +
-                                                                 "instruction definition if the call is known to be safe.", this.name, owner, name));
+                // TODO Might cause PC writes we're not aware of. However, this may involve interface calls, where
+                //      cannot statically determine this. So for now, we just trust ourselves... famous last words.
             }
         }
     }
