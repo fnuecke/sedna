@@ -1,7 +1,5 @@
 package li.cil.sedna.utils;
 
-import li.cil.ceres.api.Serialized;
-
 import java.math.BigInteger;
 
 /**
