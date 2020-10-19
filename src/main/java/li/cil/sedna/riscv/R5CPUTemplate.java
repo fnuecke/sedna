@@ -2068,7 +2068,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FSW")
     private void fsw(@Field("rs1") final int rs1,
                      @Field("rs2") final int rs2,
-                     @Field("imm") final int imm) throws MemoryAccessException {
+                     @Field("imm") final int imm) throws R5IllegalInstructionException, MemoryAccessException {
+        if (fs == R5.FS_OFF) throw new R5IllegalInstructionException();
         store32(x[rs1] + imm, (int) f[rs2]);
     }
 
@@ -2338,7 +2339,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FSD")
     private void fsd(@Field("rs1") final int rs1,
                      @Field("rs2") final int rs2,
-                     @Field("imm") final int imm) throws MemoryAccessException {
+                     @Field("imm") final int imm) throws R5IllegalInstructionException, MemoryAccessException {
+        if (fs == R5.FS_OFF) throw new R5IllegalInstructionException();
         final int address = x[rs1] + imm;
         final int high = (int) (f[rs2] >>> 32);
         final int low = (int) f[rs2];
