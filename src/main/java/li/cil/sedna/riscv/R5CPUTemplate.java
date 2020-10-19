@@ -1229,7 +1229,18 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     private void flushTLB(final int address) {
-        flushTLB();
+        final int index = (address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1);
+        final int hash = address & ~R5.PAGE_ADDRESS_MASK;
+
+        if (fetchTLB[index].hash == hash) {
+            fetchTLB[index].hash = -1;
+        }
+        if (loadTLB[index].hash == hash) {
+            loadTLB[index].hash = -1;
+        }
+        if (storeTLB[index].hash == hash) {
+            storeTLB[index].hash = -1;
+        }
     }
 
     ///////////////////////////////////////////////////////////////////
