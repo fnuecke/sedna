@@ -17,7 +17,7 @@ public interface R5CPU extends Steppable, Resettable, RealTimeCounter, Interrupt
         return R5CPUGenerator.create(physicalMemory, null);
     }
 
-    void reset(final boolean hard, final int pc);
+    int getISA();
 
-    R5CPUStateSnapshot getState();
+    void reset(final boolean hard, final int pc);
 }

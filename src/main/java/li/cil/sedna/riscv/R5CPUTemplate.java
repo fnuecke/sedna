@@ -18,24 +18,17 @@ import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * RISC-V RV32G implemenation (RV32IMAFDZicsr_Zifencei).
+ * RISC-V RV32G implementation (RV32IMAFDZicsr_Zifencei).
  * <p>
- * Based on ISA specifications found at https://riscv.org/technical/specifications/
+ * Based on ISA specifications found at https://github.com/riscv/riscv-isa-manual/releases/tag/archive
  * <ul>
- * <li>Volume 1, Unprivileged Spec v.20191213</li>
- * <li>Volume 2, Privileged Spec v.20190608</li>
+ * <li>Volume I: User-Level ISA 20191214-draft (October 18, 2020)</li>
+ * <li>Volume II: Privileged Architecture v1.12-draft (October 18, 2020)</li>
  * </ul>
  * <p>
- * Implemented extensions:
+ * Limitations:
  * <ul>
- * <li>RV32I Base Integer Instruction Set, Version 2.1</li>
- * <li>"Zifencei" Instruction-Fetch Fence, Version 2.0</li>
- * <li>"M" Standard Extension for Integer Multiplication and Division, Version 2.0</li>
- * <li>"A" Standard Extension for Atomic Instructions, Version 2.1</li>
- * <li>"Zicsr", Control and Status Register (CSR) Instructions, Version 2.0</li>
- * <li>"F" Standard Extension for Single-Precision Floating-Point, Version 2.2</li>
- * <li>"D" Standard Extension for Double-Precision Floating-Point, Version 2.2</li>
- * <li>"C" Standard Extension for Compressed Instructions, Version 2.0</li>
+ * <li>The fence extensions are implemented as no-ops at this time.</li>
  * </ul>
  */
 @Serialized
@@ -47,7 +40,7 @@ final class R5CPUTemplate implements R5CPU {
     private static final int XLEN = 32; // Integer register width.
 
     // Base ISA descriptor CSR (misa) (V2p16).
-    public static final int MISA = (R5.mxl(XLEN) << (XLEN - 2)) | R5.isa('I', 'M', 'A', 'S', 'U', 'C', 'F', 'D');
+    private static final int MISA = (R5.mxl(XLEN) << (XLEN - 2)) | R5.isa('I', 'M', 'A', 'S', 'U', 'C', 'F', 'D');
 
     // UBE, SBE, MBE hardcoded to zero for little endianness.
     private static final int MSTATUS_MASK = ~R5.STATUS_UBE_MASK;
@@ -149,6 +142,11 @@ final class R5CPUTemplate implements R5CPU {
         }
 
         reset();
+    }
+
+    @Override
+    public int getISA() {
+        return MISA;
     }
 
     @Override
@@ -317,7 +315,7 @@ final class R5CPUTemplate implements R5CPU {
         throw new UnsupportedOperationException();
     }
 
-    private boolean csrrw_impl(final int rd, final int a, final int csr) throws R5IllegalInstructionException {
+    private boolean csrrwx(final int rd, final int a, final int csr) throws R5IllegalInstructionException {
         final boolean exitTrace;
 
         checkCSR(csr, true);
@@ -332,7 +330,7 @@ final class R5CPUTemplate implements R5CPU {
         return exitTrace;
     }
 
-    private boolean csrrx_impl(final int rd, final int rs1, final int csr, final int a, final boolean isSet) throws R5IllegalInstructionException {
+    private boolean csrrscx(final int rd, final int rs1, final int csr, final int a, final boolean isSet) throws R5IllegalInstructionException {
         final boolean exitTrace;
 
         final boolean mayChange = rs1 != 0;
@@ -1630,7 +1628,7 @@ final class R5CPUTemplate implements R5CPU {
     private boolean csrrw(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("csr") final int csr) throws R5IllegalInstructionException {
-        return csrrw_impl(rd, x[rs1], csr);
+        return csrrwx(rd, x[rs1], csr);
     }
 
     @ContainsNonStaticMethodInvocations
@@ -1638,7 +1636,7 @@ final class R5CPUTemplate implements R5CPU {
     private boolean csrrs(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("csr") final int csr) throws R5IllegalInstructionException {
-        return csrrx_impl(rd, rs1, csr, x[rs1], true);
+        return csrrscx(rd, rs1, csr, x[rs1], true);
     }
 
     @ContainsNonStaticMethodInvocations
@@ -1646,7 +1644,7 @@ final class R5CPUTemplate implements R5CPU {
     private boolean csrrc(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("csr") final int csr) throws R5IllegalInstructionException {
-        return csrrx_impl(rd, rs1, csr, x[rs1], false);
+        return csrrscx(rd, rs1, csr, x[rs1], false);
     }
 
     @ContainsNonStaticMethodInvocations
@@ -1654,7 +1652,7 @@ final class R5CPUTemplate implements R5CPU {
     private boolean csrrwi(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("csr") final int csr) throws R5IllegalInstructionException {
-        return csrrw_impl(rd, rs1, csr);
+        return csrrwx(rd, rs1, csr);
     }
 
     @ContainsNonStaticMethodInvocations
@@ -1662,7 +1660,7 @@ final class R5CPUTemplate implements R5CPU {
     private boolean csrrsi(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("csr") final int csr) throws R5IllegalInstructionException {
-        return csrrx_impl(rd, rs1, csr, rs1, true);
+        return csrrscx(rd, rs1, csr, rs1, true);
     }
 
     @ContainsNonStaticMethodInvocations
@@ -1670,7 +1668,7 @@ final class R5CPUTemplate implements R5CPU {
     private boolean csrrci(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("csr") final int csr) throws R5IllegalInstructionException {
-        return csrrx_impl(rd, rs1, csr, rs1, false);
+        return csrrscx(rd, rs1, csr, rs1, false);
     }
 
     ///////////////////////////////////////////////////////////////////
@@ -2598,48 +2596,5 @@ final class R5CPUTemplate implements R5CPU {
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.unsignedIntToDouble(x[rs1], rm);
         fs = R5.FS_DIRTY;
-    }
-
-    ///////////////////////////////////////////////////////////////////
-
-    public R5CPUStateSnapshot getState() {
-        final R5CPUStateSnapshot state = new R5CPUStateSnapshot();
-
-        state.pc = pc;
-        System.arraycopy(x, 0, state.x, 0, 32);
-
-        System.arraycopy(f, 0, state.f, 0, 32);
-        state.fflags = fpu32.flags.value;
-        state.frm = frm;
-
-        state.reservation_set = reservation_set;
-
-        state.mcycle = mcycle;
-
-        state.mstatus = mstatus;
-        state.mstatush = mstatush;
-        state.mtvec = mtvec;
-        state.medeleg = medeleg;
-        state.mideleg = mideleg;
-        state.mip = mip.get();
-        state.mie = mie;
-        state.mcounteren = mcounteren;
-        state.mscratch = mscratch;
-        state.mepc = mepc;
-        state.mcause = mcause;
-        state.mtval = mtval;
-
-        state.stvec = stvec;
-        state.scounteren = scounteren;
-        state.sscratch = sscratch;
-        state.sepc = sepc;
-        state.scause = scause;
-        state.stval = stval;
-        state.satp = satp;
-
-        state.priv = priv;
-        state.waitingForInterrupt = waitingForInterrupt;
-
-        return state;
     }
 }
