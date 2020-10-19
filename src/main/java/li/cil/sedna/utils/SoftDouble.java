@@ -8,29 +8,29 @@ import java.math.BigInteger;
  * Unlike Java, this supports different rounding modes and exposes exceptions via a flags register.
  */
 public final class SoftDouble {
-    public static final int FLAG_INEXACT = 0b1; // Inexact.
-    public static final int FLAG_UNDERFLOW = 0b1 << 1; // Underflow.
-    public static final int FLAG_OVERFLOW = 0b1 << 2; // Overflow.
-    public static final int FLAG_DIV_ZERO = 0b1 << 3; // Division by zero.
-    public static final int FLAG_INVALID = 0b1 << 4; // Invalid operation.
+    public static final int FLAG_INEXACT = SoftFloat.FLAG_INEXACT; // Inexact.
+    public static final int FLAG_UNDERFLOW = SoftFloat.FLAG_UNDERFLOW; // Underflow.
+    public static final int FLAG_OVERFLOW = SoftFloat.FLAG_OVERFLOW; // Overflow.
+    public static final int FLAG_DIV_ZERO = SoftFloat.FLAG_DIV_ZERO; // Division by zero.
+    public static final int FLAG_INVALID = SoftFloat.FLAG_INVALID; // Invalid operation.
 
     // NB: The flag bits must match the the RISC-V ones.
-    public static final byte RM_RNE = 0b000; // Round to nearest, ties to even.
-    public static final byte RM_RTZ = 0b001; // Round towards zero.
-    public static final byte RM_RDN = 0b010; // Round down (towards negative infinity).
-    public static final byte RM_RUP = 0b011; // Round up (towards positive infinity).
-    public static final byte RM_RMM = 0b100; // Round to nearest, ties to max magnitude.
+    public static final byte RM_RNE = SoftFloat.RM_RNE; // Round to nearest, ties to even.
+    public static final byte RM_RTZ = SoftFloat.RM_RTZ; // Round towards zero.
+    public static final byte RM_RDN = SoftFloat.RM_RDN; // Round down (towards negative infinity).
+    public static final byte RM_RUP = SoftFloat.RM_RUP; // Round up (towards positive infinity).
+    public static final byte RM_RMM = SoftFloat.RM_RMM; // Round to nearest, ties to max magnitude.
 
-    public static final int FCLASS_NEGINF = 1; // Negative infinity.
-    public static final int FCLASS_NEGNORM = 1 << 1; // Negative normal number.
-    public static final int FCLASS_NEGSUBN = 1 << 2; // Negative subnormal number.
-    public static final int FCLASS_NEGZERO = 1 << 3; // Negative zero.
-    public static final int FCLASS_POSZERO = 1 << 4; // Positive zero.
-    public static final int FCLASS_POSSUBN = 1 << 5; // Positive subnormal number.
-    public static final int FCLASS_POSNORM = 1 << 6; // Positive normal number.
-    public static final int FCLASS_POSINF = 1 << 7; // Positive infinity.
-    public static final int FCLASS_SNAN = 1 << 8; // Signaling NaN.
-    public static final int FCLASS_QNAN = 1 << 9; // Quiet NaN.
+    public static final int FCLASS_NEGINF = SoftFloat.FCLASS_NEGINF; // Negative infinity.
+    public static final int FCLASS_NEGNORM = SoftFloat.FCLASS_NEGNORM; // Negative normal number.
+    public static final int FCLASS_NEGSUBN = SoftFloat.FCLASS_NEGSUBN; // Negative subnormal number.
+    public static final int FCLASS_NEGZERO = SoftFloat.FCLASS_NEGZERO; // Negative zero.
+    public static final int FCLASS_POSZERO = SoftFloat.FCLASS_POSZERO; // Positive zero.
+    public static final int FCLASS_POSSUBN = SoftFloat.FCLASS_POSSUBN; // Positive subnormal number.
+    public static final int FCLASS_POSNORM = SoftFloat.FCLASS_POSNORM; // Positive normal number.
+    public static final int FCLASS_POSINF = SoftFloat.FCLASS_POSINF; // Positive infinity.
+    public static final int FCLASS_SNAN = SoftFloat.FCLASS_SNAN; // Signaling NaN.
+    public static final int FCLASS_QNAN = SoftFloat.FCLASS_QNAN; // Quiet NaN.
 
     public static final int SIZE = Double.SIZE;
     public static final int EXPONENT_SIZE = 11;
