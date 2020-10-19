@@ -1,4 +1,4 @@
-package li.cil.sedna.riscv;
+package li.cil.sedna;
 
 import li.cil.sedna.utils.SoftFloat;
 import org.junit.jupiter.api.Assertions;
@@ -39,12 +39,8 @@ public final class SoftFloatTest {
                 })).collect(Collectors.toList());
     }
 
-    // NB: We do not test the following, because their implementation is such that the
-    //     RISC-V tests pass, which makes them incompatible with how Java does float math:
-    //     - min
-    //     - max
-    //     - floatToInt
-    //     - floatToUnsignedInt
+    // NB: min and max are not tested here, because for RISC-V they return the non-NaN value for a
+    //     (NaN, not-NaN) argument pair, whereas Java will return NaN. And we want to be RISC-V correct.
     private static final OperationDescriptor[] OPERATIONS = {
             new LambdaOperationDescriptor("add", 2,
                     (fpu, args) -> OperationResult.of(fpu.add(args[0], args[1], JAVA_ROUNDING_MODE)),
@@ -55,14 +51,14 @@ public final class SoftFloatTest {
             new LambdaOperationDescriptor("mul", 2,
                     (fpu, args) -> OperationResult.of(fpu.mul(args[0], args[1], JAVA_ROUNDING_MODE)),
                     (args) -> OperationResult.of(args[0] * args[1])),
-            new LambdaOperationDescriptor("add", 2,
+            new LambdaOperationDescriptor("div", 2,
                     (fpu, args) -> OperationResult.of(fpu.div(args[0], args[1], JAVA_ROUNDING_MODE)),
                     (args) -> OperationResult.of(args[0] / args[1])),
             new LambdaOperationDescriptor("sqrt", 1,
                     (fpu, args) -> OperationResult.of(fpu.sqrt(args[0], JAVA_ROUNDING_MODE)),
                     (args) -> OperationResult.of((float) Math.sqrt(args[0]))),
             new LambdaOperationDescriptor("isNaN", 1,
-                    (fpu, args) -> OperationResult.of(fpu.isNaN(args[0])),
+                    (fpu, args) -> OperationResult.of(SoftFloat.isNaN(args[0])),
                     (args) -> OperationResult.of(Float.isNaN(args[0]))),
             new LambdaOperationDescriptor("neg", 1,
                     (fpu, args) -> OperationResult.of(fpu.neg(args[0])),

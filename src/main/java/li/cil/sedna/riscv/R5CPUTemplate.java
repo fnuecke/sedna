@@ -8,6 +8,7 @@ import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MemoryRange;
 import li.cil.sedna.instruction.InstructionDefinition.*;
+import li.cil.sedna.utils.SoftDouble;
 import li.cil.sedna.utils.SoftFloat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,7 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <li>"A" Standard Extension for Atomic Instructions, Version 2.1</li>
  * <li>"Zicsr", Control and Status Register (CSR) Instructions, Version 2.0</li>
  * <li>"F" Standard Extension for Single-Precision Floating-Point, Version 2.2</li>
- * <li>TODO "D"</li>
+ * <li>"D" Standard Extension for Double-Precision Floating-Point, Version 2.2</li>
  * <li>"C" Standard Extension for Compressed Instructions, Version 2.0</li>
  * </ul>
  */
@@ -46,7 +47,7 @@ final class R5CPUTemplate implements R5CPU {
     private static final int XLEN = 32; // Integer register width.
 
     // Base ISA descriptor CSR (misa) (V2p16).
-    private static final int MISA = (R5.mxl(XLEN) << (XLEN - 2)) | R5.isa('I', 'M', 'A', 'S', 'U', 'C'); // 'F', 'D'
+    public static final int MISA = (R5.mxl(XLEN) << (XLEN - 2)) | R5.isa('I', 'M', 'A', 'S', 'U', 'C', 'F', 'D');
 
     // UBE, SBE, MBE hardcoded to zero for little endianness.
     private static final int MSTATUS_MASK = ~R5.STATUS_UBE_MASK;
@@ -71,10 +72,13 @@ final class R5CPUTemplate implements R5CPU {
 
     ///////////////////////////////////////////////////////////////////
     // RV32F
-    private final int[] f = new int[32]; // Float registers.
-    private final SoftFloat fpu = new SoftFloat(); // flags = fcsr[4:0] := NV . DZ . OF . UF . NX
+    private final long[] f = new long[32]; // Float registers.
+    private final SoftFloat.Flags fflags = new SoftFloat.Flags(); // flags = fcsr[4:0] := NV . DZ . OF . UF . NX
     private byte frm; // fcsr[7:5]
     private byte fs; // FS field of mstatus, separate for convenience.
+
+    private final SoftFloat fpu32 = new SoftFloat(fflags);
+    private final SoftDouble fpu64 = new SoftDouble(fflags);
 
     ///////////////////////////////////////////////////////////////////
     // RV32A
@@ -371,7 +375,7 @@ final class R5CPUTemplate implements R5CPU {
             // Floating-Point Control and Status Registers
             case 0x001: { // fflags, Floating-Point Accrued Exceptions.
                 if (fs == R5.FS_OFF) return -1;
-                return fpu.flags;
+                return fpu32.flags.value;
             }
             case 0x002: { // frm, Floating-Point Dynamic Rounding Mode.
                 if (fs == R5.FS_OFF) return -1;
@@ -379,7 +383,7 @@ final class R5CPUTemplate implements R5CPU {
             }
             case 0x003: { // fcsr, Floating-Point Control and Status Register (frm + fflags).
                 if (fs == R5.FS_OFF) return -1;
-                return (frm << 5) | fpu.flags;
+                return (frm << 5) | fpu32.flags.value;
             }
 
             // User Trap Setup
@@ -621,7 +625,7 @@ final class R5CPUTemplate implements R5CPU {
         switch (csr) {
             // Floating-Point Control and Status Registers
             case 0x001: { // fflags, Floating-Point Accrued Exceptions.
-                fpu.flags = (byte) (value & 0b11111);
+                fpu32.flags.value = (byte) (value & 0b11111);
                 fs = R5.FS_DIRTY;
                 break;
             }
@@ -632,7 +636,7 @@ final class R5CPUTemplate implements R5CPU {
             }
             case 0x003: { // fcsr, Floating-Point Control and Status Register (frm + fflags).
                 frm = (byte) ((value >>> 5) & 0b111);
-                fpu.flags = (byte) (value & 0b11111);
+                fpu32.flags.value = (byte) (value & 0b11111);
                 fs = R5.FS_DIRTY;
                 break;
             }
@@ -2058,7 +2062,7 @@ final class R5CPUTemplate implements R5CPU {
     private void flw(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
                      @Field("imm") final int imm) throws MemoryAccessException {
-        f[rd] = load32(x[rs1] + imm);
+        f[rd] = load32(x[rs1] + imm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2067,7 +2071,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fsw(@Field("rs1") final int rs1,
                      @Field("rs2") final int rs2,
                      @Field("imm") final int imm) throws MemoryAccessException {
-        store32(x[rs1] + imm, f[rs2]);
+        store32(x[rs1] + imm, (int) f[rs2]);
     }
 
     @ContainsNonStaticMethodInvocations
@@ -2078,7 +2082,7 @@ final class R5CPUTemplate implements R5CPU {
                          @Field("rs3") final int rs3,
                          @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu.muladd(f[rs1], f[rs2], f[rs3], rm);
+        f[rd] = fpu32.muladd((int) f[rs1], (int) f[rs2], (int) f[rs3], rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2090,7 +2094,7 @@ final class R5CPUTemplate implements R5CPU {
                          @Field("rs3") final int rs3,
                          @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu.mulsub(f[rs1], f[rs2], f[rs3], rm);
+        f[rd] = fpu32.mulsub((int) f[rs1], (int) f[rs2], (int) f[rs3], rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2102,7 +2106,7 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs3") final int rs3,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu.neg(fpu.mulsub(f[rs1], f[rs2], f[rs3], rm));
+        f[rd] = fpu32.neg(fpu32.mulsub((int) f[rs1], (int) f[rs2], (int) f[rs3], rm)) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2114,7 +2118,7 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs3") final int rs3,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu.neg(fpu.muladd(f[rs1], f[rs2], f[rs3], rm));
+        f[rd] = fpu32.neg(fpu32.muladd((int) f[rs1], (int) f[rs2], (int) f[rs3], rm)) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2125,7 +2129,7 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs2") final int rs2,
                         @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu.add(f[rs1], f[rs2], rm);
+        f[rd] = fpu32.add((int) f[rs1], (int) f[rs2], rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2136,7 +2140,7 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs2") final int rs2,
                         @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu.sub(f[rs1], f[rs2], rm);
+        f[rd] = fpu32.sub((int) f[rs1], (int) f[rs2], rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2147,7 +2151,7 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs2") final int rs2,
                         @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu.mul(f[rs1], f[rs2], rm);
+        f[rd] = fpu32.mul((int) f[rs1], (int) f[rs2], rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2158,7 +2162,7 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs2") final int rs2,
                         @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu.div(f[rs1], f[rs2], rm);
+        f[rd] = fpu32.div((int) f[rs1], (int) f[rs2], rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2168,7 +2172,7 @@ final class R5CPUTemplate implements R5CPU {
                          @Field("rs1") final int rs1,
                          @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu.sqrt(f[rs1], rm);
+        f[rd] = fpu32.sqrt((int) f[rs1], rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2176,8 +2180,8 @@ final class R5CPUTemplate implements R5CPU {
     private void fsgnj_s(@Field("rd") final int rd,
                          @Field("rs1") final int rs1,
                          @Field("rs2") final int rs2) {
-        final int value = f[rs1] & ~SoftFloat.SIGN_MASK;
-        f[rd] = value | (f[rs2] & SoftFloat.SIGN_MASK);
+        final int value = (int) f[rs1] & ~SoftFloat.SIGN_MASK;
+        f[rd] = value | ((int) f[rs2] & SoftFloat.SIGN_MASK) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2185,8 +2189,8 @@ final class R5CPUTemplate implements R5CPU {
     private void fsgnjn_s(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) {
-        final int value = f[rs1] & ~SoftFloat.SIGN_MASK;
-        f[rd] = value | (~f[rs2] & SoftFloat.SIGN_MASK);
+        final int value = (int) f[rs1] & ~SoftFloat.SIGN_MASK;
+        f[rd] = value | (~(int) f[rs2] & SoftFloat.SIGN_MASK) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2194,7 +2198,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fsgnjx_s(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) {
-        f[rd] = f[rs1] ^ (f[rs2] & SoftFloat.SIGN_MASK);
+        f[rd] = (int) f[rs1] ^ ((int) f[rs2] & SoftFloat.SIGN_MASK) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2203,7 +2207,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fmin_s(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
                         @Field("rs2") final int rs2) {
-        f[rd] = fpu.min(f[rs1], f[rs2]);
+        f[rd] = fpu32.min((int) f[rs1], (int) f[rs2]) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2212,7 +2216,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fmax_s(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
                         @Field("rs2") final int rs2) {
-        f[rd] = fpu.max(f[rs1], f[rs2]);
+        f[rd] = fpu32.max((int) f[rs1], (int) f[rs2]) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2222,7 +2226,7 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs1") final int rs1,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        final int value = fpu.floatToInt(f[rs1], rm);
+        final int value = fpu32.floatToInt((int) f[rs1], rm);
         if (rd != 0) {
             x[rd] = value;
         }
@@ -2234,7 +2238,7 @@ final class R5CPUTemplate implements R5CPU {
                            @Field("rs1") final int rs1,
                            @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        final int value = fpu.floatToUnsignedInt(f[rs1], rm);
+        final int value = fpu32.floatToUnsignedInt((int) f[rs1], rm);
         if (rd != 0) {
             x[rd] = value;
         }
@@ -2244,7 +2248,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fmv_x_w(@Field("rd") final int rd,
                          @Field("rs1") final int rs1) {
         if (rd != 0) {
-            x[rd] = f[rs1];
+            x[rd] = (int) f[rs1];
         }
     }
 
@@ -2253,7 +2257,7 @@ final class R5CPUTemplate implements R5CPU {
     private void feq_s(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
                        @Field("rs2") final int rs2) {
-        final boolean areEqual = fpu.equals(f[rs1], f[rs2]);
+        final boolean areEqual = fpu32.equals((int) f[rs1], (int) f[rs2]);
         if (rd != 0) {
             x[rd] = areEqual ? 1 : 0;
         }
@@ -2264,7 +2268,7 @@ final class R5CPUTemplate implements R5CPU {
     private void flt_s(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
                        @Field("rs2") final int rs2) {
-        final boolean isLessThan = fpu.lessThan(f[rs1], f[rs2]);
+        final boolean isLessThan = fpu32.lessThan((int) f[rs1], (int) f[rs2]);
         if (rd != 0) {
             x[rd] = isLessThan ? 1 : 0;
         }
@@ -2275,7 +2279,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fle_s(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
                        @Field("rs2") final int rs2) {
-        final boolean isLessOrEqual = fpu.lessOrEqual(f[rs1], f[rs2]);
+        final boolean isLessOrEqual = fpu32.lessOrEqual((int) f[rs1], (int) f[rs2]);
         if (rd != 0) {
             x[rd] = isLessOrEqual ? 1 : 0;
         }
@@ -2286,7 +2290,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fclass_s(@Field("rd") final int rd,
                           @Field("rs1") final int rs1) {
         if (rd != 0) {
-            x[rd] = fpu.classify(f[rs1]);
+            x[rd] = fpu32.classify((int) f[rs1]);
         }
     }
 
@@ -2296,7 +2300,7 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs1") final int rs1,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu.intToFloat(x[rs1], rm);
+        f[rd] = fpu32.intToFloat(x[rs1], rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2306,21 +2310,295 @@ final class R5CPUTemplate implements R5CPU {
                            @Field("rs1") final int rs1,
                            @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu.unsignedIntToFloat(x[rs1], rm);
+        f[rd] = fpu32.unsignedIntToFloat(x[rs1], rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
     @Instruction("FMV.W.X")
     private void fmv_w_x(@Field("rd") final int rd,
                          @Field("rs1") final int rs1) {
-        f[rd] = x[rs1];
+        f[rd] = x[rs1] | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
     ///////////////////////////////////////////////////////////////////
     // RV32D Standard Extension
 
-    // TODO
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FLD")
+    private void fld(@Field("rd") final int rd,
+                     @Field("rs1") final int rs1,
+                     @Field("imm") final int imm) throws MemoryAccessException {
+        final int address = x[rs1] + imm;
+        final int low = load32(address);
+        final int high = load32(address + 4);
+        f[rd] = (Integer.toUnsignedLong(high) << 32) | Integer.toUnsignedLong(low);
+        fs = R5.FS_DIRTY;
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FSD")
+    private void fsd(@Field("rs1") final int rs1,
+                     @Field("rs2") final int rs2,
+                     @Field("imm") final int imm) throws MemoryAccessException {
+        final int address = x[rs1] + imm;
+        final int high = (int) (f[rs2] >>> 32);
+        final int low = (int) f[rs2];
+        store32(address, low);
+        store32(address + 4, high);
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FMADD.D")
+    private void fmadd_d(@Field("rd") final int rd,
+                         @Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2,
+                         @Field("rs3") final int rs3,
+                         @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        f[rd] = fpu64.muladd(f[rs1], f[rs2], f[rs3], rm);
+        fs = R5.FS_DIRTY;
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FMSUB.D")
+    private void FMSUB_D(@Field("rd") final int rd,
+                         @Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2,
+                         @Field("rs3") final int rs3,
+                         @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        f[rd] = fpu64.mulsub(f[rs1], f[rs2], f[rs3], rm);
+        fs = R5.FS_DIRTY;
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FNMSUB.D")
+    private void fnmsub_d(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2,
+                          @Field("rs3") final int rs3,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        f[rd] = fpu64.neg(fpu64.mulsub(f[rs1], f[rs2], f[rs3], rm));
+        fs = R5.FS_DIRTY;
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FNMADD.D")
+    private void fnmadd_d(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2,
+                          @Field("rs3") final int rs3,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        f[rd] = fpu64.neg(fpu64.muladd(f[rs1], f[rs2], f[rs3], rm));
+        fs = R5.FS_DIRTY;
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FADD.D")
+    private void fadd_d(@Field("rd") final int rd,
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2,
+                        @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        f[rd] = fpu64.add(f[rs1], f[rs2], rm);
+        fs = R5.FS_DIRTY;
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FSUB.D")
+    private void fsub_d(@Field("rd") final int rd,
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2,
+                        @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        f[rd] = fpu64.sub(f[rs1], f[rs2], rm);
+        fs = R5.FS_DIRTY;
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FMUL.D")
+    private void fmul_d(@Field("rd") final int rd,
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2,
+                        @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        f[rd] = fpu64.mul(f[rs1], f[rs2], rm);
+        fs = R5.FS_DIRTY;
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FDIV.D")
+    private void fdiv_d(@Field("rd") final int rd,
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2,
+                        @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        f[rd] = fpu64.div(f[rs1], f[rs2], rm);
+        fs = R5.FS_DIRTY;
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FSQRT.D")
+    private void fsqrt_d(@Field("rd") final int rd,
+                         @Field("rs1") final int rs1,
+                         @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        f[rd] = fpu64.sqrt(f[rs1], rm);
+        fs = R5.FS_DIRTY;
+    }
+
+    @Instruction("FSGNJ.D")
+    private void fsgnj_d(@Field("rd") final int rd,
+                         @Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2) {
+        final long value = f[rs1] & ~SoftDouble.SIGN_MASK;
+        f[rd] = value | (f[rs2] & SoftDouble.SIGN_MASK);
+        fs = R5.FS_DIRTY;
+    }
+
+    @Instruction("FSGNJN.D")
+    private void fsgnjn_d(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) {
+        final long value = f[rs1] & ~SoftDouble.SIGN_MASK;
+        f[rd] = value | (~f[rs2] & SoftDouble.SIGN_MASK);
+        fs = R5.FS_DIRTY;
+    }
+
+    @Instruction("FSGNJX.D")
+    private void fsgnjx_d(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) {
+        f[rd] = f[rs1] ^ (f[rs2] & SoftDouble.SIGN_MASK);
+        fs = R5.FS_DIRTY;
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FMIN.D")
+    private void fmin_d(@Field("rd") final int rd,
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) {
+        f[rd] = fpu64.min(f[rs1], f[rs2]);
+        fs = R5.FS_DIRTY;
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FMAX.D")
+    private void fmax_d(@Field("rd") final int rd,
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) {
+        f[rd] = fpu64.max(f[rs1], f[rs2]);
+        fs = R5.FS_DIRTY;
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FCVT.S.D")
+    private void fcvt_s_d(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        f[rd] = fpu64.doubleToFloat(f[rs1], rm) | R5.NAN_BOXING_MASK;
+        fs = R5.FS_DIRTY;
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FCVT.D.S")
+    private void fcvt_d_s(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        f[rd] = fpu64.floatToDouble((int) f[rs1], rm);
+        fs = R5.FS_DIRTY;
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FEQ.D")
+    private void feq_d(@Field("rd") final int rd,
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
+        final boolean areEqual = fpu64.equals(f[rs1], f[rs2]);
+        if (rd != 0) {
+            x[rd] = areEqual ? 1 : 0;
+        }
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FLT.D")
+    private void flt_d(@Field("rd") final int rd,
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
+        final boolean isLessThan = fpu64.lessThan(f[rs1], f[rs2]);
+        if (rd != 0) {
+            x[rd] = isLessThan ? 1 : 0;
+        }
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FLE.D")
+    private void fle_d(@Field("rd") final int rd,
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
+        final boolean isLessOrEqual = fpu64.lessOrEqual(f[rs1], f[rs2]);
+        if (rd != 0) {
+            x[rd] = isLessOrEqual ? 1 : 0;
+        }
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FCLASS.D")
+    private void fclass_d(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1) {
+        if (rd != 0) {
+            x[rd] = fpu64.classify(f[rs1]);
+        }
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FCVT.W.D")
+    private void fcvt_w_d(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        final int value = fpu64.doubleToInt(f[rs1], rm);
+        if (rd != 0) {
+            x[rd] = value;
+        }
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FCVT.WU.D")
+    private void fcvt_wu_d(@Field("rd") final int rd,
+                           @Field("rs1") final int rs1,
+                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        final int value = fpu64.doubleToUnsignedInt(f[rs1], rm);
+        if (rd != 0) {
+            x[rd] = value;
+        }
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FCVT.D.W")
+    private void fcvt_d_w(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        f[rd] = fpu64.intToDouble(x[rs1], rm);
+        fs = R5.FS_DIRTY;
+    }
+
+    @ContainsNonStaticMethodInvocations
+    @Instruction("FCVT.D.WU")
+    private void fcvt_d_wu(@Field("rd") final int rd,
+                           @Field("rs1") final int rs1,
+                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        f[rd] = fpu64.unsignedIntToDouble(x[rs1], rm);
+        fs = R5.FS_DIRTY;
+    }
 
     ///////////////////////////////////////////////////////////////////
 
@@ -2331,7 +2609,7 @@ final class R5CPUTemplate implements R5CPU {
         System.arraycopy(x, 0, state.x, 0, 32);
 
         System.arraycopy(f, 0, state.f, 0, 32);
-        state.fflags = fpu.flags;
+        state.fflags = fpu32.flags.value;
         state.frm = frm;
 
         state.reservation_set = reservation_set;

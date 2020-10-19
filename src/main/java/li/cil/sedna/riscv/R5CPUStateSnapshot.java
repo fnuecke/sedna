@@ -7,7 +7,7 @@ public final class R5CPUStateSnapshot {
     public int pc;
     public final int[] x = new int[32];
 
-    public final int[] f = new int[32];
+    public final long[] f = new long[32];
     public byte fflags;
     public byte frm;
 

@@ -162,6 +162,9 @@ public final class R5 {
     public static final int FS_CLEAN = 2; // None dirty, some clean.
     public static final int FS_DIRTY = 3; // Some dirty.
 
+    // Upper bit mask for 32bit float values in 64bit registers.
+    public static final long NAN_BOXING_MASK = 0xFFFFFFFFL << 32;
+
     /**
      * Computes flags for the machine ISA CSR given a list of extension letters.
      *

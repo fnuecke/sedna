@@ -228,7 +228,7 @@ inst ADDI   C.ADDI4SPN | 000  ........  ...  00 | rd=cr_4_2 rs1=2 imm=caddi4spn_
 inst FLD    C.FLD      | 001 ... ... .. ...  00 | rd=cr_4_2 rs1=cr_9_7 imm=cimmld
 inst LW     C.LW       | 010 ... ... .. ...  00 | rd=cr_4_2 rs1=cr_9_7 imm=cimmlw
 inst FLW    C.FLW      | 011 ... ... .. ...  00 | rd=cr_4_2 rs1=cr_9_7 imm=cimmlw
-inst FSD    C.FSD      | 101 ... ... .. ...  00 | rd=cr_4_2 rs1=cr_9_7 imm=cimmld
+inst FSD    C.FSD      | 101 ... ... .. ...  00 | rs1=cr_9_7 rs2=cr_4_2 imm=cimmld
 inst SW     C.SW       | 110 ... ... .. ...  00 | rs1=cr_9_7 rs2=cr_4_2 imm=cimmlw
 inst FSW    C.FSW      | 111 ... ... .. ...  00 | rs1=cr_9_7 rs2=cr_4_2 imm=cimmlw
 

@@ -207,7 +207,7 @@ public final class R5Board implements Steppable, Resettable {
                         .addProp(DevicePropertyNames.REG, 0)
                         .addProp(DevicePropertyNames.STATUS, "okay")
                         .addProp(DevicePropertyNames.COMPATIBLE, "riscv")
-                        .addProp("riscv,isa", "rv32imacfsu")
+                        .addProp("riscv,isa", getISA())
 
                         .addProp(DevicePropertyNames.MMU_TYPE, "riscv,sv32")
                         .addProp(DevicePropertyNames.CLOCK_FREQUENCY, cpu.getFrequency())
@@ -234,5 +234,15 @@ public final class R5Board implements Steppable, Resettable {
         }
 
         return root;
+    }
+
+    private static String getISA() {
+        final StringBuilder isa = new StringBuilder("rv32");
+        for (int i = 'a'; i < 'z'; i++) {
+            if ((R5CPUTemplate.MISA & (1 << (i - 'a'))) != 0) {
+                isa.append(i);
+            }
+        }
+        return isa.toString();
     }
 }
