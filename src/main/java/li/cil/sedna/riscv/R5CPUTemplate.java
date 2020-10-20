@@ -124,6 +124,10 @@ final class R5CPUTemplate implements R5CPU {
     private final transient MemoryMap physicalMemory;
 
     ///////////////////////////////////////////////////////////////////
+    // Stepping
+    private int cycleDebt; // Traces may lead to us running more cycles than given, remember to pay it back.
+
+    ///////////////////////////////////////////////////////////////////
     // Real time counter -- at least in RISC-V Linux 5.1 the mtime CSR is needed in add_device_randomness
     // where it doesn't use the SBI. Not implementing it would cause an illegal instruction exception
     // halting the system.
@@ -228,7 +232,11 @@ final class R5CPUTemplate implements R5CPU {
         return mip.get();
     }
 
-    public void step(final int cycles) {
+    public void step(int cycles) {
+        final int paidDebt = Math.min(cycles, cycleDebt);
+        cycles -= paidDebt;
+        cycleDebt -= paidDebt;
+
         if (waitingForInterrupt) {
             mcycle += cycles;
             return;
@@ -247,6 +255,8 @@ final class R5CPUTemplate implements R5CPU {
         if (waitingForInterrupt && mcycle < cycleLimit) {
             mcycle = cycleLimit;
         }
+
+        cycleDebt += cycleLimit - mcycle;
     }
 
     ///////////////////////////////////////////////////////////////////
