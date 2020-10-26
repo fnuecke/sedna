@@ -7,6 +7,7 @@ import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.devicetree.DeviceTree;
 import li.cil.sedna.api.devicetree.DeviceTreeProvider;
 import li.cil.sedna.api.memory.MemoryMap;
+import li.cil.sedna.device.rtc.GoldfishRTC;
 import li.cil.sedna.device.serial.UART16550A;
 import li.cil.sedna.device.virtio.AbstractVirtIODevice;
 import li.cil.sedna.devicetree.provider.*;
@@ -33,6 +34,7 @@ public final class DeviceTreeRegistry {
         addProvider(R5CoreLocalInterrupter.class, CoreLocalInterrupterProvider.INSTANCE);
         addProvider(UART16550A.class, UART16550AProvider.INSTANCE);
         addProvider(AbstractVirtIODevice.class, VirtIOProvider.INSTANCE);
+        addProvider(GoldfishRTC.class, GoldfishRTCProvider.INSTANCE);
     }
 
     public static void addProvider(final Class<? extends Device> type, final DeviceTreeProvider provider) {

@@ -1,4 +1,6 @@
-package li.cil.sedna.api.device.rtc;
+package li.cil.sedna.device.rtc;
+
+import li.cil.sedna.api.device.rtc.RealTimeCounter;
 
 public final class SystemTimeRealTimeCounter implements RealTimeCounter {
     private static final SystemTimeRealTimeCounter INSTANCE = new SystemTimeRealTimeCounter();
