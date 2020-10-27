@@ -18,13 +18,20 @@ public final class DeviceTreeRegistry {
 
     private static final Map<Class<? extends Device>, DeviceTreeProvider> PROVIDERS = new HashMap<>();
     private static final Map<Class<? extends Device>, DeviceTreeProvider> PROVIDER_CACHE = new HashMap<>();
+    private static boolean isInitialized = false;
 
     static {
-        putProvidersFrom(DeviceTreeRegistry.class.getClassLoader());
+        initialize();
     }
 
-    public static void putProvidersFrom(final ClassLoader classLoader) {
-        for (final Class<? extends DeviceTreeProvider> type : new Reflections(classLoader).getSubTypesOf(DeviceTreeProvider.class)) {
+    public static void initialize() {
+        if (isInitialized) {
+            return;
+        }
+
+        isInitialized = true;
+
+        for (final Class<? extends DeviceTreeProvider> type : new Reflections().getSubTypesOf(DeviceTreeProvider.class)) {
             if (!type.isAnnotationPresent(RegisterDeviceTreeProvider.class)) {
                 continue;
             }
