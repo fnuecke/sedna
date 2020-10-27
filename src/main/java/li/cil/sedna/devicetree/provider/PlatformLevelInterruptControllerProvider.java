@@ -24,13 +24,12 @@ public final class PlatformLevelInterruptControllerProvider implements DeviceTre
 
     @Override
     public void visit(final DeviceTree node, final MemoryMap memoryMap, final Device device) {
-        final R5PlatformLevelInterruptController plic = (R5PlatformLevelInterruptController) device;
         node
                 .addProp("#address-cells", 0)
                 .addProp("#interrupt-cells", 1)
                 .addProp(DeviceNames.INTERRUPT_CONTROLLER)
                 .addProp(DevicePropertyNames.COMPATIBLE, "riscv,plic0")
                 .addProp("riscv,ndev", 31)
-                .addProp(DevicePropertyNames.PHANDLE, node.createPHandle(plic));
+                .addProp(DevicePropertyNames.PHANDLE, node.createPHandle(device));
     }
 }
