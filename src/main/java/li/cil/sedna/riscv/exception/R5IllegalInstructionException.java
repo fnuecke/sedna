@@ -1,4 +1,4 @@
-package li.cil.sedna.riscv;
+package li.cil.sedna.riscv.exception;
 
 public final class R5IllegalInstructionException extends Exception {
     private final int instruction;

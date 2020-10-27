@@ -15,6 +15,8 @@ import li.cil.sedna.devicetree.FlattenedDeviceTree;
 import li.cil.sedna.memory.SimpleMemoryMap;
 import li.cil.sedna.riscv.device.R5CoreLocalInterrupter;
 import li.cil.sedna.riscv.device.R5PlatformLevelInterruptController;
+import li.cil.sedna.riscv.exception.R5SystemPowerOffException;
+import li.cil.sedna.riscv.exception.R5SystemResetException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -29,6 +31,7 @@ public final class R5Board implements Steppable, Resettable {
     private static final int PHYSICAL_MEMORY_LAST = 0xFFFFFFFF;
     private static final int DEVICE_MEMORY_FIRST = 0x10000000;
     private static final int DEVICE_MEMORY_LAST = 0x7FFFFFFF;
+    private static final int SYSCON_ADDRESS = 0x01000000;
     private static final int CLINT_ADDRESS = 0x02000000;
     private static final int PLIC_ADDRESS = 0x0C000000;
 
@@ -44,6 +47,7 @@ public final class R5Board implements Steppable, Resettable {
     @Serialized private final R5CoreLocalInterrupter clint;
     @Serialized private final R5PlatformLevelInterruptController plic;
     @Serialized private String bootargs;
+    @Serialized private boolean isRunning;
 
     public R5Board() {
         memoryMap = new SimpleMemoryMap();
@@ -60,6 +64,7 @@ public final class R5Board implements Steppable, Resettable {
         plic.setHart(cpu);
 
         // Map devices to memory.
+        addDevice(SYSCON_ADDRESS, new R5SystemController());
         addDevice(CLINT_ADDRESS, clint);
         addDevice(PLIC_ADDRESS, plic);
         memoryMap.addDevice(BIOS_ADDRESS, flash);
@@ -136,10 +141,29 @@ public final class R5Board implements Steppable, Resettable {
         }
     }
 
+    public boolean isRunning() {
+        return isRunning;
+    }
+
+    public void setRunning(final boolean value) {
+        isRunning = value;
+    }
+
     @Override
     public void step(final int cycles) {
-        for (final Steppable device : steppableDevices) {
-            device.step(cycles);
+        if (!isRunning) {
+            return;
+        }
+
+        try {
+            for (final Steppable device : steppableDevices) {
+                device.step(cycles);
+            }
+        } catch (final R5SystemResetException e) {
+            cpu.reset(false, PHYSICAL_MEMORY_FIRST);
+        } catch (final R5SystemPowerOffException e) {
+            reset();
+            isRunning = false;
         }
     }
 
@@ -154,11 +178,11 @@ public final class R5Board implements Steppable, Resettable {
         }
     }
 
-    public void installDeviceTree() {
-        installDeviceTree(PHYSICAL_MEMORY_FIRST);
+    public void initialize() {
+        initialize(PHYSICAL_MEMORY_FIRST);
     }
 
-    public void installDeviceTree(final int programStart) {
+    public void initialize(final int programStart) {
         final FlattenedDeviceTree fdt = buildDeviceTree().flatten();
         final byte[] dtb = fdt.toDTB();
 
@@ -219,8 +243,8 @@ public final class R5Board implements Steppable, Resettable {
         root
                 .addProp(DevicePropertyNames.NUM_ADDRESS_CELLS, 2)
                 .addProp(DevicePropertyNames.NUM_SIZE_CELLS, 2)
-                .addProp(DevicePropertyNames.COMPATIBLE, "riscv-sedna")
-                .addProp(DevicePropertyNames.MODEL, "riscv-sedna,generic");
+                .addProp(DevicePropertyNames.COMPATIBLE, "riscv-sedna", "riscv-virtio")
+                .addProp(DevicePropertyNames.MODEL, "riscv-virtio,sedna");
 
         root.putChild(DeviceNames.CPUS, cpus -> cpus
                 .addProp(DevicePropertyNames.NUM_ADDRESS_CELLS, 1)

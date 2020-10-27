@@ -12,6 +12,7 @@ import li.cil.sedna.instruction.InstructionDefinition.Field;
 import li.cil.sedna.instruction.InstructionDefinition.Instruction;
 import li.cil.sedna.instruction.InstructionDefinition.InstructionSize;
 import li.cil.sedna.instruction.InstructionDefinition.ProgramCounter;
+import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
 import li.cil.sedna.utils.SoftDouble;
 import li.cil.sedna.utils.SoftFloat;
 import org.apache.logging.log4j.LogManager;

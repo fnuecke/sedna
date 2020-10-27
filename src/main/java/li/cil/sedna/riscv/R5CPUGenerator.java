@@ -3,6 +3,7 @@ package li.cil.sedna.riscv;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.instruction.decoder.DecoderGenerator;
+import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
