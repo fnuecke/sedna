@@ -4,13 +4,14 @@ import li.cil.sedna.api.device.Device;
 import li.cil.sedna.api.devicetree.DevicePropertyNames;
 import li.cil.sedna.api.devicetree.DeviceTree;
 import li.cil.sedna.api.devicetree.DeviceTreeProvider;
+import li.cil.sedna.api.devicetree.RegisterDeviceTreeProvider;
 import li.cil.sedna.api.memory.MemoryMap;
+import li.cil.sedna.device.serial.UART16550A;
 
 import java.util.Optional;
 
+@RegisterDeviceTreeProvider(UART16550A.class)
 public final class UART16550AProvider implements DeviceTreeProvider {
-    public static final DeviceTreeProvider INSTANCE = new UART16550AProvider();
-
     @Override
     public Optional<String> getName(final Device device) {
         return Optional.of("uart");

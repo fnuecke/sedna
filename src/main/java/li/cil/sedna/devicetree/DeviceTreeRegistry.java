@@ -1,20 +1,13 @@
 package li.cil.sedna.devicetree;
 
 import li.cil.sedna.api.device.Device;
-import li.cil.sedna.api.device.InterruptSource;
-import li.cil.sedna.api.device.MemoryMappedDevice;
-import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.devicetree.DeviceTree;
 import li.cil.sedna.api.devicetree.DeviceTreeProvider;
+import li.cil.sedna.api.devicetree.RegisterDeviceTreeProvider;
 import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.device.rtc.GoldfishRTC;
-import li.cil.sedna.device.serial.UART16550A;
-import li.cil.sedna.device.virtio.AbstractVirtIODevice;
-import li.cil.sedna.devicetree.provider.*;
-import li.cil.sedna.riscv.device.R5CoreLocalInterrupter;
-import li.cil.sedna.riscv.device.R5PlatformLevelInterruptController;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.reflections.Reflections;
 
 import javax.annotation.Nullable;
 import java.util.*;
@@ -23,23 +16,33 @@ import java.util.function.Consumer;
 public final class DeviceTreeRegistry {
     private static final Logger LOGGER = LogManager.getLogger();
 
-    private static final Map<Class<? extends Device>, DeviceTreeProvider> providers = new HashMap<>();
-    private static final Map<Class<? extends Device>, DeviceTreeProvider> providerCache = new HashMap<>();
+    private static final Map<Class<? extends Device>, DeviceTreeProvider> PROVIDERS = new HashMap<>();
+    private static final Map<Class<? extends Device>, DeviceTreeProvider> PROVIDER_CACHE = new HashMap<>();
 
     static {
-        addProvider(MemoryMappedDevice.class, MemoryMappedDeviceProvider.INSTANCE);
-        addProvider(InterruptSource.class, InterruptSourceProvider.INSTANCE);
-        addProvider(PhysicalMemory.class, PhysicalMemoryProvider.INSTANCE);
-        addProvider(R5PlatformLevelInterruptController.class, PlatformLevelInterruptControllerProvider.INSTANCE);
-        addProvider(R5CoreLocalInterrupter.class, CoreLocalInterrupterProvider.INSTANCE);
-        addProvider(UART16550A.class, UART16550AProvider.INSTANCE);
-        addProvider(AbstractVirtIODevice.class, VirtIOProvider.INSTANCE);
-        addProvider(GoldfishRTC.class, GoldfishRTCProvider.INSTANCE);
+        addProvidersFrom(DeviceTreeRegistry.class.getClassLoader());
+    }
+
+    public static void addProvidersFrom(final ClassLoader classLoader) {
+        for (final Class<? extends DeviceTreeProvider> type : new Reflections(classLoader).getSubTypesOf(DeviceTreeProvider.class)) {
+            if (!type.isAnnotationPresent(RegisterDeviceTreeProvider.class)) {
+                continue;
+            }
+
+            final Class<? extends Device> targetType = type.getAnnotation(RegisterDeviceTreeProvider.class).value();
+
+            try {
+                final DeviceTreeProvider provider = type.newInstance();
+                addProvider(targetType, provider);
+            } catch (final InstantiationException | IllegalAccessException e) {
+                LOGGER.error("Failed instantiating device tree provider [{}]: {}", type, e);
+            }
+        }
     }
 
     public static void addProvider(final Class<? extends Device> type, final DeviceTreeProvider provider) {
-        providers.put(type, provider);
-        providerCache.clear();
+        PROVIDERS.put(type, provider);
+        PROVIDER_CACHE.clear();
     }
 
     private static void visitBaseTypes(@Nullable final Class<?> type, final Consumer<Class<?>> visitor) {
@@ -60,15 +63,15 @@ public final class DeviceTreeRegistry {
     @Nullable
     public static DeviceTreeProvider getProvider(final Device device) {
         final Class<? extends Device> deviceClass = device.getClass();
-        if (providerCache.containsKey(deviceClass)) {
-            return providerCache.get(deviceClass);
+        if (PROVIDER_CACHE.containsKey(deviceClass)) {
+            return PROVIDER_CACHE.get(deviceClass);
         }
 
         final List<DeviceTreeProvider> relevant = new ArrayList<>();
         final Set<Class<?>> seen = new HashSet<>();
         visitBaseTypes(deviceClass, c -> {
-            if (seen.add(c) && providers.containsKey(c)) {
-                relevant.add(providers.get(c));
+            if (seen.add(c) && PROVIDERS.containsKey(c)) {
+                relevant.add(PROVIDERS.get(c));
             }
         });
 
