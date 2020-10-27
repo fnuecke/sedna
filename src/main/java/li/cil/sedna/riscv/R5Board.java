@@ -8,6 +8,7 @@ import li.cil.sedna.api.devicetree.DevicePropertyNames;
 import li.cil.sedna.api.devicetree.DeviceTree;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
+import li.cil.sedna.api.memory.MemoryRange;
 import li.cil.sedna.device.memory.Memory;
 import li.cil.sedna.devicetree.DeviceTreeRegistry;
 import li.cil.sedna.devicetree.FlattenedDeviceTree;
@@ -153,16 +154,40 @@ public final class R5Board implements Steppable, Resettable {
         }
     }
 
-    public void installDeviceTree(final int address) {
-        installDeviceTree(address, PHYSICAL_MEMORY_FIRST);
+    public void installDeviceTree() {
+        installDeviceTree(PHYSICAL_MEMORY_FIRST);
     }
 
-    public void installDeviceTree(final int address, final int programStart) {
+    public void installDeviceTree(final int programStart) {
+        final FlattenedDeviceTree fdt = buildDeviceTree().flatten();
+        final byte[] dtb = fdt.toDTB();
+
+        OptionalInt fdtAddress = OptionalInt.empty();
+        for (final MemoryMappedDevice device : devices) {
+            if (device instanceof PhysicalMemory) {
+                if (device.getLength() >= dtb.length) {
+                    final MemoryRange memoryRange = memoryMap.getMemoryRange(device).orElseThrow(AssertionError::new);
+
+                    // Align size to 0x1000 so we can push the address with a single LUI.
+                    final int address = (memoryRange.start + memoryRange.size() - dtb.length) & ~(0x1000 - 1);
+                    if (address < memoryRange.start) {
+                        continue;
+                    }
+
+                    if (!fdtAddress.isPresent() || Integer.compareUnsigned(address, fdtAddress.getAsInt()) > 0) {
+                        fdtAddress = OptionalInt.of(address);
+                    }
+                }
+            }
+        }
+
+        if (!fdtAddress.isPresent()) {
+            throw new IllegalStateException("No memory device present that can fit device tree.");
+        }
+
         try {
-            final FlattenedDeviceTree fdt = buildDeviceTree().flatten();
-            final byte[] dtb = fdt.toDTB();
             for (int i = 0; i < dtb.length; i++) {
-                memoryMap.store(address + i, dtb[i], 0);
+                memoryMap.store(fdtAddress.getAsInt() + i, dtb[i], 0);
             }
 
             final int lui = 0b0110111;
@@ -175,7 +200,7 @@ public final class R5Board implements Steppable, Resettable {
             int pc = 0x1000; // R5CPU starts executing at 0x1000.
 
             // lui a1, FDT_ADDRESS  -> store FDT address in a1 for firmware
-            memoryMap.store(pc, lui | rd_x11 + address, 2);
+            memoryMap.store(pc, lui | rd_x11 + fdtAddress.getAsInt(), 2);
             pc += 4;
 
             // lui t0, PHYSICAL_MEMORY_FIRST  -> load address of firmware
