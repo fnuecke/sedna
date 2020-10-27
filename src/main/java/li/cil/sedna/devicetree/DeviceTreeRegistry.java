@@ -20,10 +20,10 @@ public final class DeviceTreeRegistry {
     private static final Map<Class<? extends Device>, DeviceTreeProvider> PROVIDER_CACHE = new HashMap<>();
 
     static {
-        addProvidersFrom(DeviceTreeRegistry.class.getClassLoader());
+        putProvidersFrom(DeviceTreeRegistry.class.getClassLoader());
     }
 
-    public static void addProvidersFrom(final ClassLoader classLoader) {
+    public static void putProvidersFrom(final ClassLoader classLoader) {
         for (final Class<? extends DeviceTreeProvider> type : new Reflections(classLoader).getSubTypesOf(DeviceTreeProvider.class)) {
             if (!type.isAnnotationPresent(RegisterDeviceTreeProvider.class)) {
                 continue;
@@ -33,14 +33,14 @@ public final class DeviceTreeRegistry {
 
             try {
                 final DeviceTreeProvider provider = type.newInstance();
-                addProvider(targetType, provider);
+                putProvider(targetType, provider);
             } catch (final InstantiationException | IllegalAccessException e) {
                 LOGGER.error("Failed instantiating device tree provider [{}]: {}", type, e);
             }
         }
     }
 
-    public static void addProvider(final Class<? extends Device> type, final DeviceTreeProvider provider) {
+    public static void putProvider(final Class<? extends Device> type, final DeviceTreeProvider provider) {
         PROVIDERS.put(type, provider);
         PROVIDER_CACHE.clear();
     }
