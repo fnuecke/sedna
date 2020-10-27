@@ -1,22 +1,19 @@
-package li.cil.sedna.devicetree.provider;
+package li.cil.sedna.riscv.devicetree;
 
 import li.cil.sedna.api.device.Device;
 import li.cil.sedna.api.device.MemoryMappedDevice;
-import li.cil.sedna.api.devicetree.DevicePropertyNames;
-import li.cil.sedna.api.devicetree.DeviceTree;
-import li.cil.sedna.api.devicetree.DeviceTreeProvider;
-import li.cil.sedna.api.devicetree.RegisterDeviceTreeProvider;
+import li.cil.sedna.api.devicetree.*;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MemoryRange;
-import li.cil.sedna.riscv.device.R5CoreLocalInterrupter;
+import li.cil.sedna.riscv.device.R5PlatformLevelInterruptController;
 
 import java.util.Optional;
 
-@RegisterDeviceTreeProvider(R5CoreLocalInterrupter.class)
-public final class CoreLocalInterrupterProvider implements DeviceTreeProvider {
+@RegisterDeviceTreeProvider(R5PlatformLevelInterruptController.class)
+public final class R5PlatformLevelInterruptControllerProvider implements DeviceTreeProvider {
     @Override
     public Optional<String> getName(final Device device) {
-        return Optional.of("clint");
+        return Optional.of("plic");
     }
 
     @Override
@@ -27,6 +24,12 @@ public final class CoreLocalInterrupterProvider implements DeviceTreeProvider {
 
     @Override
     public void visit(final DeviceTree node, final MemoryMap memoryMap, final Device device) {
-        node.addProp(DevicePropertyNames.COMPATIBLE, "riscv,clint0");
+        node
+                .addProp("#address-cells", 0)
+                .addProp("#interrupt-cells", 1)
+                .addProp(DeviceNames.INTERRUPT_CONTROLLER)
+                .addProp(DevicePropertyNames.COMPATIBLE, "riscv,plic0")
+                .addProp("riscv,ndev", 31)
+                .addProp(DevicePropertyNames.PHANDLE, node.createPHandle(device));
     }
 }
