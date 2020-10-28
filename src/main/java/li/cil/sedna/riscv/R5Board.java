@@ -1,6 +1,7 @@
 package li.cil.sedna.riscv;
 
 import li.cil.ceres.api.Serialized;
+import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.*;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.devicetree.DeviceNames;
@@ -224,7 +225,7 @@ public final class R5Board implements Steppable, Resettable {
 
         try {
             for (int i = 0; i < dtb.length; i++) {
-                memoryMap.store(fdtAddress.getAsInt() + i, dtb[i], 0);
+                memoryMap.store(fdtAddress.getAsInt() + i, dtb[i], Sizes.SIZE_8_LOG2);
             }
 
             final int lui = 0b0110111;
@@ -237,15 +238,15 @@ public final class R5Board implements Steppable, Resettable {
             int pc = 0x1000; // R5CPU starts executing at 0x1000.
 
             // lui a1, FDT_ADDRESS  -> store FDT address in a1 for firmware
-            memoryMap.store(pc, lui | rd_x11 + fdtAddress.getAsInt(), 2);
+            memoryMap.store(pc, lui | rd_x11 + fdtAddress.getAsInt(), Sizes.SIZE_32_LOG2);
             pc += 4;
 
             // lui t0, PHYSICAL_MEMORY_FIRST  -> load address of firmware
-            memoryMap.store(pc, lui | rd_x5 + programStart, 2);
+            memoryMap.store(pc, lui | rd_x5 + programStart, Sizes.SIZE_32_LOG2);
             pc += 4;
 
             // jalr zero, t0, 0  -> jump to firmware
-            memoryMap.store(pc, jalr | rs1_x5, 2);
+            memoryMap.store(pc, jalr | rs1_x5, Sizes.SIZE_32_LOG2);
         } catch (final MemoryAccessException e) {
             LOGGER.error(e);
         }
