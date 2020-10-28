@@ -85,7 +85,7 @@ public final class R5Board implements Steppable, Resettable {
         return plic;
     }
 
-    public void setBootargs(final String value) {
+    public void setBootArguments(final String value) {
         if (value != null && value.length() > 64) {
             throw new IllegalArgumentException();
         }
