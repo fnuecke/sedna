@@ -287,9 +287,9 @@ public final class R5Board implements Steppable, Resettable {
 
     private static String getISAString(final R5CPU cpu) {
         final StringBuilder isa = new StringBuilder("rv32");
-        for (int i = 'a'; i < 'z'; i++) {
-            if ((cpu.getISA() & (1 << (i - 'a'))) != 0) {
-                isa.append(i);
+        for (final char i : R5.CANONICAL_ISA_ORDER.toCharArray()) {
+            if ((cpu.getISA() & (1 << (Character.toLowerCase(i) - 'a'))) != 0) {
+                isa.append(Character.toLowerCase(i));
             }
         }
         return isa.toString();
