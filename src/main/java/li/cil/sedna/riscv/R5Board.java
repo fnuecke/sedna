@@ -20,6 +20,7 @@ import li.cil.sedna.riscv.exception.R5SystemResetException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.OptionalInt;
@@ -42,6 +43,7 @@ public final class R5Board implements Steppable, Resettable {
     private final MemoryMap memoryMap;
     private final List<MemoryMappedDevice> devices = new ArrayList<>();
     private final List<Steppable> steppableDevices = new ArrayList<>();
+    private MemoryMappedDevice standardOutputDevice;
 
     @Serialized private final R5CPU cpu;
     @Serialized private final R5CoreLocalInterrupter clint;
@@ -87,6 +89,13 @@ public final class R5Board implements Steppable, Resettable {
             throw new IllegalArgumentException();
         }
         this.bootargs = value;
+    }
+
+    public void setStandardOutputDevice(@Nullable final MemoryMappedDevice device) {
+        if (device != null && !devices.contains(device)) {
+            throw new IllegalArgumentException();
+        }
+        standardOutputDevice = device;
     }
 
     public boolean addDevice(final int address, final MemoryMappedDevice device) {
@@ -138,6 +147,10 @@ public final class R5Board implements Steppable, Resettable {
 
         if (device instanceof Steppable) {
             steppableDevices.remove(device);
+        }
+
+        if (standardOutputDevice == device) {
+            standardOutputDevice = null;
         }
     }
 
@@ -274,7 +287,11 @@ public final class R5Board implements Steppable, Resettable {
                 .addProp(DevicePropertyNames.RANGES));
 
         for (final MemoryMappedDevice device : devices) {
-            DeviceTreeRegistry.visit(root, memoryMap, device);
+            final DeviceTree node = DeviceTreeRegistry.visit(root, memoryMap, device);
+            if (node != null && device == standardOutputDevice) {
+                root.putChild("chosen", chosen -> chosen
+                        .addProp("stdout-path", node.getPath()));
+            }
         }
 
         if (bootargs != null) {

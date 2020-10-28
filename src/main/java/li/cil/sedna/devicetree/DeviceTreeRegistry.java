@@ -127,26 +127,29 @@ public final class DeviceTreeRegistry {
         };
     }
 
-    public static void visit(final DeviceTree root, final MemoryMap memoryMap, final Device device) {
+    @Nullable
+    public static DeviceTree visit(final DeviceTree root, final MemoryMap memoryMap, final Device device) {
         final DeviceTreeProvider provider = getProvider(device);
         if (provider == null) {
             LOGGER.warn("No provider for device [{}].", device);
-            return;
+            return null;
         }
 
         final Optional<String> name = provider.getName(device);
         if (!name.isPresent()) {
             LOGGER.warn("Failed obtaining name for device [{}].", device);
-            return;
+            return null;
         }
 
         final Optional<DeviceTree> node = provider.createNode(root, memoryMap, device, name.get());
         if (!node.isPresent()) {
             LOGGER.warn("Failed obtaining node for device [{}].", device);
-            return;
+            return null;
         }
 
         provider.visit(node.get(), memoryMap, device);
+
+        return node.get();
     }
 
     public static DeviceTree create(final MemoryMap mmu) {

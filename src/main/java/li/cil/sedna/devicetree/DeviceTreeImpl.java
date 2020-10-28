@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 final class DeviceTreeImpl implements DeviceTree {
+    @Nullable private final DeviceTreeImpl parent;
     private final DeviceTreeImpl root;
     private final Object2IntMap<Device> phandles;
     private final IntSet createdPhandles;
@@ -25,6 +26,7 @@ final class DeviceTreeImpl implements DeviceTree {
     public final List<DeviceTreeImpl> children = new ArrayList<>();
 
     public DeviceTreeImpl(@Nullable final DeviceTreeImpl parent, final MemoryMap mmu, final String name, final String address) {
+        this.parent = parent;
         this.root = parent != null ? parent.root : this;
         this.phandles = parent != null ? parent.phandles : new Object2IntArrayMap<>();
         this.createdPhandles = parent != null ? parent.createdPhandles : new IntArraySet();
@@ -73,6 +75,15 @@ final class DeviceTreeImpl implements DeviceTree {
             } else {
                 return getChild(path);
             }
+        }
+    }
+
+    @Override
+    public String getPath() {
+        if (parent == null) {
+            return fullName();
+        } else {
+            return parent.getPath() + "/" + fullName();
         }
     }
 

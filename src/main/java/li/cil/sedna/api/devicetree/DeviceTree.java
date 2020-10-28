@@ -15,6 +15,8 @@ public interface DeviceTree {
 
     DeviceTree find(final String path);
 
+    String getPath();
+
     DeviceTree addProp(final String name, final Object... values);
 
     DeviceTree getChild(final String name, @Nullable final String address);
