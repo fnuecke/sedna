@@ -265,6 +265,10 @@ public final class R5Board implements Steppable, Resettable {
                 .addProp(DevicePropertyNames.NUM_SIZE_CELLS, 0)
                 .addProp(DevicePropertyNames.TIMEBASE_FREQUENCY, rtc.getFrequency())
 
+                .putChild("cpu-map", cpuMap -> cpuMap
+                        .putChild("cluster0", cluster -> cluster
+                                .addProp("core0", root.getPHandle(cpu))))
+
                 .putChild(DeviceNames.CPU, 0, cpuNode -> cpuNode
                         .addProp(DevicePropertyNames.DEVICE_TYPE, DeviceNames.CPU)
                         .addProp(DevicePropertyNames.REG, 0)
