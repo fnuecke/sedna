@@ -14,7 +14,7 @@ public interface R5CPU extends Steppable, Resettable, RealTimeCounter, Interrupt
     }
 
     static R5CPU create(final MemoryMap physicalMemory) {
-        return R5CPUGenerator.create(physicalMemory, null);
+        return create(physicalMemory, null);
     }
 
     int getISA();
