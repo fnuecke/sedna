@@ -1223,7 +1223,7 @@ final class R5CPUTemplate implements R5CPU {
                     pte |= R5.PTE_D_MASK;
                 }
 
-                physicalMemory.store(pteAddress, pte, 2);
+                physicalMemory.store(pteAddress, pte, Sizes.SIZE_32_LOG2);
             }
 
             // 9. physical address = pte.ppn[LEVELS-1:i], va.vpn[i-1:0], va.pgoff
