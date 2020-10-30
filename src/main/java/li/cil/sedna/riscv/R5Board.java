@@ -10,7 +10,7 @@ import li.cil.sedna.api.devicetree.DeviceTree;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MemoryRange;
-import li.cil.sedna.device.memory.Memory;
+import li.cil.sedna.device.flash.FlashMemoryDevice;
 import li.cil.sedna.devicetree.DeviceTreeRegistry;
 import li.cil.sedna.devicetree.FlattenedDeviceTree;
 import li.cil.sedna.memory.SimpleMemoryMap;
@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import javax.annotation.Nullable;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.OptionalInt;
@@ -37,11 +38,12 @@ public final class R5Board implements Steppable, Resettable {
     private static final int CLINT_ADDRESS = 0x02000000;
     private static final int PLIC_ADDRESS = 0x0C000000;
 
-    private static final int BIOS_ADDRESS = 0x1000;
+    private static final int FLASH_ADDRESS = 0x1000; // R5CPU starts executing at 0x1000.
     private static final int LOW_MEMORY_SIZE = 0x2000; // Just needs to fit "jump to firmware".
 
-    private final RealTimeCounter rtc;
     private final MemoryMap memoryMap;
+    private final RealTimeCounter rtc;
+    private final FlashMemoryDevice flash;
     private final List<MemoryMappedDevice> devices = new ArrayList<>();
     private final List<Steppable> steppableDevices = new ArrayList<>();
     private MemoryMappedDevice standardOutputDevice;
@@ -56,7 +58,7 @@ public final class R5Board implements Steppable, Resettable {
         memoryMap = new SimpleMemoryMap();
         rtc = cpu = R5CPU.create(memoryMap);
 
-        final PhysicalMemory flash = Memory.create(LOW_MEMORY_SIZE);
+        flash = new FlashMemoryDevice(LOW_MEMORY_SIZE);
         clint = new R5CoreLocalInterrupter(rtc);
         plic = new R5PlatformLevelInterruptController();
 
@@ -70,7 +72,7 @@ public final class R5Board implements Steppable, Resettable {
         addDevice(SYSCON_ADDRESS, new R5SystemController());
         addDevice(CLINT_ADDRESS, clint);
         addDevice(PLIC_ADDRESS, plic);
-        memoryMap.addDevice(BIOS_ADDRESS, flash);
+        addDevice(FLASH_ADDRESS, flash);
     }
 
     public MemoryMap getMemoryMap() {
@@ -228,6 +230,9 @@ public final class R5Board implements Steppable, Resettable {
                 memoryMap.store(fdtAddress.getAsInt() + i, dtb[i], Sizes.SIZE_8_LOG2);
             }
 
+            final ByteBuffer data = flash.getData();
+            data.clear();
+
             final int lui = 0b0110111;
             final int jalr = 0b1100111;
 
@@ -235,18 +240,14 @@ public final class R5Board implements Steppable, Resettable {
             final int rd_x11 = 11 << 7;
             final int rs1_x5 = 5 << 15;
 
-            int pc = 0x1000; // R5CPU starts executing at 0x1000.
-
             // lui a1, FDT_ADDRESS  -> store FDT address in a1 for firmware
-            memoryMap.store(pc, lui | rd_x11 + fdtAddress.getAsInt(), Sizes.SIZE_32_LOG2);
-            pc += 4;
+            data.putInt(lui | rd_x11 + fdtAddress.getAsInt());
 
             // lui t0, PHYSICAL_MEMORY_FIRST  -> load address of firmware
-            memoryMap.store(pc, lui | rd_x5 + programStart, Sizes.SIZE_32_LOG2);
-            pc += 4;
+            data.putInt(lui | rd_x5 + programStart);
 
             // jalr zero, t0, 0  -> jump to firmware
-            memoryMap.store(pc, jalr | rs1_x5, Sizes.SIZE_32_LOG2);
+            data.putInt(jalr | rs1_x5);
         } catch (final MemoryAccessException e) {
             LOGGER.error(e);
         }
