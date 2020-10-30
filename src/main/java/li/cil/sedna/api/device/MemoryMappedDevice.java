@@ -36,6 +36,18 @@ public interface MemoryMappedDevice extends Device {
     }
 
     /**
+     * Declares whether this device supports fetch operations.
+     * <p>
+     * In other words, whether this device can hold executable code. This is typically only
+     * true for memory-like devices, such as physical memory or flash devices.
+     *
+     * @return {@code true} if instructions can be fetched from this device; {@code false} otherwise.
+     */
+    default boolean supportsFetch() {
+        return false;
+    }
+
+    /**
      * Reads a value from this device.
      * <p>
      * Most devices that are not {@link PhysicalMemory} will cause side-effects from

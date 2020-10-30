@@ -3,7 +3,6 @@ package li.cil.sedna.riscv;
 import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.MemoryMappedDevice;
-import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
@@ -278,7 +277,7 @@ final class R5CPUTemplate implements R5CPU {
         // a 32bit instruction spanning two pages, a special case we handle outside the loop.
         try {
             final R5CPUTLBEntry cache = fetchPage(pc);
-            final PhysicalMemory device = (PhysicalMemory) cache.device;
+            final MemoryMappedDevice device = cache.device;
             final int instOffset = pc + cache.toOffset;
             final int instEnd = instOffset - (pc & R5.PAGE_ADDRESS_MASK) // Page start.
                                 + ((1 << R5.PAGE_ADDRESS_SHIFT) - 2); // Page size minus 16bit.
@@ -290,7 +289,7 @@ final class R5CPUTemplate implements R5CPU {
                 inst = device.load(instOffset, Sizes.SIZE_16_LOG2) & 0xFFFF;
                 if ((inst & 0b11) == 0b11) { // 32bit instruction.
                     final R5CPUTLBEntry highCache = fetchPage(pc + 2);
-                    final PhysicalMemory highDevice = (PhysicalMemory) cache.device;
+                    final MemoryMappedDevice highDevice = cache.device;
                     inst |= highDevice.load(pc + 2 + highCache.toOffset, Sizes.SIZE_16_LOG2) << 16;
                 }
             }
@@ -302,7 +301,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @SuppressWarnings("LocalCanBeFinal") // `pc` and `instOffset` get updated by the generated code replacing decode().
-    private void interpretTrace(final PhysicalMemory device, int inst, int pc, int instOffset, final int instEnd) {
+    private void interpretTrace(final MemoryMappedDevice device, int inst, int pc, int instOffset, final int instEnd) {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
                 mcycle++;
@@ -1094,7 +1093,7 @@ final class R5CPUTemplate implements R5CPU {
     private R5CPUTLBEntry fetchPageSlow(final int address) throws MemoryAccessException {
         final int physicalAddress = getPhysicalAddress(address, R5CPUMemoryAccessType.FETCH);
         final MemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
-        if (range == null || !(range.device instanceof PhysicalMemory)) {
+        if (range == null || !range.device.supportsFetch()) {
             throw new MemoryAccessException(address, MemoryAccessException.Type.FETCH_FAULT);
         }
 
@@ -1112,7 +1111,7 @@ final class R5CPUTemplate implements R5CPU {
             if (range == null) {
                 LOGGER.debug("Trying to load from invalid physical address [{}].", address);
                 return 0;
-            } else if (range.device instanceof PhysicalMemory) {
+            } else if (range.device.supportsFetch()) {
                 final R5CPUTLBEntry entry = updateTLB(loadTLB, address, physicalAddress, range);
                 return entry.device.load(address + entry.toOffset, sizeLog2);
             } else {
@@ -1131,7 +1130,7 @@ final class R5CPUTemplate implements R5CPU {
             final MemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
             if (range == null) {
                 LOGGER.debug("Trying to store to invalid physical address [{}].", address);
-            } else if (range.device instanceof PhysicalMemory) {
+            } else if (range.device.supportsFetch()) {
                 final R5CPUTLBEntry entry = updateTLB(storeTLB, address, physicalAddress, range);
                 final int offset = address + entry.toOffset;
                 entry.device.store(offset, value, sizeLog2);

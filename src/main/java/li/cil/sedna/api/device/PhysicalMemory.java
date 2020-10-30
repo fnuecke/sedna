@@ -18,6 +18,11 @@ import java.nio.ByteBuffer;
  * it.
  */
 public abstract class PhysicalMemory implements MemoryMappedDevice {
+    @Override
+    public boolean supportsFetch() {
+        return true;
+    }
+
     /**
      * Block-copy data from this physical memory into the specified buffer.
      *
