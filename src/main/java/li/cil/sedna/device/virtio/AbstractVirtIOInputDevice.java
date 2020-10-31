@@ -128,7 +128,7 @@ public abstract class AbstractVirtIOInputDevice extends AbstractVirtIODevice {
     }
 
     @Override
-    protected final void storeConfig(final int offset, final int value, final int sizeLog2) {
+    protected final void storeConfig(final int offset, final long value, final int sizeLog2) {
         if (offset > VIRTIO_INPUT_CFG_SUBSEL_OFFSET) {
             return; // Only select and subsel are writable by the driver.
         }

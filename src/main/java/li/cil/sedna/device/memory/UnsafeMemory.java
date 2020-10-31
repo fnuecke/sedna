@@ -52,7 +52,7 @@ public final class UnsafeMemory extends PhysicalMemory {
     }
 
     @Override
-    public int load(final int offset, final int sizeLog2) throws MemoryAccessException {
+    public long load(final int offset, final int sizeLog2) throws MemoryAccessException {
         if (offset < 0 || offset > size - (1 << sizeLog2)) {
             throw new MemoryAccessException(offset, MemoryAccessException.Type.LOAD_FAULT);
         }
@@ -63,13 +63,15 @@ public final class UnsafeMemory extends PhysicalMemory {
                 return UNSAFE.getShort(address + offset);
             case Sizes.SIZE_32_LOG2:
                 return UNSAFE.getInt(address + offset);
+            case Sizes.SIZE_64_LOG2:
+                return UNSAFE.getLong(address + offset);
             default:
                 throw new IllegalArgumentException();
         }
     }
 
     @Override
-    public void store(final int offset, final int value, final int sizeLog2) throws MemoryAccessException {
+    public void store(final int offset, final long value, final int sizeLog2) throws MemoryAccessException {
         if (offset < 0 || offset > size - (1 << sizeLog2)) {
             throw new MemoryAccessException(offset, MemoryAccessException.Type.STORE_FAULT);
         }
@@ -81,7 +83,10 @@ public final class UnsafeMemory extends PhysicalMemory {
                 UNSAFE.putShort(address + offset, (short) value);
                 break;
             case Sizes.SIZE_32_LOG2:
-                UNSAFE.putInt(address + offset, value);
+                UNSAFE.putInt(address + offset, (int) value);
+                break;
+            case Sizes.SIZE_64_LOG2:
+                UNSAFE.putLong(address + offset, value);
                 break;
             default:
                 throw new IllegalArgumentException();

@@ -78,8 +78,10 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
         return (1 << Sizes.SIZE_32_LOG2);
     }
 
-    public int load(final int offset, final int sizeLog2) {
-        assert sizeLog2 == Sizes.SIZE_32_LOG2;
+    public long load(final int offset, final int sizeLog2) {
+        if (sizeLog2 != Sizes.SIZE_32_LOG2) {
+            return 0;
+        }
 
         if (offset >= PLIC_PRIORITY_BASE && offset < PLIC_PRIORITY_BASE + (PLIC_SOURCE_COUNT << 2)) {
             // base + 0x000004: Interrupt source 1 priority
@@ -142,8 +144,12 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
     }
 
     @Override
-    public void store(final int offset, final int value, final int sizeLog2) {
-        assert sizeLog2 == Sizes.SIZE_32_LOG2;
+    public void store(final int offset, final long value, final int sizeLog2) {
+        if (sizeLog2 != Sizes.SIZE_32_LOG2) {
+            return;
+        }
+
+        final int intValue = (int) value;
 
         if (offset >= PLIC_PRIORITY_BASE && offset < PLIC_PRIORITY_BASE + (PLIC_SOURCE_COUNT << 2)) {
             // base + 0x000004: Interrupt source 1 priority
@@ -152,7 +158,7 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
             // base + 0x000FFC: Interrupt source 1023 priority
 
             final int source = ((offset - PLIC_PRIORITY_BASE) >> 2) + 1; // Plus one because we skip zero.
-            priorityBySource[source] = value & PLIC_MAX_PRIORITY;
+            priorityBySource[source] = intValue & PLIC_MAX_PRIORITY;
             updateInterrupts();
 
             return;
@@ -176,9 +182,9 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
             final int contextOffset = offset & (PLIC_ENABLE_STRIDE - 1);
             final int word = contextOffset >>> 2;
             if (word < sourceWords) {
-                enabled[context * sourceWords + word] = value;
+                enabled[context * sourceWords + word] = intValue;
             } else {
-                LOGGER.debug("invalid enabled write [{}]", value);
+                LOGGER.debug("invalid enabled write [{}]", intValue);
             }
 
             return;
@@ -192,20 +198,20 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
             final int contextOffset = offset & (PLIC_CONTEXT_STRIDE - 1);
 
             if (contextOffset == 0) { // Priority threshold.
-                if (Integer.compareUnsigned(value, PLIC_MAX_PRIORITY) <= 0) {
-                    thresholdByContext[context] = value;
+                if (Integer.compareUnsigned(intValue, PLIC_MAX_PRIORITY) <= 0) {
+                    thresholdByContext[context] = intValue;
                     updateInterrupts();
                 } else {
-                    LOGGER.debug("invalid threshold write [{}]", value);
+                    LOGGER.debug("invalid threshold write [{}]", intValue);
                 }
 
                 return;
             } else if (contextOffset == 4) { // Complete.
-                if (Integer.compareUnsigned(value, PLIC_SOURCE_COUNT) < 0) {
-                    setClaimed(value, false);
+                if (Integer.compareUnsigned(intValue, PLIC_SOURCE_COUNT) < 0) {
+                    setClaimed(intValue, false);
                     updateInterrupts();
                 } else {
-                    LOGGER.debug("invalid complete write [{}]", value);
+                    LOGGER.debug("invalid complete write [{}]", intValue);
                 }
 
                 return;

@@ -26,7 +26,7 @@ import java.util.NoSuchElementException;
  *     <li>{@link #setConfigValue(int, int)}</li>
  * </ul>
  * <p>
- * For config fields which act as triggers, {@link #loadConfig(int, int)} and {@link #storeConfig(int, int, int)}
+ * For config fields which act as triggers, {@link #loadConfig(int, int)} and {@link #storeConfig(int, long, int)}
  * may be overridden to intercept such writes and respond to them accordingly.
  * <p>
  * This class abstracts the underlying virtqueue system and provides an iterator that virtually
@@ -234,7 +234,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
      * @param sizeLog2 the width of the value to write in bytes, log2. See {@link Sizes}.
      * @see Sizes
      */
-    protected void storeConfig(final int offset, final int value, final int sizeLog2) {
+    protected void storeConfig(final int offset, final long value, final int sizeLog2) {
         switch (sizeLog2) {
             case Sizes.SIZE_8_LOG2: {
                 if (offset >= 0 && offset < configuration.limit()) {
@@ -250,7 +250,13 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
             }
             case Sizes.SIZE_32_LOG2: {
                 if (offset >= 0 && offset < configuration.limit() - 3) {
-                    configuration.putInt(offset, value);
+                    configuration.putInt(offset, (int) value);
+                }
+                break;
+            }
+            case Sizes.SIZE_64_LOG2: {
+                if (offset >= 0 && offset < configuration.limit() - 7) {
+                    configuration.putLong(offset, value);
                 }
                 break;
             }
@@ -370,7 +376,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
     /**
      * Call this to signal that the device has entered an error state and needs a reset.
      */
-    protected final void error() {
+    public final void error() {
         status |= VIRTIO_STATUS_DEVICE_NEEDS_RESET;
 
         // 2.1.2: After setting DEVICE_NEEDS_RESET must send config change notification.
@@ -568,7 +574,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                (1 << Sizes.SIZE_32_LOG2);
     }
 
-    public final int load(final int offset, final int sizeLog2) {
+    public final long load(final int offset, final int sizeLog2) {
         if (offset >= VIRTIO_MMIO_CONFIG) {
             return loadConfig(offset - VIRTIO_MMIO_CONFIG, sizeLog2);
         }
@@ -618,7 +624,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
     }
 
     @Override
-    public final void store(final int offset, final int value, final int sizeLog2) {
+    public final void store(final int offset, final long value, final int sizeLog2) {
         if (offset >= VIRTIO_MMIO_CONFIG) {
             storeConfig(offset - VIRTIO_MMIO_CONFIG, value, sizeLog2);
             return;
@@ -628,9 +634,11 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
             return;
         }
 
+        final int intValue = (int) value;
+
         switch (offset) {
             case VIRTIO_MMIO_DEVICE_FEATURES_SEL: {
-                deviceFeaturesSel = value;
+                deviceFeaturesSel = intValue;
                 break;
             }
 
@@ -639,30 +647,30 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                 if (Long.compareUnsigned(driverFeaturesSel, 1) <= 0) {
                     final int shift = driverFeaturesSel * 32;
                     final long mask = 0xFFFFFFFFL;
-                    driverFeatures = (driverFeatures & ~(mask << shift)) | (((long) value & mask) << shift);
+                    driverFeatures = (driverFeatures & ~(mask << shift)) | (((long) intValue & mask) << shift);
                 }
                 break;
             }
             case VIRTIO_MMIO_DRIVER_FEATURES_SEL: {
-                driverFeaturesSel = value;
+                driverFeaturesSel = intValue;
                 break;
             }
 
             case VIRTIO_MMIO_QUEUE_SEL: {
-                if (Integer.compareUnsigned(value, queues.length) < 0) {
-                    queueSel = value;
+                if (Integer.compareUnsigned(intValue, queues.length) < 0) {
+                    queueSel = intValue;
                 }
                 break;
             }
             case VIRTIO_MMIO_QUEUE_NUM: {
                 // 2.6: Queue size is always a power of 2. The maximum Queue Size value is 32768.
-                if (value <= (1 << 15) && Integer.bitCount(value) == 1) {
-                    queues[queueSel].num = value;
+                if (intValue <= (1 << 15) && Integer.bitCount(intValue) == 1) {
+                    queues[queueSel].num = intValue;
                 }
                 break;
             }
             case VIRTIO_MMIO_QUEUE_READY: {
-                queues[queueSel].ready = value != 0 ? 1 : 0;
+                queues[queueSel].ready = intValue != 0 ? 1 : 0;
                 break;
             }
             case VIRTIO_MMIO_QUEUE_NOTIFY: {
@@ -672,9 +680,9 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                     return;
                 }
 
-                if (Integer.compareUnsigned(value, queues.length) < 0) {
+                if (Integer.compareUnsigned(intValue, queues.length) < 0) {
                     try {
-                        queues[value].handleQueueNotification(value);
+                        queues[intValue].handleQueueNotification(intValue);
                     } catch (final VirtIODeviceException | MemoryAccessException e) {
                         error();
                     }
@@ -683,14 +691,14 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
             }
 
             case VIRTIO_MMIO_INTERRUPT_ACK: {
-                interruptStatus &= ~value;
+                interruptStatus &= ~intValue;
                 updateInterrupts();
                 break;
             }
 
             case VIRTIO_MMIO_STATUS: {
-                final int change = status ^ value;
-                status = value;
+                final int change = status ^ intValue;
+                status = intValue;
 
                 // Initialization sequence:
                 // 1. Reset.
@@ -730,36 +738,36 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                     handleDeviceSetupFailed();
                 }
 
-                if (value == 0) {
+                if (intValue == 0) {
                     reset();
                 }
                 break;
             }
 
             case VIRTIO_MMIO_QUEUE_DESC_LOW: {
-                queues[queueSel].desc = (queues[queueSel].desc & ~0xFFFFFFFFL) | ((long) value & 0xFFFFFFFFL);
+                queues[queueSel].desc = (queues[queueSel].desc & ~0xFFFFFFFFL) | ((long) intValue & 0xFFFFFFFFL);
                 break;
             }
             case VIRTIO_MMIO_QUEUE_DESC_HIGH: {
-                queues[queueSel].desc = (queues[queueSel].desc & 0xFFFFFFFFL) | ((long) value << 32);
+                queues[queueSel].desc = (queues[queueSel].desc & 0xFFFFFFFFL) | ((long) intValue << 32);
                 break;
             }
 
             case VIRTIO_MMIO_QUEUE_DRIVER_LOW: {
-                queues[queueSel].driver = (queues[queueSel].driver & ~0xFFFFFFFFL) | ((long) value & 0xFFFFFFFFL);
+                queues[queueSel].driver = (queues[queueSel].driver & ~0xFFFFFFFFL) | ((long) intValue & 0xFFFFFFFFL);
                 break;
             }
             case VIRTIO_MMIO_QUEUE_DRIVER_HIGH: {
-                queues[queueSel].driver = (queues[queueSel].driver & 0xFFFFFFFFL) | ((long) value << 32);
+                queues[queueSel].driver = (queues[queueSel].driver & 0xFFFFFFFFL) | ((long) intValue << 32);
                 break;
             }
 
             case VIRTIO_MMIO_QUEUE_DEVICE_LOW: {
-                queues[queueSel].device = (queues[queueSel].device & ~0xFFFFFFFFL) | ((long) value & 0xFFFFFFFFL);
+                queues[queueSel].device = (queues[queueSel].device & ~0xFFFFFFFFL) | ((long) intValue & 0xFFFFFFFFL);
                 break;
             }
             case VIRTIO_MMIO_QUEUE_DEVICE_HIGH: {
-                queues[queueSel].device = (queues[queueSel].device & 0xFFFFFFFFL) | ((long) value << 32);
+                queues[queueSel].device = (queues[queueSel].device & 0xFFFFFFFFL) | ((long) intValue << 32);
                 break;
             }
         }
@@ -913,15 +921,15 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         }
 
         int getDescLength(final int i) throws MemoryAccessException {
-            return memoryMap.load(descIndexToAddress(i) + VIRTQ_DESC_LEN, Sizes.SIZE_32_LOG2);
+            return (int) memoryMap.load(descIndexToAddress(i) + VIRTQ_DESC_LEN, Sizes.SIZE_32_LOG2);
         }
 
         int getDescFlags(final int i) throws MemoryAccessException {
-            return memoryMap.load(descIndexToAddress(i) + VIRTQ_DESC_FLAGS, Sizes.SIZE_16_LOG2);
+            return (int) memoryMap.load(descIndexToAddress(i) + VIRTQ_DESC_FLAGS, Sizes.SIZE_16_LOG2) & 0xFFFF;
         }
 
         int getDescNext(final int i) throws MemoryAccessException {
-            return memoryMap.load(descIndexToAddress(i) + VIRTQ_DESC_NEXT, Sizes.SIZE_16_LOG2);
+            return (int) memoryMap.load(descIndexToAddress(i) + VIRTQ_DESC_NEXT, Sizes.SIZE_16_LOG2) & 0xFFFF;
         }
 
         int descIndexToAddress(final int i) {
@@ -938,20 +946,20 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         // virtq_avail is the structure expected at the physical address the `driver` field points at.
 
         int getAvailFlags() throws MemoryAccessException {
-            return memoryMap.load((int) driver + VIRTQ_AVAIL_FLAGS, Sizes.SIZE_16_LOG2);
+            return (int) memoryMap.load((int) driver + VIRTQ_AVAIL_FLAGS, Sizes.SIZE_16_LOG2) & 0xFFFF;
         }
 
         int getAvailIdx() throws MemoryAccessException {
-            return memoryMap.load((int) driver + VIRTQ_AVAIL_IDX, Sizes.SIZE_16_LOG2);
+            return (int) memoryMap.load((int) driver + VIRTQ_AVAIL_IDX, Sizes.SIZE_16_LOG2) & 0xFFFF;
         }
 
         int getAvailRing(final int i) throws MemoryAccessException {
             final int address = (int) driver + VIRTQ_AVAIL_RING + toWrappedRingIndex(i) * VIRTQ_AVAILABLE_RING_STRIDE;
-            return memoryMap.load(address, Sizes.SIZE_16_LOG2);
+            return (int) memoryMap.load(address, Sizes.SIZE_16_LOG2) & 0xFFFF;
         }
 
         int getAvailUsedEvent() throws MemoryAccessException {
-            return memoryMap.load((int) driver + VIRTQ_AVAIL_RING + num * VIRTQ_AVAILABLE_RING_STRIDE, Sizes.SIZE_16_LOG2);
+            return (int) memoryMap.load((int) driver + VIRTQ_AVAIL_RING + num * VIRTQ_AVAILABLE_RING_STRIDE, Sizes.SIZE_16_LOG2) & 0xFFFF;
         }
 
         // The following methods provide access to a struct with the following layout:
@@ -1162,14 +1170,14 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                 }
 
                 assert position < length;
-                final int value = memoryMap.load(address + position, Sizes.SIZE_8_LOG2);
+                final byte value = (byte) memoryMap.load(address + position, Sizes.SIZE_8_LOG2);
                 readByteCount++;
                 position++;
                 if (position >= length) {
                     nextDescriptor();
                 }
 
-                return (byte) value;
+                return value;
             }
 
             @Override

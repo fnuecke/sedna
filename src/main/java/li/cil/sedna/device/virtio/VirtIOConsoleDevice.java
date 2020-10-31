@@ -127,7 +127,7 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice {
     }
 
     @Override
-    protected void storeConfig(final int offset, final int value, final int sizeLog2) {
+    protected void storeConfig(final int offset, final long value, final int sizeLog2) {
         if (offset == VIRTIO_CONSOLE_CFG_EMERG_WR_OFFSET) {
             // 5.3.5.1: The device SHOULD transmit the lower byte written to emerg_wr [...]
         }

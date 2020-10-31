@@ -18,7 +18,7 @@ public final class PhysicalMemoryInputStream extends InputStream {
     @Override
     public int read() throws IOException {
         if (offset >= memory.getLength()) return -1;
-        return memory.load(offset++, Sizes.SIZE_8_LOG2) & 0xFF;
+        return (byte) memory.load(offset++, Sizes.SIZE_8_LOG2) & 0xFF;
     }
 
     @Override

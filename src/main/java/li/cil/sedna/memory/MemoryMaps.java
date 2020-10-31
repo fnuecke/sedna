@@ -132,7 +132,7 @@ public final class MemoryMaps {
 
         if (dst.order() == ByteOrder.LITTLE_ENDIAN && (device.getSupportedSizes() & (1 << Sizes.SIZE_32_LOG2)) != 0) {
             while (offset < end - 3) {
-                dst.putInt(device.load(offset, Sizes.SIZE_32_LOG2));
+                dst.putInt((int) device.load(offset, Sizes.SIZE_32_LOG2));
                 offset += 4;
             }
         }

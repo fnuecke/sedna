@@ -50,11 +50,11 @@ public final class GoldfishRTC implements InterruptSource, MemoryMappedDevice {
     }
 
     @Override
-    public int load(final int offset, final int sizeLog2) {
+    public long load(final int offset, final int sizeLog2) {
         switch (offset) {
             case TIME_LOW: {
                 time = rtc.getTime() / rtc.getFrequency() * 1_000_000_000;
-                return (int) time;
+                return time;
             }
             case TIME_HIGH: {
                 return (int) (time >>> 32);
@@ -65,7 +65,7 @@ public final class GoldfishRTC implements InterruptSource, MemoryMappedDevice {
     }
 
     @Override
-    public void store(final int offset, final int value, final int sizeLog2) {
+    public void store(final int offset, final long value, final int sizeLog2) {
         // all no-ops
     }
 }

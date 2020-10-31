@@ -284,9 +284,9 @@ final class R5CPUTemplate implements R5CPU {
 
             int inst;
             if (instOffset < instEnd) { // Likely case, instruction fully inside page.
-                inst = device.load(instOffset, Sizes.SIZE_32_LOG2);
+                inst = (int) device.load(instOffset, Sizes.SIZE_32_LOG2);
             } else { // Unlikely case, instruction may leave page if it is 32bit.
-                inst = device.load(instOffset, Sizes.SIZE_16_LOG2) & 0xFFFF;
+                inst = (short) device.load(instOffset, Sizes.SIZE_16_LOG2) & 0xFFFF;
                 if ((inst & 0b11) == 0b11) { // 32bit instruction.
                     final R5CPUTLBEntry highCache = fetchPage(pc + 2);
                     final MemoryMappedDevice highDevice = cache.device;
@@ -313,7 +313,7 @@ final class R5CPUTemplate implements R5CPU {
                 ///////////////////////////////////////////////////////////////////
 
                 if (instOffset < instEnd) { // Likely case: we're still fully in the page.
-                    inst = device.load(instOffset, Sizes.SIZE_32_LOG2);
+                    inst = (int) device.load(instOffset, Sizes.SIZE_32_LOG2);
                 } else { // Unlikely case: we reached the end of the page. Leave to do interrupts and cycle check.
                     this.pc = pc;
                     return;
@@ -1057,14 +1057,14 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     private int load32(final int address) throws MemoryAccessException {
-        return loadx(address, Sizes.SIZE_32, Sizes.SIZE_32_LOG2);
+        return (int) loadx(address, Sizes.SIZE_32, Sizes.SIZE_32_LOG2);
     }
 
     private void store32(final int address, final int value) throws MemoryAccessException {
         storex(address, value, Sizes.SIZE_32, Sizes.SIZE_32_LOG2);
     }
 
-    private int loadx(final int address, final int size, final int sizeLog2) throws MemoryAccessException {
+    private long loadx(final int address, final int size, final int sizeLog2) throws MemoryAccessException {
         final int index = (address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1);
         final int alignment = size / 8; // Enforce aligned memory access.
         final int alignmentMask = alignment - 1;
@@ -1100,7 +1100,7 @@ final class R5CPUTemplate implements R5CPU {
         return updateTLB(fetchTLB, address, physicalAddress, range);
     }
 
-    private int loadSlow(final int address, final int sizeLog2) throws MemoryAccessException {
+    private long loadSlow(final int address, final int sizeLog2) throws MemoryAccessException {
         final int size = 1 << sizeLog2;
         final int alignment = address & (size - 1);
         if (alignment != 0) {
@@ -1167,7 +1167,7 @@ final class R5CPUTemplate implements R5CPU {
             final int vpnShift = R5.PAGE_ADDRESS_SHIFT + R5.SV32_XPN_SIZE * i;
             final int vpn = (virtualAddress >>> vpnShift) & R5.SV32_XPN_MASK;
             pteAddress += vpn << R5.SV32_PTE_SIZE_LOG2; // equivalent to vpn * PTE size
-            int pte = physicalMemory.load(pteAddress, Sizes.SIZE_32_LOG2); // 3.
+            int pte = (int) physicalMemory.load(pteAddress, Sizes.SIZE_32_LOG2); // 3.
 
             if ((pte & R5.PTE_V_MASK) == 0 || ((pte & R5.PTE_R_MASK) == 0 && (pte & R5.PTE_W_MASK) != 0)) { // 4.
                 throw getPageFaultException(accessType, virtualAddress);

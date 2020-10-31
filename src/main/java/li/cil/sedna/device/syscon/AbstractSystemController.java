@@ -12,14 +12,14 @@ public abstract class AbstractSystemController implements MemoryMappedDevice {
     }
 
     @Override
-    public int load(final int offset, final int sizeLog2) {
+    public long load(final int offset, final int sizeLog2) {
         return 0;
     }
 
     @Override
-    public void store(final int offset, final int value, final int sizeLog2) {
+    public void store(final int offset, final long value, final int sizeLog2) {
         if (offset == 0) {
-            switch (value & 0xFFFF) {
+            switch ((int) (value & 0xFFFF)) {
                 case SYSCON_RESET: {
                     handleReset();
                     break;

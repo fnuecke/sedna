@@ -74,8 +74,10 @@ public final class R5CoreLocalInterrupter implements Steppable, InterruptSource,
         return (1 << Sizes.SIZE_32_LOG2);
     }
 
-    public int load(final int offset, final int sizeLog2) {
-        assert sizeLog2 == Sizes.SIZE_32_LOG2;
+    public long load(final int offset, final int sizeLog2) {
+        if (sizeLog2 != Sizes.SIZE_32_LOG2) {
+            return 0;
+        }
 
         if (offset >= CLINT_SIP_BASE && offset < CLINT_TIMECMP_BASE) {
             final int hartId = (offset - CLINT_SIP_BASE) >>> 2;
@@ -118,8 +120,10 @@ public final class R5CoreLocalInterrupter implements Steppable, InterruptSource,
     }
 
     @Override
-    public void store(final int offset, final int value, final int sizeLog2) {
-        assert sizeLog2 == Sizes.SIZE_32_LOG2;
+    public void store(final int offset, final long value, final int sizeLog2) {
+        if (sizeLog2 != Sizes.SIZE_32_LOG2) {
+            return;
+        }
 
         if (offset >= CLINT_SIP_BASE && offset < CLINT_TIMECMP_BASE) {
             final int hartId = (offset - CLINT_SIP_BASE) >>> 2;
@@ -153,7 +157,7 @@ public final class R5CoreLocalInterrupter implements Steppable, InterruptSource,
                     }
                 } else if ((offset & 0b111) == 4) {
                     long mtimecmp = mtimecmps.get(hartId);
-                    mtimecmp = (mtimecmp & 0xFFFFFFFFL) | ((long) value << 32);
+                    mtimecmp = (mtimecmp & 0xFFFFFFFFL) | (value << 32);
                     mtimecmps.put(hartId, mtimecmp);
 
                     if (mtimecmp <= rtc.getTime()) {

@@ -246,7 +246,7 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
     }
 
     @Override
-    public int load(final int offset, final int sizeLog2) {
+    public long load(final int offset, final int sizeLog2) {
         assert sizeLog2 == Sizes.SIZE_8_LOG2;
         switch (offset) {
             // case UART_DLL_OFFSET:
@@ -345,7 +345,7 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
     }
 
     @Override
-    public void store(final int offset, final int value, final int sizeLog2) {
+    public void store(final int offset, final long value, final int sizeLog2) {
         assert sizeLog2 == Sizes.SIZE_8_LOG2;
         switch (offset) {
             // case UART_DLL_OFFSET:

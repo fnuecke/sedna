@@ -58,7 +58,7 @@ public interface MemoryMap {
      * This is useful for getting a direct reference to a {@link MemoryMappedDevice} at
      * a specific memory location, usually to perform multiple read or write operations
      * on it without having to go through the slower {@link #load(int, int)} and
-     * {@link #store(int, int, int)} calls.
+     * {@link #store(int, long, int)} calls.
      *
      * @param address the address to get a memory range for.
      * @return the memory range the address falls into, if any.
@@ -89,7 +89,7 @@ public interface MemoryMap {
      * @return the value read from the specified location.
      * @throws MemoryAccessException if an error occurred accessing the memory a the specified location.
      */
-    int load(final int address, final int sizeLog2) throws MemoryAccessException;
+    long load(final int address, final int sizeLog2) throws MemoryAccessException;
 
     /**
      * Writes a value to the specified physical address.
@@ -103,5 +103,5 @@ public interface MemoryMap {
      * @param sizeLog2 the size of the value to write. See {@link Sizes}.
      * @throws MemoryAccessException if an error occurred accessing the memory a the specified location.
      */
-    void store(final int address, final int value, final int sizeLog2) throws MemoryAccessException;
+    void store(final int address, final long value, final int sizeLog2) throws MemoryAccessException;
 }

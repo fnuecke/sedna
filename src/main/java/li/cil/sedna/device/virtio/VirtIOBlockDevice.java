@@ -200,7 +200,7 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     }
 
     @Override
-    protected void storeConfig(final int offset, final int value, final int sizeLog2) {
+    protected void storeConfig(final int offset, final long value, final int sizeLog2) {
         // No config fields that can be changed by driver.
     }
 

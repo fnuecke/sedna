@@ -2,7 +2,6 @@ package li.cil.sedna.device.flash;
 
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.MemoryMappedDevice;
-import li.cil.sedna.api.memory.MemoryAccessException;
 
 import java.nio.ByteBuffer;
 
@@ -38,7 +37,7 @@ public final class FlashMemoryDevice implements MemoryMappedDevice {
     }
 
     @Override
-    public int load(final int offset, final int sizeLog2) {
+    public long load(final int offset, final int sizeLog2) {
         if (offset < 0 || offset > data.limit() - (1 << sizeLog2)) {
             return 0;
         }
@@ -49,13 +48,15 @@ public final class FlashMemoryDevice implements MemoryMappedDevice {
                 return data.getShort(offset);
             case Sizes.SIZE_32_LOG2:
                 return data.getInt(offset);
+            case Sizes.SIZE_64_LOG2:
+                return data.getLong(offset);
             default:
                 throw new IllegalArgumentException();
         }
     }
 
     @Override
-    public void store(final int offset, final int value, final int sizeLog2) throws MemoryAccessException {
+    public void store(final int offset, final long value, final int sizeLog2) {
         if (readonly) {
             return;
         }
@@ -70,7 +71,10 @@ public final class FlashMemoryDevice implements MemoryMappedDevice {
                 data.putShort(offset, (short) value);
                 break;
             case Sizes.SIZE_32_LOG2:
-                data.putInt(offset, value);
+                data.putInt(offset, (int) value);
+                break;
+            case Sizes.SIZE_64_LOG2:
+                data.putLong(offset, value);
                 break;
             default:
                 throw new IllegalArgumentException();

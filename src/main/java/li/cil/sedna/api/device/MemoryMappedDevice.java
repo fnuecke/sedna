@@ -24,7 +24,7 @@ public interface MemoryMappedDevice extends Device {
      * Returns a bitmask indicating the value sizes supported by this device.
      * <p>
      * Code accessing a memory mapped device, e.g. {@link MemoryMap}s, may use this to verify
-     * load and store requests before calling {@link #load(int, int)} and {@link #store(int, int, int)}
+     * load and store requests before calling {@link #load(int, int)} and {@link #store(int, long, int)}
      * on a device.
      *
      * @return a bit mask indicating the supported value sizes.
@@ -32,7 +32,8 @@ public interface MemoryMappedDevice extends Device {
     default int getSupportedSizes() {
         return (1 << Sizes.SIZE_8_LOG2) |
                (1 << Sizes.SIZE_16_LOG2) |
-               (1 << Sizes.SIZE_32_LOG2);
+               (1 << Sizes.SIZE_32_LOG2) |
+               (1 << Sizes.SIZE_64_LOG2);
     }
 
     /**
@@ -59,7 +60,7 @@ public interface MemoryMappedDevice extends Device {
      * @throws MemoryAccessException if there was an error accessing the data in this device.
      * @see Sizes
      */
-    int load(final int offset, final int sizeLog2) throws MemoryAccessException;
+    long load(final int offset, final int sizeLog2) throws MemoryAccessException;
 
     /**
      * Writes a value to this device.
@@ -73,5 +74,5 @@ public interface MemoryMappedDevice extends Device {
      * @throws MemoryAccessException if there was an error accessing the data in this device.
      * @see Sizes
      */
-    void store(final int offset, final int value, final int sizeLog2) throws MemoryAccessException;
+    void store(final int offset, final long value, final int sizeLog2) throws MemoryAccessException;
 }

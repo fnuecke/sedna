@@ -26,7 +26,7 @@ public class ByteBufferMemory extends PhysicalMemory {
     }
 
     @Override
-    public int load(final int offset, final int sizeLog2) throws MemoryAccessException {
+    public long load(final int offset, final int sizeLog2) throws MemoryAccessException {
         if (offset < 0 || offset > data.limit() - (1 << sizeLog2)) {
             throw new MemoryAccessException(offset, MemoryAccessException.Type.LOAD_FAULT);
         }
@@ -37,13 +37,15 @@ public class ByteBufferMemory extends PhysicalMemory {
                 return data.getShort(offset);
             case Sizes.SIZE_32_LOG2:
                 return data.getInt(offset);
+            case Sizes.SIZE_64_LOG2:
+                return data.getLong(offset);
             default:
                 throw new IllegalArgumentException();
         }
     }
 
     @Override
-    public void store(final int offset, final int value, final int sizeLog2) throws MemoryAccessException {
+    public void store(final int offset, final long value, final int sizeLog2) throws MemoryAccessException {
         if (offset < 0 || offset > data.limit() - (1 << sizeLog2)) {
             throw new MemoryAccessException(offset, MemoryAccessException.Type.STORE_FAULT);
         }
@@ -55,7 +57,10 @@ public class ByteBufferMemory extends PhysicalMemory {
                 data.putShort(offset, (short) value);
                 break;
             case Sizes.SIZE_32_LOG2:
-                data.putInt(offset, value);
+                data.putInt(offset, (int) value);
+                break;
+            case Sizes.SIZE_64_LOG2:
+                data.putLong(offset, value);
                 break;
             default:
                 throw new IllegalArgumentException();
