@@ -67,12 +67,12 @@ final class R5CPUTemplate implements R5CPU {
     private static final int TLB_SIZE = 256; // Must be a power of two for fast modulo via `& (TLB_SIZE - 1)`.
 
     ///////////////////////////////////////////////////////////////////
-    // RV32I
+    // RV64I
     private long pc; // Program counter.
     private final long[] x = new long[32]; // Integer registers.
 
     ///////////////////////////////////////////////////////////////////
-    // RV32F
+    // RV64FD
     private final long[] f = new long[32]; // Float registers.
     private final SoftFloat.Flags fflags = new SoftFloat.Flags(); // flags = fcsr[4:0] := NV . DZ . OF . UF . NX
     private byte frm; // fcsr[7:5]
@@ -82,7 +82,7 @@ final class R5CPUTemplate implements R5CPU {
     private final transient SoftDouble fpu64 = new SoftDouble(fflags);
 
     ///////////////////////////////////////////////////////////////////
-    // RV32A
+    // RV64A
     private long reservation_set = -1L; // Reservation set for RV64A's LR/SC.
 
     ///////////////////////////////////////////////////////////////////
