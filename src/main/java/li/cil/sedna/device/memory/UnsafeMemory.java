@@ -54,7 +54,7 @@ public final class UnsafeMemory extends PhysicalMemory {
     @Override
     public long load(final int offset, final int sizeLog2) throws MemoryAccessException {
         if (offset < 0 || offset > size - (1 << sizeLog2)) {
-            throw new MemoryAccessException(offset, MemoryAccessException.Type.LOAD_FAULT);
+            throw new MemoryAccessException();
         }
         switch (sizeLog2) {
             case Sizes.SIZE_8_LOG2:
@@ -73,7 +73,7 @@ public final class UnsafeMemory extends PhysicalMemory {
     @Override
     public void store(final int offset, final long value, final int sizeLog2) throws MemoryAccessException {
         if (offset < 0 || offset > size - (1 << sizeLog2)) {
-            throw new MemoryAccessException(offset, MemoryAccessException.Type.STORE_FAULT);
+            throw new MemoryAccessException();
         }
         switch (sizeLog2) {
             case Sizes.SIZE_8_LOG2:
@@ -96,7 +96,7 @@ public final class UnsafeMemory extends PhysicalMemory {
     @Override
     public void load(int offset, final ByteBuffer dst) throws MemoryAccessException {
         if (offset < 0 || offset > size - dst.remaining()) {
-            throw new MemoryAccessException(offset, MemoryAccessException.Type.LOAD_FAULT);
+            throw new MemoryAccessException();
         }
         while (dst.hasRemaining()) {
             dst.put(UNSAFE.getByte(address + offset++));
@@ -106,7 +106,7 @@ public final class UnsafeMemory extends PhysicalMemory {
     @Override
     public void store(int offset, final ByteBuffer src) throws MemoryAccessException {
         if (offset < 0 || offset > size - src.remaining()) {
-            throw new MemoryAccessException(offset, MemoryAccessException.Type.STORE_FAULT);
+            throw new MemoryAccessException();
         }
         while (src.hasRemaining()) {
             UNSAFE.putByte(address + offset++, src.get());

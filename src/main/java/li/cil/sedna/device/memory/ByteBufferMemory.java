@@ -28,7 +28,7 @@ public class ByteBufferMemory extends PhysicalMemory {
     @Override
     public long load(final int offset, final int sizeLog2) throws MemoryAccessException {
         if (offset < 0 || offset > data.limit() - (1 << sizeLog2)) {
-            throw new MemoryAccessException(offset, MemoryAccessException.Type.LOAD_FAULT);
+            throw new MemoryAccessException();
         }
         switch (sizeLog2) {
             case Sizes.SIZE_8_LOG2:
@@ -47,7 +47,7 @@ public class ByteBufferMemory extends PhysicalMemory {
     @Override
     public void store(final int offset, final long value, final int sizeLog2) throws MemoryAccessException {
         if (offset < 0 || offset > data.limit() - (1 << sizeLog2)) {
-            throw new MemoryAccessException(offset, MemoryAccessException.Type.STORE_FAULT);
+            throw new MemoryAccessException();
         }
         switch (sizeLog2) {
             case Sizes.SIZE_8_LOG2:
