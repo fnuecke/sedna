@@ -363,27 +363,23 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     private boolean csrrscx(final int rd, final int rs1, final int csr, final long mask, final boolean isSet) throws R5IllegalInstructionException {
-        final boolean exitTrace;
-
         final boolean mayChange = rs1 != 0;
 
-        final long value;
         if (mayChange) {
             checkCSR(csr, true);
-            value = readCSR(csr);
+            final long value = readCSR(csr);
             final long masked = isSet ? (mask | value) : (~mask & value);
-            exitTrace = writeCSR(csr, masked);
-        } else { // TODO Should this be the rd != 0 check? (No read side-effect when rd = 0 via spec)
+            final boolean exitTrace = writeCSR(csr, masked);
+            if (rd != 0) {
+                x[rd] = value;
+            }
+            return exitTrace;
+        } else if (rd != 0) {
             checkCSR(csr, false);
-            value = readCSR(csr);
-            exitTrace = false;
+            x[rd] = readCSR(csr);
         }
 
-        if (rd != 0) {
-            x[rd] = value;
-        }
-
-        return exitTrace;
+        return false;
     }
 
     private void checkCSR(final int csr, final boolean throwIfReadonly) throws R5IllegalInstructionException {
