@@ -2451,10 +2451,6 @@ final class R5CPUTemplate implements R5CPU {
             return false;
         }
 
-        if (mie == 0) {
-            LOGGER.warn("Waiting for interrupts but none are enabled.");
-        }
-
         waitingForInterrupt = true;
         return true; // Exit trace.
     }
