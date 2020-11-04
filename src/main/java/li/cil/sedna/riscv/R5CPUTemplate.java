@@ -41,8 +41,6 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @Serialized
 final class R5CPUTemplate implements R5CPU {
-    private static final Logger LOGGER = LogManager.getLogger();
-
     private static final int PC_INIT = 0x1000; // Initial position of program counter.
 
     private static final int XLEN = 64; // Integer register width.
