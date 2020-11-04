@@ -25,24 +25,24 @@ public final class ISATests {
     private static final Logger LOGGER = LogManager.getLogger();
 
     private static final String[] TEST_FILTERS = {
-            "rv32mi-p-.*",
-            "rv32si-p-.*",
-            "rv32ua-p-.*",
-            "rv32uc-p-.*",
-            "rv32ud-p-.*",
-            "rv32uf-p-.*",
-            "rv32ui-p-.*",
-            "rv32um-p-.*",
+            "rv64mi-p-.*",
+            "rv64si-p-.*",
+            "rv64ua-p-.*",
+            "rv64uc-p-.*",
+            "rv64ud-p-.*",
+            "rv64uf-p-.*",
+            "rv64ui-p-.*",
+            "rv64um-p-.*",
 
-            "rv32ua-v-.*",
-            "rv32uc-v-.*",
-            "rv32ud-v-.*",
-            "rv32uf-v-.*",
-            "rv32ui-v-.*",
-            "rv32um-v-.*",
+            "rv64ua-v-.*",
+            "rv64uc-v-.*",
+            "rv64ud-v-.*",
+            "rv64uf-v-.*",
+            "rv64ui-v-.*",
+            "rv64um-v-.*",
     };
 
-    private static final int PHYSICAL_MEMORY_START = 0x80000000;
+    private static final long PHYSICAL_MEMORY_START = 0x80000000L;
     private static final int PHYSICAL_MEMORY_LENGTH = 512 * 1024;
 
     @TestFactory
@@ -63,7 +63,7 @@ public final class ISATests {
 
                         final ELF elf = ELFParser.parse(file);
 
-                        final int toHostAddress = getToHostAddress(elf);
+                        final long toHostAddress = getToHostAddress(elf);
 
                         final MemoryMap memoryMap = new SimpleMemoryMap();
                         final R5CPU cpu = R5CPU.create(memoryMap);
@@ -71,21 +71,21 @@ public final class ISATests {
 
                         // RAM block below and potentially up to HTIF.
                         if (PHYSICAL_MEMORY_START < toHostAddress) {
-                            final int end = Math.min(PHYSICAL_MEMORY_START + PHYSICAL_MEMORY_LENGTH, toHostAddress);
-                            memoryMap.addDevice(PHYSICAL_MEMORY_START, Memory.create(end - PHYSICAL_MEMORY_START));
+                            final long end = Math.min(PHYSICAL_MEMORY_START + PHYSICAL_MEMORY_LENGTH, toHostAddress);
+                            memoryMap.addDevice(PHYSICAL_MEMORY_START, Memory.create((int) (end - PHYSICAL_MEMORY_START)));
                         }
 
                         // RAM block above and potentially starting from HTIF.
                         if (PHYSICAL_MEMORY_START + PHYSICAL_MEMORY_LENGTH > toHostAddress + htif.getLength()) {
-                            final int start = Math.max(PHYSICAL_MEMORY_START, toHostAddress + htif.getLength());
-                            memoryMap.addDevice(start, Memory.create(PHYSICAL_MEMORY_START + PHYSICAL_MEMORY_LENGTH - start));
+                            final long start = Math.max(PHYSICAL_MEMORY_START, toHostAddress + htif.getLength());
+                            memoryMap.addDevice(start, Memory.create((int) (PHYSICAL_MEMORY_START + PHYSICAL_MEMORY_LENGTH - start)));
                         }
 
                         loadProgramSegments(elf, memoryMap);
 
                         memoryMap.addDevice(toHostAddress, htif);
 
-                        cpu.reset(true, (int) elf.entryPoint);
+                        cpu.reset(true, elf.entryPoint);
 
                         Assertions.assertThrows(TestSuccessful.class, () -> {
                             for (int i = 0; i < 1_000_000; i++) {
@@ -98,10 +98,10 @@ public final class ISATests {
                 .collect(Collectors.toList());
     }
 
-    private int getToHostAddress(final ELF elf) {
+    private long getToHostAddress(final ELF elf) {
         for (final SectionHeader header : elf.sectionHeaderTable) {
             if (".tohost".equals(header.name)) {
-                return (int) header.virtualAddress;
+                return header.virtualAddress;
             }
         }
 
@@ -113,8 +113,8 @@ public final class ISATests {
         for (final ProgramHeader header : elf.programHeaderTable) {
             if (header.is(ProgramHeaderType.PT_LOAD)) {
                 final ByteBuffer data = header.getView();
-                final int address = (int) header.physicalAddress;
-                final int length = (int) header.sizeInFile;
+                final long address = header.physicalAddress;
+                final long length = header.sizeInFile;
                 for (int i = 0; i < length; i++) {
                     memoryMap.store(address + i, data.get(), Sizes.SIZE_8_LOG2);
                 }
@@ -147,17 +147,18 @@ public final class ISATests {
 
         @Override
         public long load(final int offset, final int sizeLog2) {
-            assert sizeLog2 == Sizes.SIZE_32_LOG2;
+            assert sizeLog2 == Sizes.SIZE_32_LOG2 ||
+                   sizeLog2 == Sizes.SIZE_64_LOG2;
             switch (offset) {
                 case 0x00: {
-                    return (int) toHost;
+                    return toHost;
                 }
                 case 0x04: {
                     return (int) (toHost >> 32);
                 }
 
                 case 0x40: {
-                    return (int) fromHost;
+                    return fromHost;
                 }
                 case 0x44: {
                     return (int) (fromHost >> 32);
@@ -169,25 +170,34 @@ public final class ISATests {
 
         @Override
         public void store(final int offset, final long value, final int sizeLog2) {
-            assert sizeLog2 == Sizes.SIZE_32_LOG2;
+            assert sizeLog2 == Sizes.SIZE_32_LOG2 ||
+                   sizeLog2 == Sizes.SIZE_64_LOG2;
             switch (offset) {
                 case 0x00: {
-                    toHost = (toHost & ~0xFFFFFFFFL) | value;
+                    if (sizeLog2 == Sizes.SIZE_32_LOG2) {
+                        toHost = (toHost & ~0xFFFFFFFFL) | value;
+                    } else {
+                        toHost = value;
+                    }
                     handleCommand();
                     break;
                 }
                 case 0x04: {
-                    toHost = (toHost & 0xFFFFFFFFL) | ((long) value << 32);
+                    toHost = (toHost & 0xFFFFFFFFL) | (value << 32);
                     handleCommand();
                     break;
                 }
 
                 case 0x40: {
-                    fromHost = (fromHost & ~0xFFFFFFFFL) | value;
+                    if (sizeLog2 == Sizes.SIZE_32_LOG2) {
+                        fromHost = (fromHost & ~0xFFFFFFFFL) | value;
+                    } else {
+                        fromHost = value;
+                    }
                     break;
                 }
                 case 0x44: {
-                    fromHost = (fromHost & 0xFFFFFFFFL) | ((long) value << 32);
+                    fromHost = (fromHost & 0xFFFFFFFFL) | (value << 32);
                     break;
                 }
             }

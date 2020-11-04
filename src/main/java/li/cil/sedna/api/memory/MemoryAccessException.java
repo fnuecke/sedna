@@ -24,15 +24,15 @@ public final class MemoryAccessException extends IOException {
         MISALIGNED_STORE,
     }
 
-    private final int address;
+    private final long address;
     private final Type type;
 
-    public MemoryAccessException(final int address, final Type type) {
+    public MemoryAccessException(final long address, final Type type) {
         this.address = address;
         this.type = type;
     }
 
-    public int getAddress() {
+    public long getAddress() {
         return address;
     }
 

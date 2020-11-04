@@ -1,5 +1,7 @@
 package li.cil.sedna.utils;
 
+import java.math.BigInteger;
+
 public final class BitUtils {
     /**
      * Extract a field encoded in an integer value and shifts it to the desired output position.
@@ -39,7 +41,19 @@ public final class BitUtils {
      * @param bitUntil the most significant bit in the mask.
      * @return the mask defined by the given bit indices.
      */
-    public static int maskFromRange(final int bitFrom, final int bitUntil) {
-        return (int) ((1L << (bitUntil - bitFrom + 1)) - 1) << bitFrom;
+    public static long maskFromRange(final int bitFrom, final int bitUntil) {
+        return ((1L << (bitUntil - bitFrom + 1)) - 1) << bitFrom;
+    }
+
+    public static BigInteger unsignedLongToBigInteger(final long value) {
+        if (value >= 0L) {
+            return BigInteger.valueOf(value);
+        }
+
+        final int upper = (int) (value >>> 32);
+        final int lower = (int) value;
+
+        return BigInteger.valueOf(Integer.toUnsignedLong(upper)).shiftLeft(32).
+                or(BigInteger.valueOf(Integer.toUnsignedLong(lower)));
     }
 }

@@ -21,7 +21,7 @@ public interface DeviceTree {
 
     DeviceTree getChild(final String name, @Nullable final String address);
 
-    default DeviceTree getChild(final String name, final int address) {
+    default DeviceTree getChild(final String name, final long address) {
         return getChild(name, String.format("%x", address));
     }
 
@@ -34,7 +34,7 @@ public interface DeviceTree {
         return this;
     }
 
-    default DeviceTree putChild(final String name, final int address, final Consumer<DeviceTree> builder) {
+    default DeviceTree putChild(final String name, final long address, final Consumer<DeviceTree> builder) {
         return putChild(name, String.format("%x", address), builder);
     }
 

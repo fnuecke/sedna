@@ -21,7 +21,7 @@ public final class MemoryMaps {
      * @param length  the number of bytes to copy.
      * @throws MemoryAccessException when an exception is thrown while accessing a device.
      */
-    public static void load(final MemoryMap memory, final int address, final byte[] dst, final int offset, final int length) throws MemoryAccessException {
+    public static void load(final MemoryMap memory, final long address, final byte[] dst, final int offset, final int length) throws MemoryAccessException {
         final ByteBuffer buffer = ByteBuffer.wrap(dst, offset, length);
         buffer.order(ByteOrder.LITTLE_ENDIAN);
         load(memory, address, buffer);
@@ -38,7 +38,7 @@ public final class MemoryMaps {
      * @throws MemoryAccessException    when an exception is thrown while accessing a device.
      * @throws IllegalArgumentException if the buffer is not little-endian.
      */
-    public static void load(final MemoryMap memory, int address, final ByteBuffer dst) throws MemoryAccessException {
+    public static void load(final MemoryMap memory, long address, final ByteBuffer dst) throws MemoryAccessException {
         while (dst.hasRemaining()) {
             final MemoryRange range = memory.getMemoryRange(address);
             if (range == null) {
@@ -47,8 +47,8 @@ public final class MemoryMaps {
                 continue;
             }
 
-            final int offset = address - range.start;
-            final int length = Math.min(range.end - address + 1, dst.remaining());
+            final int offset = (int) (address - range.start);
+            final int length = Math.min((int) (range.end - address + 1), dst.remaining());
             if (length <= 0) {
                 throw new AssertionError();
             }
@@ -85,7 +85,7 @@ public final class MemoryMaps {
      * @throws MemoryAccessException    when an exception is thrown while accessing a device.
      * @throws IllegalArgumentException if the buffer is not little-endian.
      */
-    public static void store(final MemoryMap memory, int address, final ByteBuffer src) throws MemoryAccessException {
+    public static void store(final MemoryMap memory, long address, final ByteBuffer src) throws MemoryAccessException {
         while (src.hasRemaining()) {
             final MemoryRange range = memory.getMemoryRange(address);
             if (range == null) {
@@ -94,8 +94,8 @@ public final class MemoryMaps {
                 continue;
             }
 
-            final int offset = address - range.start;
-            final int length = Math.min(range.end - address + 1, src.remaining());
+            final int offset = (int) (address - range.start);
+            final int length = Math.min((int) (range.end - address + 1), src.remaining());
             if (length <= 0) {
                 throw new AssertionError();
             }

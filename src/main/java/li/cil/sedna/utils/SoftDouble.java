@@ -640,19 +640,35 @@ public final class SoftDouble {
     }
 
     public long intToDouble(final int a, final int rm) {
-        return intToDouble(a, rm, false);
+        return longToDouble(a, rm, false);
     }
 
     public long unsignedIntToDouble(final int a, final int rm) {
-        return intToDouble(a, rm, true);
+        return longToDouble(Integer.toUnsignedLong(a), rm, true);
     }
 
     public int doubleToInt(final long a, final int rm) {
-        return doubleToInt(a, rm, false);
+        return (int) doubleToLong(a, rm, Integer.SIZE, false);
     }
 
     public int doubleToUnsignedInt(final long a, final int rm) {
-        return doubleToInt(a, rm, true);
+        return (int) doubleToLong(a, rm, Integer.SIZE, true);
+    }
+
+    public long longToDouble(final long a, final int rm) {
+        return longToDouble(a, rm, false);
+    }
+
+    public long unsignedLongToDouble(final long a, final int rm) {
+        return longToDouble(a, rm, true);
+    }
+
+    public long doubleToLong(final long a, final int rm) {
+        return doubleToLong(a, rm, Long.SIZE, false);
+    }
+
+    public long doubleToUnsignedLong(final long a, final int rm) {
+        return doubleToLong(a, rm, Long.SIZE, true);
     }
 
     public int doubleToFloat(final long a, final int rm) {
@@ -723,9 +739,9 @@ public final class SoftDouble {
         );
     }
 
-    private long intToDouble(final int a, final int rm, final boolean isUnsigned) {
+    private long longToDouble(final long a, final int rm, final boolean isUnsigned) {
         final int sign;
-        final int mantissa;
+        long mantissa;
         if (!isUnsigned && a < 0) {
             sign = 1;
             mantissa = -a;
@@ -734,11 +750,17 @@ public final class SoftDouble {
             mantissa = a;
         }
 
-        final int exponent = BIAS + SIZE - 2;
-        return normalize(sign, exponent, Integer.toUnsignedLong(mantissa), rm, flags);
+        int exponent = BIAS + SIZE - 2;
+        final int l = Long.SIZE - Long.numberOfLeadingZeros(mantissa) - (SIZE - 1);
+        if (l > 0) {
+            final long mask = (1L << l) - 1;
+            mantissa = (mantissa >>> l) | ((mantissa & mask) != 0 ? 1 : 0);
+            exponent += l;
+        }
+        return normalize(sign, exponent, mantissa, rm, flags);
     }
 
-    private int doubleToInt(final long a, final int rm, final boolean isUnsigned) {
+    private long doubleToLong(final long a, final int rm, final int intSize, final boolean isUnsigned) {
         int sign = getSign(a);
         int exponent = getExponent(a);
         long mantissa = getMantissa(a);
@@ -756,17 +778,25 @@ public final class SoftDouble {
         mantissa = mantissa << RND_SIZE;
         exponent = exponent - BIAS - MANTISSA_SIZE;
 
-        final int max;
+        final long max;
         if (isUnsigned) {
-            max = sign - 1;
+            max = ((long) sign - 1) >>> (Long.SIZE - intSize);
         } else {
-            max = (1 << (Integer.SIZE - 1)) - (sign ^ 1);
+            max = (1L << (intSize - 1)) - (sign ^ 1);
         }
 
-        int result;
-        if (exponent >= 0) { // overflow
-            flags.raise(FLAG_INVALID);
-            return max;
+        long result;
+        if (exponent >= 0) {
+            if (exponent <= (intSize - 1 - MANTISSA_SIZE)) {
+                result = (mantissa >>> RND_SIZE) << exponent;
+                if (Long.compareUnsigned(result, max) > 0) { // overflow
+                    flags.raise(FLAG_INVALID);
+                    return max;
+                }
+            } else { // overflow
+                flags.raise(FLAG_INVALID);
+                return max;
+            }
         } else {
             mantissa = shiftRightAndJam(mantissa, -exponent);
 
@@ -801,12 +831,12 @@ public final class SoftDouble {
                 mantissa &= ~1;
             }
 
-            if (Long.compareUnsigned(mantissa, Integer.toUnsignedLong(max)) > 0) { // overflow
+            if (Long.compareUnsigned(mantissa, max) > 0) { // overflow
                 flags.raise(FLAG_INVALID);
                 return max;
             }
 
-            result = (int) mantissa;
+            result = mantissa;
             if (rnd_bits != 0) {
                 flags.raise(FLAG_INEXACT);
             }

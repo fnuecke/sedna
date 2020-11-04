@@ -25,20 +25,20 @@ import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.OptionalInt;
+import java.util.OptionalLong;
 
 public final class R5Board implements Steppable, Resettable {
     private static final Logger LOGGER = LogManager.getLogger();
 
-    private static final int PHYSICAL_MEMORY_FIRST = 0x80000000;
-    private static final int PHYSICAL_MEMORY_LAST = 0xFFFFFFFF;
-    private static final int DEVICE_MEMORY_FIRST = 0x10000000;
-    private static final int DEVICE_MEMORY_LAST = 0x7FFFFFFF;
-    private static final int SYSCON_ADDRESS = 0x01000000;
-    private static final int CLINT_ADDRESS = 0x02000000;
-    private static final int PLIC_ADDRESS = 0x0C000000;
+    private static final long PHYSICAL_MEMORY_FIRST = 0x80000000L;
+    private static final long PHYSICAL_MEMORY_LAST = 0xFFFFFFFFL;
+    private static final long DEVICE_MEMORY_FIRST = 0x10000000L;
+    private static final long DEVICE_MEMORY_LAST = 0x7FFFFFFFL;
+    private static final long SYSCON_ADDRESS = 0x01000000L;
+    private static final long CLINT_ADDRESS = 0x02000000L;
+    private static final long PLIC_ADDRESS = 0x0C000000L;
 
-    private static final int FLASH_ADDRESS = 0x1000; // R5CPU starts executing at 0x1000.
+    private static final long FLASH_ADDRESS = 0x1000L; // R5CPU starts executing at 0x1000.
     private static final int LOW_MEMORY_SIZE = 0x2000; // Just needs to fit "jump to firmware".
 
     private final MemoryMap memoryMap;
@@ -101,7 +101,7 @@ public final class R5Board implements Steppable, Resettable {
         standardOutputDevice = device;
     }
 
-    public boolean addDevice(final int address, final MemoryMappedDevice device) {
+    public boolean addDevice(final long address, final MemoryMappedDevice device) {
         if (device.getLength() == 0) {
             return false;
         }
@@ -131,7 +131,7 @@ public final class R5Board implements Steppable, Resettable {
             return false;
         }
 
-        final int startMin, startMax;
+        final long startMin, startMax;
         if (device instanceof PhysicalMemory) {
             startMin = PHYSICAL_MEMORY_FIRST;
             startMax = PHYSICAL_MEMORY_LAST - device.getLength() + 1;
@@ -140,8 +140,8 @@ public final class R5Board implements Steppable, Resettable {
             startMax = DEVICE_MEMORY_LAST - device.getLength() + 1;
         }
 
-        final OptionalInt address = memoryMap.findFreeRange(startMin, startMax, device.getLength());
-        return address.isPresent() && addDevice(address.getAsInt(), device);
+        final OptionalLong address = memoryMap.findFreeRange(startMin, startMax, device.getLength());
+        return address.isPresent() && addDevice(address.getAsLong(), device);
     }
 
     public void removeDevice(final MemoryMappedDevice device) {
@@ -198,24 +198,24 @@ public final class R5Board implements Steppable, Resettable {
         initialize(PHYSICAL_MEMORY_FIRST);
     }
 
-    public void initialize(final int programStart) {
+    public void initialize(final long programStart) {
         final FlattenedDeviceTree fdt = buildDeviceTree().flatten();
         final byte[] dtb = fdt.toDTB();
 
-        OptionalInt fdtAddress = OptionalInt.empty();
+        OptionalLong fdtAddress = OptionalLong.empty();
         for (final MemoryMappedDevice device : devices) {
             if (device instanceof PhysicalMemory) {
                 if (device.getLength() >= dtb.length) {
                     final MemoryRange memoryRange = memoryMap.getMemoryRange(device).orElseThrow(AssertionError::new);
 
                     // Align size to 0x1000 so we can push the address with a single LUI.
-                    final int address = (memoryRange.start + memoryRange.size() - dtb.length) & ~(0x1000 - 1);
-                    if (address < memoryRange.start) {
+                    final long address = (memoryRange.start + memoryRange.size() - dtb.length) & ~(0x1000 - 1);
+                    if (Long.compareUnsigned(address, memoryRange.start) < 0) {
                         continue;
                     }
 
-                    if (!fdtAddress.isPresent() || Integer.compareUnsigned(address, fdtAddress.getAsInt()) > 0) {
-                        fdtAddress = OptionalInt.of(address);
+                    if (!fdtAddress.isPresent() || Long.compareUnsigned(address, fdtAddress.getAsLong()) > 0) {
+                        fdtAddress = OptionalLong.of(address);
                     }
                 }
             }
@@ -227,27 +227,39 @@ public final class R5Board implements Steppable, Resettable {
 
         try {
             for (int i = 0; i < dtb.length; i++) {
-                memoryMap.store(fdtAddress.getAsInt() + i, dtb[i], Sizes.SIZE_8_LOG2);
+                memoryMap.store(fdtAddress.getAsLong() + i, dtb[i], Sizes.SIZE_8_LOG2);
             }
 
             final ByteBuffer data = flash.getData();
             data.clear();
 
-            final int lui = 0b0110111;
+            final int auipc = 0b0010111;
+            final int ld = 0b011_00000_0000011;
             final int jalr = 0b1100111;
 
-            final int rd_x5 = 5 << 7;
-            final int rd_x11 = 11 << 7;
-            final int rs1_x5 = 5 << 15;
+            final int rd_t0 = 5 << 7;
+            final int rd_a1 = 11 << 7;
+            final int rs1_t0 = 5 << 15;
 
-            // lui a1, FDT_ADDRESS  -> store FDT address in a1 for firmware
-            data.putInt(lui | rd_x11 + fdtAddress.getAsInt());
+            final int imm_fdtAddressOffset = 0x10 << 20;
+            final int imm_programStartOffset = 0x18 << 20;
 
-            // lui t0, PHYSICAL_MEMORY_FIRST  -> load address of firmware
-            data.putInt(lui | rd_x5 + programStart);
+            // 0x0000  auipc t0, 0 ; x5 = pc
+            data.putInt(auipc | rd_t0);
 
-            // jalr zero, t0, 0  -> jump to firmware
-            data.putInt(jalr | rs1_x5);
+            // 0x0004  ld a1, 8(t0) ; a1 = *(t0 + 8) = fdtAddress
+            data.putInt(ld | rd_a1 | rs1_t0 | imm_fdtAddressOffset);
+
+            // 0x0008  ld t0, 12(t0) ; t0 = *(t0 + 12) = programStart
+            data.putInt(ld | rd_t0 | rs1_t0 | imm_programStartOffset);
+
+            // 0x000C  jalr t0 ; jump to firmware
+            data.putInt(jalr | rs1_t0);
+
+            // 0x0010  fdtAddress
+            data.putLong(fdtAddress.getAsLong());
+            // 0x0018  programStart
+            data.putLong(programStart);
         } catch (final MemoryAccessException e) {
             LOGGER.error(e);
         }
@@ -277,7 +289,7 @@ public final class R5Board implements Steppable, Resettable {
                         .addProp(DevicePropertyNames.COMPATIBLE, "riscv")
                         .addProp("riscv,isa", getISAString(cpu))
 
-                        .addProp(DevicePropertyNames.MMU_TYPE, "riscv,sv32")
+                        .addProp(DevicePropertyNames.MMU_TYPE, "riscv,sv48")
                         .addProp(DevicePropertyNames.CLOCK_FREQUENCY, cpu.getFrequency())
 
                         .putChild(DeviceNames.INTERRUPT_CONTROLLER, ic -> ic
@@ -309,7 +321,7 @@ public final class R5Board implements Steppable, Resettable {
     }
 
     private static String getISAString(final R5CPU cpu) {
-        final StringBuilder isa = new StringBuilder("rv32");
+        final StringBuilder isa = new StringBuilder("rv64");
         for (final char i : R5.CANONICAL_ISA_ORDER.toCharArray()) {
             if ((cpu.getISA() & (1 << (Character.toLowerCase(i) - 'a'))) != 0) {
                 isa.append(Character.toLowerCase(i));

@@ -12,6 +12,7 @@ import li.cil.sedna.instruction.InstructionDefinition.Instruction;
 import li.cil.sedna.instruction.InstructionDefinition.InstructionSize;
 import li.cil.sedna.instruction.InstructionDefinition.ProgramCounter;
 import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
+import li.cil.sedna.utils.BitUtils;
 import li.cil.sedna.utils.SoftDouble;
 import li.cil.sedna.utils.SoftFloat;
 import org.apache.logging.log4j.LogManager;
@@ -19,7 +20,9 @@ import org.apache.logging.log4j.Logger;
 
 import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.math.BigInteger;
+import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * RISC-V RV32G implementation (RV32IMAFDZicsr_Zifencei).
@@ -41,32 +44,33 @@ final class R5CPUTemplate implements R5CPU {
 
     private static final int PC_INIT = 0x1000; // Initial position of program counter.
 
-    private static final int XLEN = 32; // Integer register width.
+    private static final int XLEN = 64; // Integer register width.
 
     // Base ISA descriptor CSR (misa) (V2p16).
-    private static final int MISA = (R5.mxl(XLEN) << (XLEN - 2)) |
-                                    R5.isa('I', 'M', 'A', 'C', 'F', 'D', 'S', 'U');
+    private static final long MISA = ((long) R5.mxl(XLEN) << (XLEN - 2)) |
+                                     R5.isa('I', 'M', 'A', 'C', 'F', 'D', 'S', 'U');
 
     // UBE, SBE, MBE hardcoded to zero for little endianness.
-    private static final int MSTATUS_MASK = ~R5.STATUS_UBE_MASK;
+    private static final long MSTATUS_MASK = ~R5.STATUS_UBE_MASK & ~R5.STATUS_SBE_MASK & ~R5.STATUS_MBE_MASK;
 
     // No time and no high perf counters.
     private static final int COUNTEREN_MASK = R5.MCOUNTERN_CY | R5.MCOUNTERN_IR;
 
     // Supervisor status (sstatus) CSR mask over mstatus.
-    private static final int SSTATUS_MASK = (R5.STATUS_UIE_MASK | R5.STATUS_SIE_MASK |
-                                             R5.STATUS_UPIE_MASK | R5.STATUS_SPIE_MASK |
-                                             R5.STATUS_SPP_MASK | R5.STATUS_FS_MASK |
-                                             R5.STATUS_XS_MASK | R5.STATUS_SUM_MASK |
-                                             R5.STATUS_MXR_MASK | R5.STATUS_SD_MASK);
+    private static final long SSTATUS_MASK = (R5.STATUS_UIE_MASK | R5.STATUS_SIE_MASK |
+                                              R5.STATUS_UPIE_MASK | R5.STATUS_SPIE_MASK |
+                                              R5.STATUS_SPP_MASK | R5.STATUS_FS_MASK |
+                                              R5.STATUS_XS_MASK | R5.STATUS_SUM_MASK |
+                                              R5.STATUS_MXR_MASK | R5.STATUS_UXL_MASK |
+                                              R5.STATUS_SD_MASK);
 
     // Translation look-aside buffer config.
     private static final int TLB_SIZE = 256; // Must be a power of two for fast modulo via `& (TLB_SIZE - 1)`.
 
     ///////////////////////////////////////////////////////////////////
     // RV32I
-    private int pc; // Program counter.
-    private final int[] x = new int[32]; // Integer registers.
+    private long pc; // Program counter.
+    private final long[] x = new long[32]; // Integer registers.
 
     ///////////////////////////////////////////////////////////////////
     // RV32F
@@ -80,32 +84,32 @@ final class R5CPUTemplate implements R5CPU {
 
     ///////////////////////////////////////////////////////////////////
     // RV32A
-    private int reservation_set = -1; // Reservation set for RV32A's LR/SC.
+    private long reservation_set = -1L; // Reservation set for RV64A's LR/SC.
 
     ///////////////////////////////////////////////////////////////////
     // User-level CSRs
     private long mcycle;
 
     // Machine-level CSRs
-    private int mstatus, mstatush; // Machine Status Register
-    private int mtvec; // Machine Trap-Vector Base-Address Register; 0b11=Mode: 0=direct, 1=vectored
-    private int medeleg, mideleg; // Machine Trap Delegation Registers
-    private final AtomicInteger mip = new AtomicInteger(); // Pending Interrupts
-    private int mie; // Enabled Interrupts
+    private long mstatus; // Machine Status Register
+    private long mtvec; // Machine Trap-Vector Base-Address Register; 0b11=Mode: 0=direct, 1=vectored
+    private long medeleg, mideleg; // Machine Trap Delegation Registers
+    private final AtomicLong mip = new AtomicLong(); // Pending Interrupts
+    private long mie; // Enabled Interrupts
     private int mcounteren; // Machine Counter-Enable Register
-    private int mscratch; // Machine Scratch Register
-    private int mepc; // Machine Exception Program Counter
-    private int mcause; // Machine Cause Register
-    private int mtval; //  Machine Trap Value Register
+    private long mscratch; // Machine Scratch Register
+    private long mepc; // Machine Exception Program Counter
+    private long mcause; // Machine Cause Register
+    private long mtval; //  Machine Trap Value Register
 
     // Supervisor-level CSRs
-    private int stvec; // Supervisor Trap Vector Base Address Register; 0b11=Mode: 0=direct, 1=vectored
+    private long stvec; // Supervisor Trap Vector Base Address Register; 0b11=Mode: 0=direct, 1=vectored
     private int scounteren; // Supervisor Counter-Enable Register
-    private int sscratch; // Supervisor Scratch Register
-    private int sepc; // Supervisor Exception Program Counter
-    private int scause; // Supervisor Cause Register
-    private int stval; // Supervisor Trap Value Register
-    private int satp; // Supervisor Address Translation and Protection Register
+    private long sscratch; // Supervisor Scratch Register
+    private long sepc; // Supervisor Exception Program Counter
+    private long scause; // Supervisor Cause Register
+    private long stval; // Supervisor Trap Value Register
+    private long satp; // Supervisor Address Translation and Protection Register
 
     ///////////////////////////////////////////////////////////////////
     // Misc. state
@@ -154,7 +158,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @Override
-    public int getISA() {
+    public long getISA() {
         return MISA;
     }
 
@@ -164,7 +168,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @Override
-    public void reset(final boolean hard, final int pc) {
+    public void reset(final boolean hard, final long pc) {
         this.pc = pc;
         waitingForInterrupt = false;
 
@@ -183,7 +187,8 @@ final class R5CPUTemplate implements R5CPU {
 
             mcycle = 0;
 
-            mstatus = 0;
+            mstatus = ((long) R5.mxl(XLEN) << R5.STATUS_UXL_SHIFT) |
+                      ((long) R5.mxl(XLEN) << R5.STATUS_SXL_SHIFT);
             mtvec = 0;
             medeleg = 0;
             mideleg = 0;
@@ -229,7 +234,7 @@ final class R5CPUTemplate implements R5CPU {
 
     @Override
     public int getRaisedInterrupts() {
-        return mip.get();
+        return (int) mip.get();
     }
 
     public void step(int cycles) {
@@ -244,7 +249,7 @@ final class R5CPUTemplate implements R5CPU {
 
         final long cycleLimit = mcycle + cycles;
         while (!waitingForInterrupt && mcycle < cycleLimit) {
-            final int pending = mip.get() & mie;
+            final long pending = mip.get() & mie;
             if (pending != 0) {
                 raiseInterrupt(pending);
             }
@@ -278,8 +283,8 @@ final class R5CPUTemplate implements R5CPU {
         try {
             final R5CPUTLBEntry cache = fetchPage(pc);
             final MemoryMappedDevice device = cache.device;
-            final int instOffset = pc + cache.toOffset;
-            final int instEnd = instOffset - (pc & R5.PAGE_ADDRESS_MASK) // Page start.
+            final int instOffset = (int) (pc + cache.toOffset);
+            final int instEnd = instOffset - (int) (pc & R5.PAGE_ADDRESS_MASK) // Page start.
                                 + ((1 << R5.PAGE_ADDRESS_SHIFT) - 2); // Page size minus 16bit.
 
             int inst;
@@ -290,7 +295,7 @@ final class R5CPUTemplate implements R5CPU {
                 if ((inst & 0b11) == 0b11) { // 32bit instruction.
                     final R5CPUTLBEntry highCache = fetchPage(pc + 2);
                     final MemoryMappedDevice highDevice = cache.device;
-                    inst |= highDevice.load(pc + 2 + highCache.toOffset, Sizes.SIZE_16_LOG2) << 16;
+                    inst |= highDevice.load((int) (pc + 2 + highCache.toOffset), Sizes.SIZE_16_LOG2) << 16;
                 }
             }
 
@@ -301,7 +306,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @SuppressWarnings("LocalCanBeFinal") // `pc` and `instOffset` get updated by the generated code replacing decode().
-    private void interpretTrace(final MemoryMappedDevice device, int inst, int pc, int instOffset, final int instEnd) {
+    private void interpretTrace(final MemoryMappedDevice device, int inst, long pc, int instOffset, final int instEnd) {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
                 mcycle++;
@@ -336,40 +341,40 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // CSR
 
-    private boolean csrrwx(final int rd, final int a, final int csr) throws R5IllegalInstructionException {
+    private boolean csrrwx(final int rd, final long newValue, final int csr) throws R5IllegalInstructionException {
         final boolean exitTrace;
 
         checkCSR(csr, true);
         if (rd != 0) { // Explicit check, spec says no read side-effects when rd = 0.
-            final int b = readCSR(csr);
-            exitTrace = writeCSR(csr, a);
-            x[rd] = b; // Write to register last, avoid lingering side-effect when write errors.
+            final long oldValue = readCSR(csr);
+            exitTrace = writeCSR(csr, newValue);
+            x[rd] = oldValue; // Write to register last, avoid lingering side-effect when write errors.
         } else {
-            exitTrace = writeCSR(csr, a);
+            exitTrace = writeCSR(csr, newValue);
         }
 
         return exitTrace;
     }
 
-    private boolean csrrscx(final int rd, final int rs1, final int csr, final int a, final boolean isSet) throws R5IllegalInstructionException {
+    private boolean csrrscx(final int rd, final int rs1, final int csr, final long mask, final boolean isSet) throws R5IllegalInstructionException {
         final boolean exitTrace;
 
         final boolean mayChange = rs1 != 0;
 
-        final int b;
+        final long value;
         if (mayChange) {
             checkCSR(csr, true);
-            b = readCSR(csr);
-            final int masked = isSet ? (a | b) : (~a & b);
+            value = readCSR(csr);
+            final long masked = isSet ? (mask | value) : (~mask & value);
             exitTrace = writeCSR(csr, masked);
-        } else {
+        } else { // TODO Should this be the rd != 0 check? (No read side-effect when rd = 0 via spec)
             checkCSR(csr, false);
-            b = readCSR(csr);
+            value = readCSR(csr);
             exitTrace = false;
         }
 
         if (rd != 0) {
-            x[rd] = b;
+            x[rd] = value;
         }
 
         return exitTrace;
@@ -389,7 +394,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @SuppressWarnings("DuplicateBranchesInSwitch")
-    private int readCSR(final int csr) throws R5IllegalInstructionException {
+    private long readCSR(final int csr) throws R5IllegalInstructionException {
         switch (csr) {
             // Floating-Point Control and Status Registers
             case 0x001: { // fflags, Floating-Point Accrued Exceptions.
@@ -491,9 +496,7 @@ final class R5CPUTemplate implements R5CPU {
             case 0x306: { // mcounteren Machine counter enable.
                 return mcounteren;
             }
-            case 0x310: {// mstatush, Additional machine status register, RV32 only.
-                return mstatush;
-            }
+            // 0x310: mstatush, Additional machine status register, RV32 only.
 
             // Debug/Trace Registers
             case 0x7A0: { // tselect
@@ -562,16 +565,14 @@ final class R5CPUTemplate implements R5CPU {
             //Machine Counter/Timers
             case 0xB00: // mcycle, Machine cycle counter.
             case 0xB02: { // minstret, Machine instructions-retired counter.
-                return (int) mcycle;
+                return mcycle;
             }
-            //0xB03: mhpmcounter3, Machine performance-monitoring counter.
-            //0xB04...0xB1F: mhpmcounter4...mhpmcounter31, Machine performance-monitoring counter.
-            case 0xB80: // mcycleh, Upper 32 bits of mcycle, RV32 only.
-            case 0xB82: { // minstreth, Upper 32 bits of minstret, RV32 only.
-                return (int) (mcycle >> 32);
-            }
-            //0xB83: mhpmcounter3h, Upper 32 bits of mhpmcounter3, RV32 only.
-            //0xB84...0xB9F: mhpmcounter4h...mhpmcounter31h, Upper 32 bits of mhpmcounter4, RV32 only.
+            // 0xB03: mhpmcounter3, Machine performance-monitoring counter.
+            // 0xB04...0xB1F: mhpmcounter4...mhpmcounter31, Machine performance-monitoring counter.
+            // 0xB80: mcycleh, Upper 32 bits of mcycle, RV32 only.
+            // 0xB82: minstreth, Upper 32 bits of minstret, RV32 only.
+            // 0xB83: mhpmcounter3h, Upper 32 bits of mhpmcounter3, RV32 only.
+            // 0xB84...0xB9F: mhpmcounter4h...mhpmcounter31h, Upper 32 bits of mhpmcounter4, RV32 only.
 
             // Counters and Timers
             case 0xC00:  // cycle
@@ -590,33 +591,15 @@ final class R5CPUTemplate implements R5CPU {
                         throw new R5IllegalInstructionException();
                     }
                 }
-                return (int) mcycle;
+                return mcycle;
             }
             case 0xC01: { // time
-                return (int) rtc.getTime();
+                return rtc.getTime();
             }
             // 0xC03 ... 0xC1F: hpmcounter3 ... hpmcounter31
-            case 0xC80:  // cycleh
-            case 0xC82: { // instreth
-                // See Volume 2 p36: mcounteren/scounteren define availability to next lowest privilege level.
-                if (priv < R5.PRIVILEGE_M) {
-                    final int counteren;
-                    if (priv < R5.PRIVILEGE_S) {
-                        counteren = scounteren;
-                    } else {
-                        counteren = mcounteren;
-                    }
-
-                    // counteren[2:0] is IR, TM, CY. As such the bit index matches the masked csr value.
-                    if ((counteren & (1 << (csr & 0b11))) == 0) {
-                        throw new R5IllegalInstructionException();
-                    }
-                }
-                return (int) (mcycle >> 32);
-            }
-            case 0xC81: { // timeh
-                return (int) (rtc.getTime() >>> 32);
-            }
+            // 0xC80: cycleh
+            // 0xC82: instreth
+            // 0xC81: timeh
             // 0xC83 ... 0xC9F: hpmcounter3h ... hpmcounter31h
 
             // Machine Information Registers
@@ -640,7 +623,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @SuppressWarnings("DuplicateBranchesInSwitch")
-    private boolean writeCSR(final int csr, final int value) throws R5IllegalInstructionException {
+    private boolean writeCSR(final int csr, final long value) throws R5IllegalInstructionException {
         switch (csr) {
             // Floating-Point Control and Status Registers
             case 0x001: { // fflags, Floating-Point Accrued Exceptions.
@@ -680,7 +663,7 @@ final class R5CPUTemplate implements R5CPU {
             // 0x102: sedeleg, Supervisor exception delegation register.
             // 0x103: sideleg, Supervisor interrupt delegation register.
             case 0x104: { // sie, Supervisor interrupt-enable register.
-                final int mask = mideleg; // Can only set stuff that's delegated to S mode.
+                final long mask = mideleg; // Can only set stuff that's delegated to S mode.
                 mie = (mie & ~mask) | (value & mask);
                 break;
             }
@@ -691,7 +674,7 @@ final class R5CPUTemplate implements R5CPU {
                 break;
             }
             case 0x106: { // scounteren, Supervisor counter enable.
-                scounteren = value & COUNTEREN_MASK;
+                scounteren = (int) (value & COUNTEREN_MASK);
                 break;
             }
 
@@ -713,22 +696,29 @@ final class R5CPUTemplate implements R5CPU {
                 break;
             }
             case 0x144: { // sip Supervisor interrupt pending.
-                final int mask = mideleg; // Can only set stuff that's delegated to S mode.
+                final long mask = mideleg; // Can only set stuff that's delegated to S mode.
                 mip.updateAndGet(operand -> (operand & ~mask) | (value & mask));
                 break;
             }
 
             // Supervisor Protection and Translation
             case 0x180: { // satp Supervisor address translation and protection.
-                final int validatedValue = value & ~R5.SATP_ASID_MASK; // Say no to ASID (not implemented).
-                final int change = satp ^ validatedValue;
+                final long validatedValue = value & ~R5.SATP_ASID_MASK; // Say no to ASID (not implemented).
+                final long change = satp ^ validatedValue;
                 if ((change & (R5.SATP_MODE_MASK | R5.SATP_PPN_MASK)) != 0) {
                     if (priv == R5.PRIVILEGE_S && (mstatus & R5.STATUS_TVM_MASK) != 0) {
                         throw new R5IllegalInstructionException();
                     }
 
+                    // We only support Sv39 and Sv48. On unsupported writes spec says just don't change anything.
+                    final long mode = validatedValue & R5.SATP_MODE_MASK;
+                    if (mode != R5.SATP_MODE_SV39 && mode != R5.SATP_MODE_SV48) {
+                        break;
+                    }
+
                     satp = validatedValue;
-                    flushTLB();
+                    flushTLB(); // TODO If I read the spec right, this should not be necessary.
+                    //      SFENCE.VMA should be used for this by software.
 
                     return true; // Invalidate fetch cache.
                 }
@@ -776,17 +766,10 @@ final class R5CPUTemplate implements R5CPU {
                 }
             }
             case 0x306: { // mcounteren Machine counter enable.
-                mcounteren = value & COUNTEREN_MASK;
+                mcounteren = (int) (value & COUNTEREN_MASK);
                 break;
             }
-            case 0x310: { // mstatush Additional machine status register, RV32 only.
-                if (((value ^ mstatush) & R5.STATUSH_MPV_MASK) != 0) {
-                    flushTLB();
-                }
-
-                mstatush = value & (R5.STATUSH_MPV_MASK | R5.STATUSH_GVA_MASK);
-                break;
-            }
+            // 0x310: mstatush Additional machine status register, RV32 only.
 
             // Debug/Trace Registers
             case 0x7A0: { // tselect
@@ -871,15 +854,15 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // Misc
 
-    private int getStatus(final int mask) {
-        final int status = (mstatus | (fs << R5.STATUS_FS_SHIFT)) & mask;
+    private long getStatus(final long mask) {
+        final long status = (mstatus | (fs << R5.STATUS_FS_SHIFT)) & mask;
         final boolean dirty = ((mstatus & R5.STATUS_FS_MASK) == R5.STATUS_FS_MASK) ||
                               ((mstatus & R5.STATUS_XS_MASK) == R5.STATUS_XS_MASK);
         return status | (dirty ? R5.STATUS_SD_MASK : 0);
     }
 
-    private void setStatus(final int value) {
-        final int change = mstatus ^ value;
+    private void setStatus(final long value) {
+        final long change = mstatus ^ value;
         final boolean mmuConfigChanged =
                 (change & (R5.STATUS_MPRV_MASK | R5.STATUS_SUM_MASK | R5.STATUS_MXR_MASK)) != 0 ||
                 ((mstatus & R5.STATUS_MPRV_MASK) != 0 && (change & R5.STATUS_MPP_MASK) != 0);
@@ -889,7 +872,8 @@ final class R5CPUTemplate implements R5CPU {
 
         fs = (byte) ((value & R5.STATUS_FS_MASK) >> R5.STATUS_FS_SHIFT);
 
-        final int mask = MSTATUS_MASK & ~(R5.STATUS_SD_MASK | R5.STATUS_FS_MASK);
+        final long mask = MSTATUS_MASK & ~(R5.STATUS_SD_MASK | R5.STATUS_FS_MASK |
+                                           R5.STATUS_UXL_MASK | R5.STATUS_SXL_MASK);
         mstatus = (mstatus & ~mask) | (value & mask);
     }
 
@@ -916,7 +900,7 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // Exceptions
 
-    private void raiseException(final int exception, final int value) {
+    private void raiseException(final long exception, final long value) {
         // Exceptions take cycle.
         mcycle++;
 
@@ -926,16 +910,16 @@ final class R5CPUTemplate implements R5CPU {
         // either way -- assuming that the current interrupt/exception is allowed
         // to be delegated by M level.
         final boolean async = (exception & R5.INTERRUPT) != 0;
-        final int cause = exception & ~R5.INTERRUPT;
-        final int deleg = async ? mideleg : medeleg;
+        final long cause = exception & ~R5.INTERRUPT;
+        final long deleg = async ? mideleg : medeleg;
 
         // Was interrupt for current priv level enabled? There are cases we can
         // get here even for interrupts! Specifically when an M level interrupt
         // is raised while in S mode. This will get here even if M level interrupt
         // enabled bit is zero, as per spec (Volume 2 p21).
-        final int oldIE = (mstatus >>> priv) & 0b1;
+        final int oldIE = (int) ((mstatus >>> priv) & 0b1);
 
-        final int vec;
+        final long vec;
         if (priv <= R5.PRIVILEGE_S && ((deleg >>> cause) & 0b1) != 0) {
             scause = exception;
             sepc = pc;
@@ -960,7 +944,7 @@ final class R5CPUTemplate implements R5CPU {
             vec = mtvec;
         }
 
-        final int mode = vec & 0b11;
+        final int mode = (int) vec & 0b11;
         switch (mode) {
             case 0b01: { // Vectored
                 if (async) {
@@ -978,27 +962,27 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    private void raiseException(final int cause) {
+    private void raiseException(final long cause) {
         raiseException(cause, 0);
     }
 
-    private void raiseInterrupt(final int pending) {
+    private void raiseInterrupt(final long pending) {
         final boolean mieEnabled = (mstatus & R5.STATUS_MIE_MASK) != 0;
         final boolean sieEnabled = (mstatus & R5.STATUS_SIE_MASK) != 0;
 
         // V2p21: interrupts handled by a higher privilege level, i.e. that are not delegated
         // to a lower privilege level, will always fire -- even if their global flag is false!
-        final int mieMask = priv < R5.PRIVILEGE_M || mieEnabled ? 0xFFFFFFFF : 0;
-        final int sieMask = priv < R5.PRIVILEGE_S || (priv == R5.PRIVILEGE_S && sieEnabled) ? 0xFFFFFFFF : 0;
+        final long mieMask = priv < R5.PRIVILEGE_M || mieEnabled ? -1L : 0;
+        final long sieMask = priv < R5.PRIVILEGE_S || (priv == R5.PRIVILEGE_S && sieEnabled) ? -1L : 0;
 
-        final int interrupts = (pending & ~mideleg & mieMask) | (pending & mideleg & sieMask);
+        final long interrupts = (pending & ~mideleg & mieMask) | (pending & mideleg & sieMask);
         if (interrupts != 0) {
             // p33: Interrupt order is handled in decreasing order of privilege mode,
             // and inside a single privilege mode in order E,S,T.
             // Custom interrupts have highest priority and are processed low to high.
-            final int customInterrupts = interrupts >>> (R5.MEIP_SHIFT + 1);
+            final long customInterrupts = interrupts >>> (R5.MEIP_SHIFT + 1);
             if (customInterrupts != 0) {
-                final int interrupt = Integer.numberOfTrailingZeros(customInterrupts) + R5.MEIP_SHIFT + 1;
+                final int interrupt = Long.numberOfTrailingZeros(customInterrupts) + R5.MEIP_SHIFT + 1;
                 raiseException(interrupt | R5.INTERRUPT);
             } else if ((pending & R5.MEIP_MASK) != 0) {
                 raiseException(R5.MEIP_SHIFT | R5.INTERRUPT);
@@ -1025,13 +1009,13 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // MMU
 
-    private R5CPUTLBEntry fetchPage(final int address) throws MemoryAccessException {
+    private R5CPUTLBEntry fetchPage(final long address) throws MemoryAccessException {
         if ((address & 1) != 0) {
             throw new MemoryAccessException(address, MemoryAccessException.Type.MISALIGNED_FETCH);
         }
 
-        final int index = (address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1);
-        final int hash = address & ~R5.PAGE_ADDRESS_MASK;
+        final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
+        final long hash = address & ~R5.PAGE_ADDRESS_MASK;
         final R5CPUTLBEntry entry = fetchTLB[index];
         if (entry.hash == hash) {
             return entry;
@@ -1040,58 +1024,66 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    private byte load8(final int address) throws MemoryAccessException {
+    private byte load8(final long address) throws MemoryAccessException {
         return (byte) loadx(address, Sizes.SIZE_8, Sizes.SIZE_8_LOG2);
     }
 
-    private void store8(final int address, final byte value) throws MemoryAccessException {
+    private void store8(final long address, final byte value) throws MemoryAccessException {
         storex(address, value, Sizes.SIZE_8, Sizes.SIZE_8_LOG2);
     }
 
-    private short load16(final int address) throws MemoryAccessException {
+    private short load16(final long address) throws MemoryAccessException {
         return (short) loadx(address, Sizes.SIZE_16, Sizes.SIZE_16_LOG2);
     }
 
-    private void store16(final int address, final short value) throws MemoryAccessException {
+    private void store16(final long address, final short value) throws MemoryAccessException {
         storex(address, value, Sizes.SIZE_16, Sizes.SIZE_16_LOG2);
     }
 
-    private int load32(final int address) throws MemoryAccessException {
+    private int load32(final long address) throws MemoryAccessException {
         return (int) loadx(address, Sizes.SIZE_32, Sizes.SIZE_32_LOG2);
     }
 
-    private void store32(final int address, final int value) throws MemoryAccessException {
+    private void store32(final long address, final int value) throws MemoryAccessException {
         storex(address, value, Sizes.SIZE_32, Sizes.SIZE_32_LOG2);
     }
 
-    private long loadx(final int address, final int size, final int sizeLog2) throws MemoryAccessException {
-        final int index = (address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1);
+    private long load64(final long address) throws MemoryAccessException {
+        return loadx(address, Sizes.SIZE_64, Sizes.SIZE_64_LOG2);
+    }
+
+    private void store64(final long address, final long value) throws MemoryAccessException {
+        storex(address, value, Sizes.SIZE_64, Sizes.SIZE_64_LOG2);
+    }
+
+    private long loadx(final long address, final int size, final int sizeLog2) throws MemoryAccessException {
+        final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
         final int alignment = size / 8; // Enforce aligned memory access.
         final int alignmentMask = alignment - 1;
-        final int hash = address & ~(R5.PAGE_ADDRESS_MASK & ~alignmentMask);
+        final long hash = address & ~(R5.PAGE_ADDRESS_MASK & ~alignmentMask);
         final R5CPUTLBEntry entry = loadTLB[index];
         if (entry.hash == hash) {
-            return entry.device.load(address + entry.toOffset, sizeLog2);
+            return entry.device.load((int) (address + entry.toOffset), sizeLog2);
         } else {
             return loadSlow(address, sizeLog2);
         }
     }
 
-    private void storex(final int address, final int value, final int size, final int sizeLog2) throws MemoryAccessException {
-        final int index = (address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1);
+    private void storex(final long address, final long value, final int size, final int sizeLog2) throws MemoryAccessException {
+        final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
         final int alignment = size / 8; // Enforce aligned memory access.
         final int alignmentMask = alignment - 1;
-        final int hash = address & ~(R5.PAGE_ADDRESS_MASK & ~alignmentMask);
+        final long hash = address & ~(R5.PAGE_ADDRESS_MASK & ~alignmentMask);
         final R5CPUTLBEntry entry = storeTLB[index];
         if (entry.hash == hash) {
-            entry.device.store(address + entry.toOffset, value, sizeLog2);
+            entry.device.store((int) (address + entry.toOffset), value, sizeLog2);
         } else {
             storeSlow(address, value, sizeLog2);
         }
     }
 
-    private R5CPUTLBEntry fetchPageSlow(final int address) throws MemoryAccessException {
-        final int physicalAddress = getPhysicalAddress(address, R5CPUMemoryAccessType.FETCH);
+    private R5CPUTLBEntry fetchPageSlow(final long address) throws MemoryAccessException {
+        final long physicalAddress = getPhysicalAddress(address, R5CPUMemoryAccessType.FETCH);
         final MemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
         if (range == null || !range.device.supportsFetch()) {
             throw new MemoryAccessException(address, MemoryAccessException.Type.FETCH_FAULT);
@@ -1100,51 +1092,51 @@ final class R5CPUTemplate implements R5CPU {
         return updateTLB(fetchTLB, address, physicalAddress, range);
     }
 
-    private long loadSlow(final int address, final int sizeLog2) throws MemoryAccessException {
+    private long loadSlow(final long address, final int sizeLog2) throws MemoryAccessException {
         final int size = 1 << sizeLog2;
-        final int alignment = address & (size - 1);
+        final int alignment = (int) (address & (size - 1));
         if (alignment != 0) {
             throw new MemoryAccessException(address, MemoryAccessException.Type.MISALIGNED_LOAD);
         } else {
-            final int physicalAddress = getPhysicalAddress(address, R5CPUMemoryAccessType.LOAD);
+            final long physicalAddress = getPhysicalAddress(address, R5CPUMemoryAccessType.LOAD);
             final MemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
             if (range == null) {
                 LOGGER.debug("Trying to load from invalid physical address [{}].", address);
                 return 0;
             } else if (range.device.supportsFetch()) {
                 final R5CPUTLBEntry entry = updateTLB(loadTLB, address, physicalAddress, range);
-                return entry.device.load(address + entry.toOffset, sizeLog2);
+                return entry.device.load((int) (address + entry.toOffset), sizeLog2);
             } else {
-                return range.device.load(physicalAddress - range.start, sizeLog2);
+                return range.device.load((int) (physicalAddress - range.start), sizeLog2);
             }
         }
     }
 
-    private void storeSlow(final int address, final int value, final int sizeLog2) throws MemoryAccessException {
+    private void storeSlow(final long address, final long value, final int sizeLog2) throws MemoryAccessException {
         final int size = 1 << sizeLog2;
-        final int alignment = address & (size - 1);
+        final int alignment = (int) (address & (size - 1));
         if (alignment != 0) {
             throw new MemoryAccessException(address, MemoryAccessException.Type.MISALIGNED_STORE);
         } else {
-            final int physicalAddress = getPhysicalAddress(address, R5CPUMemoryAccessType.STORE);
+            final long physicalAddress = getPhysicalAddress(address, R5CPUMemoryAccessType.STORE);
             final MemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
             if (range == null) {
                 LOGGER.debug("Trying to store to invalid physical address [{}].", address);
             } else if (range.device.supportsFetch()) {
                 final R5CPUTLBEntry entry = updateTLB(storeTLB, address, physicalAddress, range);
-                final int offset = address + entry.toOffset;
+                final int offset = (int) (address + entry.toOffset);
                 entry.device.store(offset, value, sizeLog2);
                 physicalMemory.setDirty(range, offset);
             } else {
-                range.device.store(physicalAddress - range.start, value, sizeLog2);
+                range.device.store((int) (physicalAddress - range.start), value, sizeLog2);
             }
         }
     }
 
-    private int getPhysicalAddress(final int virtualAddress, final R5CPUMemoryAccessType accessType) throws MemoryAccessException {
+    private long getPhysicalAddress(final long virtualAddress, final R5CPUMemoryAccessType accessType) throws MemoryAccessException {
         final int privilege;
         if ((mstatus & R5.STATUS_MPRV_MASK) != 0 && accessType != R5CPUMemoryAccessType.FETCH) {
-            privilege = (mstatus & R5.STATUS_MPP_MASK) >>> R5.STATUS_MPP_SHIFT;
+            privilege = (int) ((mstatus & R5.STATUS_MPP_MASK) >>> R5.STATUS_MPP_SHIFT);
         } else {
             privilege = this.priv;
         }
@@ -1153,34 +1145,44 @@ final class R5CPUTemplate implements R5CPU {
             return virtualAddress;
         }
 
-        if ((satp & R5.SATP_MODE_MASK) == 0) {
+        final long mode = satp & R5.SATP_MODE_MASK;
+        if (mode == R5.SATP_MODE_NONE) {
             return virtualAddress;
         }
 
-        // Virtual address structure:  VPN1[31:22], VPN0[21:12], page offset[11:0]
-        // Physical address structure: PPN1[33:22], PPN0[21:12], page offset[11:0]
-        // Page table entry structure: PPN1[31:20], PPN0[19:10], RSW[9:8], D, A, G, U, X, W, R, V
+        // Virtual address structure:  VPN2[38:30], VPN1[29:21], VPN0[20:12], page offset[11:0]
+        // Physical address structure: PPN2[55:30], PPN1[29:21], PPN0[20:12], page offset[11:0]
+        // Page table entry structure: PPN2[53:28], PPN1[27:19], PPN0[18:10], RSW[9:8], D, A, G, U, X, W, R, V
+
+        final int levels;
+        if (mode == R5.SATP_MODE_SV39) {
+            levels = R5.SV39_LEVELS;
+        } else {
+            assert mode == R5.SATP_MODE_SV48;
+            levels = R5.SV48_LEVELS;
+        }
 
         // Virtual address translation, V2p75f.
-        int pteAddress = (satp & R5.SATP_PPN_MASK) << R5.PAGE_ADDRESS_SHIFT; // 1.
-        for (int i = R5.SV32_LEVELS - 1; i >= 0; i--) { // 2.
-            final int vpnShift = R5.PAGE_ADDRESS_SHIFT + R5.SV32_XPN_SIZE * i;
-            final int vpn = (virtualAddress >>> vpnShift) & R5.SV32_XPN_MASK;
-            pteAddress += vpn << R5.SV32_PTE_SIZE_LOG2; // equivalent to vpn * PTE size
-            int pte = (int) physicalMemory.load(pteAddress, Sizes.SIZE_32_LOG2); // 3.
+        long pteAddress = (satp & R5.SATP_PPN_MASK) << R5.PAGE_ADDRESS_SHIFT; // 1.
+        for (int i = levels - 1; i >= 0; i--) {
+            final int vpnShift = R5.PAGE_ADDRESS_SHIFT + R5.SV39_XPN_SIZE * i;
+            final int vpn = (int) ((virtualAddress >>> vpnShift) & R5.SV39_XPN_MASK);
+            pteAddress += vpn << R5.SV39_PTE_SIZE_LOG2; // equivalent to vpn * PTE size
+            long pte = physicalMemory.load(pteAddress, R5.SV39_PTE_SIZE_LOG2); // 2.
 
-            if ((pte & R5.PTE_V_MASK) == 0 || ((pte & R5.PTE_R_MASK) == 0 && (pte & R5.PTE_W_MASK) != 0)) { // 4.
+            if ((pte & R5.PTE_V_MASK) == 0 || ((pte & R5.PTE_R_MASK) == 0 && (pte & R5.PTE_W_MASK) != 0)) { // 3.
                 throw getPageFaultException(accessType, virtualAddress);
             }
 
-            int xwr = pte & (R5.PTE_X_MASK | R5.PTE_W_MASK | R5.PTE_R_MASK);
-            if (xwr == 0) { // 5.
-                final int ppn = pte >>> R5.PTE_DATA_BITS;
+            // 4.
+            int xwr = (int) (pte & (R5.PTE_X_MASK | R5.PTE_W_MASK | R5.PTE_R_MASK));
+            if (xwr == 0) { // r=0 && x=0: pointer to next level of the page table. w=0 is implicit due to r=0 (see 3).
+                final long ppn = pte >>> R5.PTE_DATA_BITS;
                 pteAddress = ppn << R5.PAGE_ADDRESS_SHIFT;
                 continue;
             }
 
-            // 6. Leaf node, do access permission checks.
+            // 5. Leaf node, do access permission checks.
 
             // Check reserved/invalid configurations.
             if ((xwr & R5.PTE_R_MASK) == 0 && (xwr & R5.PTE_W_MASK) != 0) {
@@ -1188,12 +1190,12 @@ final class R5CPUTemplate implements R5CPU {
             }
 
             // Check privilege. Can only be in S or U mode here, M was handled above. V2p61.
-            final int userModeFlag = pte & R5.PTE_U_MASK;
+            final boolean userModeFlag = (pte & R5.PTE_U_MASK) != 0;
             if (privilege == R5.PRIVILEGE_S) {
-                if (userModeFlag != 0 &&
+                if (userModeFlag &&
                     (accessType == R5CPUMemoryAccessType.FETCH || (mstatus & R5.STATUS_SUM_MASK) == 0))
                     throw getPageFaultException(accessType, virtualAddress);
-            } else if (userModeFlag == 0) {
+            } else if (!userModeFlag) {
                 throw getPageFaultException(accessType, virtualAddress);
             }
 
@@ -1207,15 +1209,15 @@ final class R5CPUTemplate implements R5CPU {
                 throw getPageFaultException(accessType, virtualAddress);
             }
 
-            // 7. Check misaligned superpage.
+            // 6. Check misaligned superpage.
             if (i > 0) {
-                final int ppnLSB = (pte >>> R5.PTE_DATA_BITS) & R5.SV32_XPN_MASK;
+                final int ppnLSB = (int) ((pte >>> R5.PTE_DATA_BITS) & R5.SV39_XPN_MASK);
                 if (ppnLSB != 0) {
                     throw getPageFaultException(accessType, virtualAddress);
                 }
             }
 
-            // 8. Update accessed and dirty flags.
+            // 7. Update accessed and dirty flags.
             if ((pte & R5.PTE_A_MASK) == 0 ||
                 (accessType == R5CPUMemoryAccessType.STORE && (pte & R5.PTE_D_MASK) == 0)) {
                 pte |= R5.PTE_A_MASK;
@@ -1223,19 +1225,19 @@ final class R5CPUTemplate implements R5CPU {
                     pte |= R5.PTE_D_MASK;
                 }
 
-                physicalMemory.store(pteAddress, pte, Sizes.SIZE_32_LOG2);
+                physicalMemory.store(pteAddress, pte, R5.SV39_PTE_SIZE_LOG2);
             }
 
-            // 9. physical address = pte.ppn[LEVELS-1:i], va.vpn[i-1:0], va.pgoff
-            final int vpnAndPageOffsetMask = (1 << vpnShift) - 1;
-            final int ppn = (pte >>> R5.PTE_DATA_BITS) << R5.PAGE_ADDRESS_SHIFT;
+            // 8. physical address = pte.ppn[LEVELS-1:i], va.vpn[i-1:0], va.pgoff
+            final long vpnAndPageOffsetMask = (1L << vpnShift) - 1;
+            final long ppn = (pte >>> R5.PTE_DATA_BITS) << R5.PAGE_ADDRESS_SHIFT;
             return (ppn & ~vpnAndPageOffsetMask) | (virtualAddress & vpnAndPageOffsetMask);
         }
 
         throw getPageFaultException(accessType, virtualAddress);
     }
 
-    private static MemoryAccessException getPageFaultException(final R5CPUMemoryAccessType accessType, final int address) {
+    private static MemoryAccessException getPageFaultException(final R5CPUMemoryAccessType accessType, final long address) {
         switch (accessType) {
             case LOAD:
                 return new MemoryAccessException(address, MemoryAccessException.Type.LOAD_PAGE_FAULT);
@@ -1251,9 +1253,9 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // TLB
 
-    private static R5CPUTLBEntry updateTLB(final R5CPUTLBEntry[] tlb, final int address, final int physicalAddress, final MemoryRange range) {
-        final int index = (address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1);
-        final int hash = address & ~R5.PAGE_ADDRESS_MASK;
+    private static R5CPUTLBEntry updateTLB(final R5CPUTLBEntry[] tlb, final long address, final long physicalAddress, final MemoryRange range) {
+        final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
+        final long hash = address & ~R5.PAGE_ADDRESS_MASK;
 
         final R5CPUTLBEntry entry = tlb[index];
         entry.hash = hash;
@@ -1279,9 +1281,9 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    private void flushTLB(final int address) {
-        final int index = (address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1);
-        final int hash = address & ~R5.PAGE_ADDRESS_MASK;
+    private void flushTLB(final long address) {
+        final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
+        final long hash = address & ~R5.PAGE_ADDRESS_MASK;
 
         if (fetchTLB[index].hash == hash) {
             fetchTLB[index].hash = -1;
@@ -1308,7 +1310,7 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("AUIPC")
     private void auipc(@Field("rd") final int rd,
                        @Field("imm") final int imm,
-                       @ProgramCounter final int pc) {
+                       @ProgramCounter final long pc) {
         if (rd != 0) {
             x[rd] = pc + imm;
         }
@@ -1317,7 +1319,7 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("JAL")
     private void jal(@Field("rd") final int rd,
                      @Field("imm") final int imm,
-                     @ProgramCounter final int pc,
+                     @ProgramCounter final long pc,
                      @InstructionSize final int instructionSize) {
         if (rd != 0) {
             x[rd] = pc + instructionSize;
@@ -1330,10 +1332,10 @@ final class R5CPUTemplate implements R5CPU {
     private void jalr(@Field("rd") final int rd,
                       @Field("rs1") final int rs1,
                       @Field("imm") final int imm,
-                      @ProgramCounter final int pc,
+                      @ProgramCounter final long pc,
                       @InstructionSize final int instructionSize) {
-        // Compute first in case rs1 == rd and force alignment.
-        final int address = (x[rs1] + imm) & ~1;
+        // Compute first in case rs1 == rd and clear lowest bit as per spec.
+        final long address = (x[rs1] + imm) & ~1;
         if (rd != 0) {
             x[rd] = pc + instructionSize;
         }
@@ -1345,7 +1347,7 @@ final class R5CPUTemplate implements R5CPU {
     private boolean beq(@Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
                         @Field("imm") final int imm,
-                        @ProgramCounter final int pc) {
+                        @ProgramCounter final long pc) {
         if (x[rs1] == x[rs2]) {
             this.pc = pc + imm;
             return true;
@@ -1358,7 +1360,7 @@ final class R5CPUTemplate implements R5CPU {
     private boolean bne(@Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
                         @Field("imm") final int imm,
-                        @ProgramCounter final int pc) {
+                        @ProgramCounter final long pc) {
         if (x[rs1] != x[rs2]) {
             this.pc = pc + imm;
             return true;
@@ -1371,7 +1373,7 @@ final class R5CPUTemplate implements R5CPU {
     private boolean blt(@Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
                         @Field("imm") final int imm,
-                        @ProgramCounter final int pc) {
+                        @ProgramCounter final long pc) {
         if (x[rs1] < x[rs2]) {
             this.pc = pc + imm;
             return true;
@@ -1384,7 +1386,7 @@ final class R5CPUTemplate implements R5CPU {
     private boolean bge(@Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
                         @Field("imm") final int imm,
-                        @ProgramCounter final int pc) {
+                        @ProgramCounter final long pc) {
         if (x[rs1] >= x[rs2]) {
             this.pc = pc + imm;
             return true;
@@ -1397,8 +1399,8 @@ final class R5CPUTemplate implements R5CPU {
     private boolean bltu(@Field("rs1") final int rs1,
                          @Field("rs2") final int rs2,
                          @Field("imm") final int imm,
-                         @ProgramCounter final int pc) {
-        if (Integer.compareUnsigned(x[rs1], x[rs2]) < 0) {
+                         @ProgramCounter final long pc) {
+        if (Long.compareUnsigned(x[rs1], x[rs2]) < 0) {
             this.pc = pc + imm;
             return true;
         } else {
@@ -1410,8 +1412,8 @@ final class R5CPUTemplate implements R5CPU {
     private boolean bgeu(@Field("rs1") final int rs1,
                          @Field("rs2") final int rs2,
                          @Field("imm") final int imm,
-                         @ProgramCounter final int pc) {
-        if (Integer.compareUnsigned(x[rs1], x[rs2]) >= 0) {
+                         @ProgramCounter final long pc) {
+        if (Long.compareUnsigned(x[rs1], x[rs2]) >= 0) {
             this.pc = pc + imm;
             return true;
         } else {
@@ -1487,7 +1489,7 @@ final class R5CPUTemplate implements R5CPU {
     private void sw(@Field("rs1") final int rs1,
                     @Field("rs2") final int rs2,
                     @Field("imm") final int imm) throws MemoryAccessException {
-        store32(x[rs1] + imm, x[rs2]);
+        store32(x[rs1] + imm, (int) x[rs2]);
     }
 
     @Instruction("ADDI")
@@ -1513,7 +1515,7 @@ final class R5CPUTemplate implements R5CPU {
                        @Field("rs1") final int rs1,
                        @Field("imm") final int imm) {
         if (rd != 0) {
-            x[rd] = Integer.compareUnsigned(x[rs1], imm) < 0 ? 1 : 0;
+            x[rd] = Long.compareUnsigned(x[rs1], imm) < 0 ? 1 : 0;
         }
     }
 
@@ -1549,7 +1551,7 @@ final class R5CPUTemplate implements R5CPU {
                       @Field("rs1") final int rs1,
                       @Field("shamt") final int shamt) {
         if (rd != 0) {
-            x[rd] = x[rs1] << (shamt & 0b11111);
+            x[rd] = x[rs1] << shamt;
         }
     }
 
@@ -1558,7 +1560,7 @@ final class R5CPUTemplate implements R5CPU {
                       @Field("rs1") final int rs1,
                       @Field("shamt") final int shamt) {
         if (rd != 0) {
-            x[rd] = x[rs1] >>> (shamt & 0b11111);
+            x[rd] = x[rs1] >>> shamt;
         }
     }
 
@@ -1567,7 +1569,7 @@ final class R5CPUTemplate implements R5CPU {
                       @Field("rs1") final int rs1,
                       @Field("shamt") final int shamt) {
         if (rd != 0) {
-            x[rd] = x[rs1] >> (shamt & 0b11111);
+            x[rd] = x[rs1] >> shamt;
         }
     }
 
@@ -1612,7 +1614,7 @@ final class R5CPUTemplate implements R5CPU {
                       @Field("rs1") final int rs1,
                       @Field("rs2") final int rs2) {
         if (rd != 0) {
-            x[rd] = Integer.compareUnsigned(x[rs1], x[rs2]) < 0 ? 1 : 0;
+            x[rd] = Long.compareUnsigned(x[rs1], x[rs2]) < 0 ? 1 : 0;
         }
     }
 
@@ -1667,15 +1669,128 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @Instruction("ECALL")
-    private void ecall(@ProgramCounter final int pc) {
+    private void ecall(@ProgramCounter final long pc) {
         this.pc = pc; // raiseException reads the field to store it in mepc/sepc.
         raiseException(R5.EXCEPTION_USER_ECALL + priv);
     }
 
     @Instruction("EBREAK")
-    private void ebreak(@ProgramCounter final int pc) {
+    private void ebreak(@ProgramCounter final long pc) {
         this.pc = pc; // raiseException reads the field to store it in mepc/sepc.
         raiseException(R5.EXCEPTION_BREAKPOINT);
+    }
+
+    ///////////////////////////////////////////////////////////////////
+    // RV64I Base Instruction Set
+
+    @Instruction("ADDIW")
+    private void addiw(@Field("rd") final int rd,
+                       @Field("rs1") final int rs1,
+                       @Field("imm") final int imm) {
+        if (rd != 0) {
+            x[rd] = (int) x[rs1] + imm;
+        }
+    }
+
+    @Instruction("SLLIW")
+    private void slliw(@Field("rd") final int rd,
+                       @Field("rs1") final int rs1,
+                       @Field("shamt") final int shamt) {
+        if (rd != 0) {
+            x[rd] = (int) x[rs1] << shamt;
+        }
+    }
+
+    @Instruction("SRLIW")
+    private void srliw(@Field("rd") final int rd,
+                       @Field("rs1") final int rs1,
+                       @Field("shamt") final int shamt) {
+        if (rd != 0) {
+            x[rd] = (int) x[rs1] >>> shamt;
+        }
+    }
+
+    @Instruction("SRAIW")
+    private void sraiw(@Field("rd") final int rd,
+                       @Field("rs1") final int rs1,
+                       @Field("shamt") final int shamt) {
+        if (rd != 0) {
+            x[rd] = (int) x[rs1] >> shamt;
+        }
+    }
+
+    @Instruction("ADDW")
+    private void addw(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = (int) x[rs1] + (int) x[rs2];
+        }
+    }
+
+    @Instruction("SUBW")
+    private void subw(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = (int) x[rs1] - (int) x[rs2];
+        }
+    }
+
+    @Instruction("SLLW")
+    private void sllw(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = (int) x[rs1] << (int) x[rs2];
+        }
+    }
+
+    @Instruction("SRLW")
+    private void srlw(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = (int) x[rs1] >>> (int) x[rs2];
+        }
+    }
+
+    @Instruction("SRAW")
+    private void sraw(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = (int) x[rs1] >> (int) x[rs2];
+        }
+    }
+
+    @Instruction("LWU")
+    private void lwu(@Field("rd") final int rd,
+                     @Field("rs1") final int rs1,
+                     @Field("imm") final int imm) throws MemoryAccessException {
+        final long address = x[rs1] + imm;
+        final long result = load32(address) & 0xFFFFFFFFL;
+        if (rd != 0) {
+            x[rd] = result;
+        }
+    }
+
+    @Instruction("LD")
+    private void ld(@Field("rd") final int rd,
+                    @Field("rs1") final int rs1,
+                    @Field("imm") final int imm) throws MemoryAccessException {
+        final long address = x[rs1] + imm;
+        final long result = load64(address);
+        if (rd != 0) {
+            x[rd] = result;
+        }
+    }
+
+    @Instruction("SD")
+    private void sd(@Field("rs1") final int rs1,
+                    @Field("rs2") final int rs2,
+                    @Field("imm") final int imm) throws MemoryAccessException {
+        store64(x[rs1] + imm, x[rs2]);
     }
 
     ///////////////////////////////////////////////////////////////////
@@ -1748,7 +1863,7 @@ final class R5CPUTemplate implements R5CPU {
                       @Field("rs1") final int rs1,
                       @Field("rs2") final int rs2) {
         if (rd != 0) {
-            x[rd] = (int) (((long) x[rs1] * (long) x[rs2]) >> 32);
+            x[rd] = BigInteger.valueOf(x[rs1]).multiply(BigInteger.valueOf(x[rs2])).shiftRight(XLEN).longValue();
         }
     }
 
@@ -1757,7 +1872,9 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs1") final int rs1,
                         @Field("rs2") final int rs2) {
         if (rd != 0) {
-            x[rd] = (int) (((long) x[rs1] * Integer.toUnsignedLong(x[rs2])) >> 32);
+            x[rd] = BigInteger.valueOf(x[rs1])
+                    .multiply(BitUtils.unsignedLongToBigInteger(x[rs2]))
+                    .shiftRight(XLEN).longValue();
         }
     }
 
@@ -1766,7 +1883,9 @@ final class R5CPUTemplate implements R5CPU {
                        @Field("rs1") final int rs1,
                        @Field("rs2") final int rs2) {
         if (rd != 0) {
-            x[rd] = (int) ((Integer.toUnsignedLong(x[rs1]) * Integer.toUnsignedLong(x[rs2])) >>> 32);
+            x[rd] = BitUtils.unsignedLongToBigInteger(x[rs1])
+                    .multiply(BitUtils.unsignedLongToBigInteger(x[rs2]))
+                    .shiftRight(XLEN).longValue();
         }
     }
 
@@ -1776,8 +1895,8 @@ final class R5CPUTemplate implements R5CPU {
                      @Field("rs2") final int rs2) {
         if (rd != 0) {
             if (x[rs2] == 0) {
-                x[rd] = -1;
-            } else if (x[rs1] == Integer.MIN_VALUE && x[rs2] == -1) {
+                x[rd] = -1L;
+            } else if (x[rs1] == Long.MIN_VALUE && x[rs2] == -1L) {
                 x[rd] = x[rs1];
             } else {
                 x[rd] = x[rs1] / x[rs2];
@@ -1791,9 +1910,9 @@ final class R5CPUTemplate implements R5CPU {
                       @Field("rs2") final int rs2) {
         if (rd != 0) {
             if (x[rs2] == 0) {
-                x[rd] = -1;
+                x[rd] = -1L;
             } else {
-                x[rd] = Integer.divideUnsigned(x[rs1], x[rs2]);
+                x[rd] = Long.divideUnsigned(x[rs1], x[rs2]);
             }
         }
     }
@@ -1805,7 +1924,7 @@ final class R5CPUTemplate implements R5CPU {
         if (rd != 0) {
             if (x[rs2] == 0) {
                 x[rd] = x[rs1];
-            } else if (x[rs1] == Integer.MIN_VALUE && x[rs2] == -1) {
+            } else if (x[rs1] == Long.MIN_VALUE && x[rs2] == -1L) {
                 x[rd] = 0;
             } else {
                 x[rd] = x[rs1] % x[rs2];
@@ -1821,7 +1940,75 @@ final class R5CPUTemplate implements R5CPU {
             if (x[rs2] == 0) {
                 x[rd] = x[rs1];
             } else {
-                x[rd] = Integer.remainderUnsigned(x[rs1], x[rs2]);
+                x[rd] = Long.remainderUnsigned(x[rs1], x[rs2]);
+            }
+        }
+    }
+
+    ///////////////////////////////////////////////////////////////////
+    // RV64M Standard Extension
+
+    @Instruction("MULW")
+    private void mulw(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = (int) x[rs1] * (int) x[rs2];
+        }
+    }
+
+    @Instruction("DIVW")
+    private void divw(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            if (x[rs2] == 0) {
+                x[rd] = -1;
+            } else if ((int) x[rs1] == Integer.MIN_VALUE && (int) x[rs2] == -1) {
+                x[rd] = (int) x[rs1];
+            } else {
+                x[rd] = (int) x[rs1] / (int) x[rs2];
+            }
+        }
+    }
+
+    @Instruction("DIVUW")
+    private void divuw(@Field("rd") final int rd,
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            if (x[rs2] == 0) {
+                x[rd] = -1;
+            } else {
+                x[rd] = Integer.divideUnsigned((int) x[rs1], (int) x[rs2]);
+            }
+        }
+    }
+
+    @Instruction("REMW")
+    private void remw(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            if (x[rs2] == 0) {
+                x[rd] = (int) x[rs1];
+            } else if (x[rs1] == Integer.MIN_VALUE && x[rs2] == -1) {
+                x[rd] = 0;
+            } else {
+                x[rd] = (int) x[rs1] % (int) x[rs2];
+            }
+        }
+    }
+
+    @Instruction("REMUW")
+    private void remuw(@Field("rd") final int rd,
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            if (x[rs2] == 0) {
+                x[rd] = (int) x[rs1];
+            } else {
+                x[rd] = Integer.remainderUnsigned((int) x[rs1], (int) x[rs2]);
             }
         }
     }
@@ -1832,9 +2019,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("LR.W")
     private void lr_w(@Field("rd") final int rd,
                       @Field("rs1") final int rs1) throws MemoryAccessException {
-        final int result;
-        final int address = x[rs1];
-        result = load32(address);
+        final long address = x[rs1];
+        final int result = load32(address);
         reservation_set = address;
 
         if (rd != 0) {
@@ -1847,9 +2033,9 @@ final class R5CPUTemplate implements R5CPU {
                       @Field("rs1") final int rs1,
                       @Field("rs2") final int rs2) throws MemoryAccessException {
         final int result;
-        final int address = x[rs1];
+        final long address = x[rs1];
         if (address == reservation_set) {
-            store32(address, x[rs2]);
+            store32(address, (int) x[rs2]);
             result = 0;
         } else {
             result = 1;
@@ -1866,9 +2052,9 @@ final class R5CPUTemplate implements R5CPU {
     private void amoswap_w(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("rs2") final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
+        final long address = x[rs1];
         final int a = load32(address);
-        final int b = x[rs2];
+        final int b = (int) x[rs2];
 
         store32(address, b);
 
@@ -1881,9 +2067,9 @@ final class R5CPUTemplate implements R5CPU {
     private void amoadd_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
+        final long address = x[rs1];
         final int a = load32(address);
-        final int b = x[rs2];
+        final int b = (int) x[rs2];
 
         store32(address, a + b);
 
@@ -1896,9 +2082,9 @@ final class R5CPUTemplate implements R5CPU {
     private void amoxor_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
+        final long address = x[rs1];
         final int a = load32(address);
-        final int b = x[rs2];
+        final int b = (int) x[rs2];
 
         store32(address, a ^ b);
 
@@ -1911,9 +2097,9 @@ final class R5CPUTemplate implements R5CPU {
     private void amoand_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
+        final long address = x[rs1];
         final int a = load32(address);
-        final int b = x[rs2];
+        final int b = (int) x[rs2];
 
         store32(address, a & b);
 
@@ -1926,9 +2112,9 @@ final class R5CPUTemplate implements R5CPU {
     private void amoor_w(@Field("rd") final int rd,
                          @Field("rs1") final int rs1,
                          @Field("rs2") final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
+        final long address = x[rs1];
         final int a = load32(address);
-        final int b = x[rs2];
+        final int b = (int) x[rs2];
 
         store32(address, a | b);
 
@@ -1941,9 +2127,9 @@ final class R5CPUTemplate implements R5CPU {
     private void amomin_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
+        final long address = x[rs1];
         final int a = load32(address);
-        final int b = x[rs2];
+        final int b = (int) x[rs2];
 
         store32(address, Math.min(a, b));
 
@@ -1956,12 +2142,11 @@ final class R5CPUTemplate implements R5CPU {
     private void amomax_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
+        final long address = x[rs1];
         final int a = load32(address);
-        final int b = x[rs2];
+        final int b = (int) x[rs2];
 
-        final int c = Math.max(a, b);
-        store32(address, c);
+        store32(address, Math.max(a, b));
 
         if (rd != 0) {
             x[rd] = a;
@@ -1972,11 +2157,12 @@ final class R5CPUTemplate implements R5CPU {
     private void amominu_w(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("rs2") final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
+        final long address = x[rs1];
         final int a = load32(address);
-        final int b = x[rs2];
+        final int b = (int) x[rs2];
 
-        store32(address, (int) Math.min(Integer.toUnsignedLong(a), Integer.toUnsignedLong(b)));
+
+        store32(address, Integer.compareUnsigned(a, b) < 0 ? a : b);
 
         if (rd != 0) {
             x[rd] = a;
@@ -1987,11 +2173,181 @@ final class R5CPUTemplate implements R5CPU {
     private void amomaxu_w(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("rs2") final int rs2) throws MemoryAccessException {
-        final int address = x[rs1];
+        final long address = x[rs1];
         final int a = load32(address);
-        final int b = x[rs2];
+        final int b = (int) x[rs2];
 
-        store32(address, (int) Math.max(Integer.toUnsignedLong(a), Integer.toUnsignedLong(b)));
+        store32(address, Integer.compareUnsigned(a, b) > 0 ? a : b);
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    ///////////////////////////////////////////////////////////////////
+    // RV64A Standard Extension
+
+    @Instruction("LR.D")
+    private void lr_d(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1) throws MemoryAccessException {
+        final long address = x[rs1];
+        final long result = load64(address);
+        reservation_set = address;
+
+        if (rd != 0) {
+            x[rd] = result;
+        }
+    }
+
+    @Instruction("SC.D")
+    private void sc_d(@Field("rd") final int rd,
+                      @Field("rs1") final int rs1,
+                      @Field("rs2") final int rs2) throws MemoryAccessException {
+        final int result;
+        final long address = x[rs1];
+        if (address == reservation_set) {
+            store64(address, x[rs2]);
+            result = 0;
+        } else {
+            result = 1;
+        }
+
+        reservation_set = -1; // Always invalidate as per spec.
+
+        if (rd != 0) {
+            x[rd] = result;
+        }
+    }
+
+    @Instruction("AMOSWAP.D")
+    private void amoswap_d(@Field("rd") final int rd,
+                           @Field("rs1") final int rs1,
+                           @Field("rs2") final int rs2) throws MemoryAccessException {
+        final long address = x[rs1];
+        final long a = load64(address);
+        final long b = x[rs2];
+
+        store64(address, b);
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    @Instruction("AMOADD.D")
+    private void amoadd_d(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) throws MemoryAccessException {
+        final long address = x[rs1];
+        final long a = load64(address);
+        final long b = x[rs2];
+
+        store64(address, a + b);
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    @Instruction("AMOXOR.D")
+    private void amoxor_d(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) throws MemoryAccessException {
+        final long address = x[rs1];
+        final long a = load64(address);
+        final long b = x[rs2];
+
+        store64(address, a ^ b);
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    @Instruction("AMOAND.D")
+    private void amoand_d(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) throws MemoryAccessException {
+        final long address = x[rs1];
+        final long a = load32(address);
+        final long b = x[rs2];
+
+        store64(address, a & b);
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    @Instruction("AMOOR.D")
+    private void amoor_d(@Field("rd") final int rd,
+                         @Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2) throws MemoryAccessException {
+        final long address = x[rs1];
+        final long a = load64(address);
+        final long b = x[rs2];
+
+        store64(address, a | b);
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    @Instruction("AMOMIN.D")
+    private void amomin_d(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) throws MemoryAccessException {
+        final long address = x[rs1];
+        final long a = load64(address);
+        final long b = x[rs2];
+
+        store64(address, Math.min(a, b));
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    @Instruction("AMOMAX.D")
+    private void amomax_d(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) throws MemoryAccessException {
+        final long address = x[rs1];
+        final long a = load64(address);
+        final long b = x[rs2];
+
+        store64(address, Math.max(a, b));
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    @Instruction("AMOMINU.D")
+    private void amominu_d(@Field("rd") final int rd,
+                           @Field("rs1") final int rs1,
+                           @Field("rs2") final int rs2) throws MemoryAccessException {
+        final long address = x[rs1];
+        final long a = load64(address);
+        final long b = x[rs2];
+
+        store64(address, Long.compareUnsigned(a, b) < 0 ? a : b);
+
+        if (rd != 0) {
+            x[rd] = a;
+        }
+    }
+
+    @Instruction("AMOMAXU.D")
+    private void amomaxu_d(@Field("rd") final int rd,
+                           @Field("rs1") final int rs1,
+                           @Field("rs2") final int rs2) throws MemoryAccessException {
+        final long address = x[rs1];
+        final long a = load64(address);
+        final long b = x[rs2];
+
+        store64(address, Long.compareUnsigned(a, b) > 0 ? a : b);
 
         if (rd != 0) {
             x[rd] = a;
@@ -2011,8 +2367,8 @@ final class R5CPUTemplate implements R5CPU {
             throw new R5IllegalInstructionException();
         }
 
-        final int spp = (mstatus & R5.STATUS_SPP_MASK) >>> R5.STATUS_SPP_SHIFT; // Previous privilege level.
-        final int spie = (mstatus & R5.STATUS_SPIE_MASK) >>> R5.STATUS_SPIE_SHIFT; // Preview interrupt-enable state.
+        final int spp = (int) ((mstatus & R5.STATUS_SPP_MASK) >>> R5.STATUS_SPP_SHIFT); // Previous privilege level.
+        final int spie = (int) ((mstatus & R5.STATUS_SPIE_MASK) >>> R5.STATUS_SPIE_SHIFT); // Preview interrupt-enable state.
         mstatus = (mstatus & ~R5.STATUS_SIE_MASK) | ((R5.STATUS_SIE_MASK * spie) << R5.STATUS_SIE_SHIFT);
         mstatus = (mstatus & ~(1 << spp)) |
                   (spie << spp);
@@ -2032,8 +2388,8 @@ final class R5CPUTemplate implements R5CPU {
             throw new R5IllegalInstructionException();
         }
 
-        final int mpp = (mstatus & R5.STATUS_MPP_MASK) >>> R5.STATUS_MPP_SHIFT; // Previous privilege level.
-        final int mpie = (mstatus & R5.STATUS_MPIE_MASK) >>> R5.STATUS_MPIE_SHIFT; // Preview interrupt-enable state.
+        final int mpp = (int) ((mstatus & R5.STATUS_MPP_MASK) >>> R5.STATUS_MPP_SHIFT); // Previous privilege level.
+        final int mpie = (int) ((mstatus & R5.STATUS_MPIE_MASK) >>> R5.STATUS_MPIE_SHIFT); // Preview interrupt-enable state.
         mstatus = (mstatus & ~R5.STATUS_MIE_MASK) | ((R5.STATUS_MIE_MASK * mpie) << R5.STATUS_MIE_SHIFT);
         mstatus |= R5.STATUS_MPIE_MASK;
         mstatus &= ~R5.STATUS_MPP_MASK;
@@ -2090,6 +2446,16 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // RV32F Standard Extension
 
+    private static int checkFloat(final long value) {
+        // As per V1p74: operations except for FLW, FSW, FMV check if operands are correctly
+        //               NaN-boxed, if not the operand is replaced with the canonical NaN.
+        if ((value & R5.NAN_BOXING_MASK) != R5.NAN_BOXING_MASK) {
+            return SoftFloat.nan();
+        } else {
+            return (int) value;
+        }
+    }
+
     @Instruction("FLW")
     private void flw(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
@@ -2113,7 +2479,7 @@ final class R5CPUTemplate implements R5CPU {
                          @Field("rs3") final int rs3,
                          @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu32.muladd((int) f[rs1], (int) f[rs2], (int) f[rs3], rm) | R5.NAN_BOXING_MASK;
+        f[rd] = fpu32.muladd(checkFloat(f[rs1]), checkFloat(f[rs2]), checkFloat(f[rs3]), rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2124,7 +2490,7 @@ final class R5CPUTemplate implements R5CPU {
                          @Field("rs3") final int rs3,
                          @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu32.mulsub((int) f[rs1], (int) f[rs2], (int) f[rs3], rm) | R5.NAN_BOXING_MASK;
+        f[rd] = fpu32.mulsub(checkFloat(f[rs1]), checkFloat(f[rs2]), checkFloat(f[rs3]), rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2135,7 +2501,7 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs3") final int rs3,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu32.neg(fpu32.mulsub((int) f[rs1], (int) f[rs2], (int) f[rs3], rm)) | R5.NAN_BOXING_MASK;
+        f[rd] = fpu32.neg(fpu32.mulsub(checkFloat(f[rs1]), checkFloat(f[rs2]), checkFloat(f[rs3]), rm)) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2146,7 +2512,7 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs3") final int rs3,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu32.neg(fpu32.muladd((int) f[rs1], (int) f[rs2], (int) f[rs3], rm)) | R5.NAN_BOXING_MASK;
+        f[rd] = fpu32.neg(fpu32.muladd(checkFloat(f[rs1]), checkFloat(f[rs2]), checkFloat(f[rs3]), rm)) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2156,7 +2522,7 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs2") final int rs2,
                         @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu32.add((int) f[rs1], (int) f[rs2], rm) | R5.NAN_BOXING_MASK;
+        f[rd] = fpu32.add(checkFloat(f[rs1]), checkFloat(f[rs2]), rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2166,7 +2532,7 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs2") final int rs2,
                         @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu32.sub((int) f[rs1], (int) f[rs2], rm) | R5.NAN_BOXING_MASK;
+        f[rd] = fpu32.sub(checkFloat(f[rs1]), checkFloat(f[rs2]), rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2176,7 +2542,7 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs2") final int rs2,
                         @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu32.mul((int) f[rs1], (int) f[rs2], rm) | R5.NAN_BOXING_MASK;
+        f[rd] = fpu32.mul(checkFloat(f[rs1]), checkFloat(f[rs2]), rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2186,7 +2552,7 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs2") final int rs2,
                         @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu32.div((int) f[rs1], (int) f[rs2], rm) | R5.NAN_BOXING_MASK;
+        f[rd] = fpu32.div(checkFloat(f[rs1]), checkFloat(f[rs2]), rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2195,7 +2561,7 @@ final class R5CPUTemplate implements R5CPU {
                          @Field("rs1") final int rs1,
                          @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu32.sqrt((int) f[rs1], rm) | R5.NAN_BOXING_MASK;
+        f[rd] = fpu32.sqrt(checkFloat(f[rs1]), rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2203,8 +2569,8 @@ final class R5CPUTemplate implements R5CPU {
     private void fsgnj_s(@Field("rd") final int rd,
                          @Field("rs1") final int rs1,
                          @Field("rs2") final int rs2) {
-        final int value = (int) f[rs1] & ~SoftFloat.SIGN_MASK;
-        f[rd] = value | ((int) f[rs2] & SoftFloat.SIGN_MASK) | R5.NAN_BOXING_MASK;
+        final long value = checkFloat(f[rs1]) & ~SoftFloat.SIGN_MASK;
+        f[rd] = value | (checkFloat(f[rs2]) & SoftFloat.SIGN_MASK) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2212,8 +2578,8 @@ final class R5CPUTemplate implements R5CPU {
     private void fsgnjn_s(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) {
-        final int value = (int) f[rs1] & ~SoftFloat.SIGN_MASK;
-        f[rd] = value | (~(int) f[rs2] & SoftFloat.SIGN_MASK) | R5.NAN_BOXING_MASK;
+        final long value = checkFloat(f[rs1]) & ~SoftFloat.SIGN_MASK;
+        f[rd] = value | (~checkFloat(f[rs2]) & SoftFloat.SIGN_MASK) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2221,7 +2587,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fsgnjx_s(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) {
-        f[rd] = (int) f[rs1] ^ ((int) f[rs2] & SoftFloat.SIGN_MASK) | R5.NAN_BOXING_MASK;
+        f[rd] = f[rs1] ^ (checkFloat(f[rs2]) & SoftFloat.SIGN_MASK) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2229,7 +2595,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fmin_s(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
                         @Field("rs2") final int rs2) {
-        f[rd] = fpu32.min((int) f[rs1], (int) f[rs2]) | R5.NAN_BOXING_MASK;
+        f[rd] = fpu32.min(checkFloat(f[rs1]), checkFloat(f[rs2])) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2237,7 +2603,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fmax_s(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
                         @Field("rs2") final int rs2) {
-        f[rd] = fpu32.max((int) f[rs1], (int) f[rs2]) | R5.NAN_BOXING_MASK;
+        f[rd] = fpu32.max(checkFloat(f[rs1]), checkFloat(f[rs2])) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2246,7 +2612,7 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs1") final int rs1,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        final int value = fpu32.floatToInt((int) f[rs1], rm);
+        final int value = fpu32.floatToInt(checkFloat(f[rs1]), rm);
         if (rd != 0) {
             x[rd] = value;
         }
@@ -2257,7 +2623,7 @@ final class R5CPUTemplate implements R5CPU {
                            @Field("rs1") final int rs1,
                            @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        final int value = fpu32.floatToUnsignedInt((int) f[rs1], rm);
+        final int value = fpu32.floatToUnsignedInt(checkFloat(f[rs1]), rm);
         if (rd != 0) {
             x[rd] = value;
         }
@@ -2275,7 +2641,7 @@ final class R5CPUTemplate implements R5CPU {
     private void feq_s(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
                        @Field("rs2") final int rs2) {
-        final boolean areEqual = fpu32.equals((int) f[rs1], (int) f[rs2]);
+        final boolean areEqual = fpu32.equals(checkFloat(f[rs1]), checkFloat(f[rs2]));
         if (rd != 0) {
             x[rd] = areEqual ? 1 : 0;
         }
@@ -2285,7 +2651,7 @@ final class R5CPUTemplate implements R5CPU {
     private void flt_s(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
                        @Field("rs2") final int rs2) {
-        final boolean isLessThan = fpu32.lessThan((int) f[rs1], (int) f[rs2]);
+        final boolean isLessThan = fpu32.lessThan(checkFloat(f[rs1]), checkFloat(f[rs2]));
         if (rd != 0) {
             x[rd] = isLessThan ? 1 : 0;
         }
@@ -2295,7 +2661,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fle_s(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
                        @Field("rs2") final int rs2) {
-        final boolean isLessOrEqual = fpu32.lessOrEqual((int) f[rs1], (int) f[rs2]);
+        final boolean isLessOrEqual = fpu32.lessOrEqual(checkFloat(f[rs1]), checkFloat(f[rs2]));
         if (rd != 0) {
             x[rd] = isLessOrEqual ? 1 : 0;
         }
@@ -2305,7 +2671,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fclass_s(@Field("rd") final int rd,
                           @Field("rs1") final int rs1) {
         if (rd != 0) {
-            x[rd] = fpu32.classify((int) f[rs1]);
+            x[rd] = fpu32.classify(checkFloat(f[rs1]));
         }
     }
 
@@ -2314,7 +2680,7 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs1") final int rs1,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu32.intToFloat(x[rs1], rm) | R5.NAN_BOXING_MASK;
+        f[rd] = fpu32.intToFloat((int) x[rs1], rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2323,7 +2689,7 @@ final class R5CPUTemplate implements R5CPU {
                            @Field("rs1") final int rs1,
                            @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu32.unsignedIntToFloat(x[rs1], rm) | R5.NAN_BOXING_MASK;
+        f[rd] = fpu32.unsignedIntToFloat((int) x[rs1], rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2335,16 +2701,56 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     ///////////////////////////////////////////////////////////////////
+    // RV64F Standard Extension
+
+    @Instruction("FCVT.L.S")
+    private void fcvt_l_s(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        final long value = fpu32.floatToLong((int) f[rs1], rm);
+        if (rd != 0) {
+            x[rd] = value;
+        }
+    }
+
+    @Instruction("FCVT.LU.S")
+    private void fcvt_lu_s(@Field("rd") final int rd,
+                           @Field("rs1") final int rs1,
+                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        final long value = fpu32.floatToUnsignedLong((int) f[rs1], rm);
+        if (rd != 0) {
+            x[rd] = value;
+        }
+    }
+
+    @Instruction("FCVT.S.L")
+    private void fcvt_s_l(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        f[rd] = fpu32.longToFloat(x[rs1], rm) | R5.NAN_BOXING_MASK;
+        fs = R5.FS_DIRTY;
+    }
+
+    @Instruction("FCVT.S.LU")
+    private void fcvt_s_lu(@Field("rd") final int rd,
+                           @Field("rs1") final int rs1,
+                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        f[rd] = fpu32.unsignedLongToFloat(x[rs1], rm) | R5.NAN_BOXING_MASK;
+        fs = R5.FS_DIRTY;
+    }
+
+    ///////////////////////////////////////////////////////////////////
     // RV32D Standard Extension
 
     @Instruction("FLD")
     private void fld(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
                      @Field("imm") final int imm) throws MemoryAccessException {
-        final int address = x[rs1] + imm;
-        final int low = load32(address);
-        final int high = load32(address + 4);
-        f[rd] = (Integer.toUnsignedLong(high) << 32) | Integer.toUnsignedLong(low);
+        f[rd] = load64(x[rs1] + imm);
         fs = R5.FS_DIRTY;
     }
 
@@ -2353,11 +2759,7 @@ final class R5CPUTemplate implements R5CPU {
                      @Field("rs2") final int rs2,
                      @Field("imm") final int imm) throws MemoryAccessException {
         if (fs == R5.FS_OFF) return;
-        final int address = x[rs1] + imm;
-        final int high = (int) (f[rs2] >>> 32);
-        final int low = (int) f[rs2];
-        store32(address, low);
-        store32(address + 4, high);
+        store64(x[rs1] + imm, f[rs2]);
     }
 
     @Instruction("FMADD.D")
@@ -2578,7 +2980,7 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs1") final int rs1,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu64.intToDouble(x[rs1], rm);
+        f[rd] = fpu64.intToDouble((int) x[rs1], rm);
         fs = R5.FS_DIRTY;
     }
 
@@ -2587,7 +2989,65 @@ final class R5CPUTemplate implements R5CPU {
                            @Field("rs1") final int rs1,
                            @Field("rm") int rm) throws R5IllegalInstructionException {
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu64.unsignedIntToDouble(x[rs1], rm);
+        f[rd] = fpu64.unsignedIntToDouble((int) x[rs1], rm);
+        fs = R5.FS_DIRTY;
+    }
+
+    ///////////////////////////////////////////////////////////////////
+    // RV64D Standard Extension
+
+    @Instruction("FCVT.L.D")
+    private void fcvt_l_d(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        final long value = fpu64.doubleToLong(f[rs1], rm);
+        if (rd != 0) {
+            x[rd] = value;
+        }
+    }
+
+    @Instruction("FCVT.LU.D")
+    private void fcvt_lu_d(@Field("rd") final int rd,
+                           @Field("rs1") final int rs1,
+                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        final long value = fpu64.doubleToUnsignedLong(f[rs1], rm);
+        if (rd != 0) {
+            x[rd] = value;
+        }
+    }
+
+    @Instruction("FMV.X.D")
+    private void fmv_x_d(@Field("rd") final int rd,
+                         @Field("rs1") final int rs1) {
+        if (rd != 0) {
+            x[rd] = f[rs1];
+        }
+    }
+
+    @Instruction("FCVT.D.L")
+    private void fcvt_d_l(@Field("rd") final int rd,
+                          @Field("rs1") final int rs1,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        f[rd] = fpu64.longToDouble(x[rs1], rm);
+        fs = R5.FS_DIRTY;
+    }
+
+    @Instruction("FCVT.D.LU")
+    private void fcvt_d_lu(@Field("rd") final int rd,
+                           @Field("rs1") final int rs1,
+                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        rm = resolveRoundingMode(rm);
+        f[rd] = fpu64.unsignedLongToDouble(x[rs1], rm);
+        fs = R5.FS_DIRTY;
+    }
+
+    @Instruction("FMV.D.X")
+    private void fmv_d_x(@Field("rd") final int rd,
+                         @Field("rs1") final int rs1) {
+        f[rd] = x[rs1];
         fs = R5.FS_DIRTY;
     }
 
@@ -2607,8 +3067,8 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     private static final class R5CPUTLBEntry {
-        public int hash = -1;
-        public int toOffset;
+        public long hash = -1;
+        public long toOffset;
         public MemoryMappedDevice device;
     }
 }

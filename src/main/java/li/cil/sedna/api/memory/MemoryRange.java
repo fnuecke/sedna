@@ -16,15 +16,18 @@ public final class MemoryRange {
     /**
      * The first byte-aligned address inside this memory range (inclusive).
      */
-    public final int start;
+    public final long start;
 
     /**
      * The last byte-aligned address inside this memory range (inclusive).
      */
-    public final int end;
+    public final long end;
 
-    public MemoryRange(final MemoryMappedDevice device, final int start, final int end) {
-        if (Integer.compareUnsigned(start, end) > 0) {
+    public MemoryRange(final MemoryMappedDevice device, final long start, final long end) {
+        if (Long.compareUnsigned(start, end) > 0) {
+            throw new IllegalArgumentException();
+        }
+        if (Long.compareUnsigned(end - start + 1, 0xFFFFFFFFL) > 0) {
             throw new IllegalArgumentException();
         }
 
@@ -33,7 +36,7 @@ public final class MemoryRange {
         this.end = end;
     }
 
-    public MemoryRange(final MemoryMappedDevice device, final int address) {
+    public MemoryRange(final MemoryMappedDevice device, final long address) {
         this(device, address, address + device.getLength() - 1);
     }
 
@@ -44,7 +47,7 @@ public final class MemoryRange {
      *
      * @return the address of this memory range.
      */
-    public int address() {
+    public long address() {
         return start;
     }
 
@@ -54,7 +57,7 @@ public final class MemoryRange {
      * @return the size of this memory range.
      */
     public final int size() {
-        return end - start + 1;
+        return (int) (end - start + 1);
     }
 
     /**
@@ -63,8 +66,8 @@ public final class MemoryRange {
      * @param address the address to check for.
      * @return {@code true} if the address falls into this memory range; {@code false} otherwise.
      */
-    public boolean contains(final int address) {
-        return Integer.compareUnsigned(address, start) >= 0 && Integer.compareUnsigned(address, end) <= 0;
+    public boolean contains(final long address) {
+        return Long.compareUnsigned(address, start) >= 0 && Long.compareUnsigned(address, end) <= 0;
     }
 
     /**
@@ -74,7 +77,7 @@ public final class MemoryRange {
      * @return {@code true} if the memory range intersects this memory range; {@code false} otherwise.
      */
     public boolean intersects(final MemoryRange other) {
-        return Integer.compareUnsigned(start, other.end) <= 0 && Integer.compareUnsigned(end, other.start) >= 0;
+        return Long.compareUnsigned(start, other.end) <= 0 && Long.compareUnsigned(end, other.start) >= 0;
     }
 
     @Override

@@ -90,7 +90,7 @@ public final class PrintStreamDecoderTreeVisitor implements DecoderTreeVisitor {
     }
 
     private static int instructionSizeToMask(final int size) {
-        return BitUtils.maskFromRange(0, size * 8 - 1);
+        return (int) BitUtils.maskFromRange(0, size * 8 - 1);
     }
 
     private final class InnerNodeVisitor implements DecoderTreeVisitor {

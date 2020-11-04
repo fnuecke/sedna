@@ -22,8 +22,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @Serialized
 public class R5PlatformLevelInterruptController implements MemoryMappedDevice, InterruptController, InterruptSource {
-    private static final Logger LOGGER = LogManager.getLogger();
-
     private static final int PLIC_PRIORITY_BASE = 0x000004;
     private static final int PLIC_PENDING_BASE = 0x001000;
     private static final int PLIC_ENABLE_BASE = 0x002000;
@@ -112,8 +110,6 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
             final int word = contextOffset >>> 2;
             if (word < sourceWords) {
                 return enabled[context * sourceWords + word];
-            } else {
-                LOGGER.debug("invalid enabled read [{}]", Integer.toHexString(offset));
             }
 
             return 0;
@@ -132,14 +128,11 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
                 final int value = claim(context);
                 updateInterrupts();
                 return value;
-            } else {
-                LOGGER.debug("invalid context [{}]", context);
             }
 
             return 0;
         }
 
-        LOGGER.debug("invalid read offset [{}]", Integer.toHexString(offset));
         return 0;
     }
 
@@ -160,15 +153,6 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
             final int source = ((offset - PLIC_PRIORITY_BASE) >> 2) + 1; // Plus one because we skip zero.
             priorityBySource[source] = intValue & PLIC_MAX_PRIORITY;
             updateInterrupts();
-
-            return;
-        } else if (offset >= PLIC_PENDING_BASE && offset < PLIC_PENDING_BASE + sourceWords) {
-            // base + 0x001000: Interrupt Pending bit 0-31
-            // base + 0x00107C: Interrupt Pending bit 992-1023
-            // ...
-
-            LOGGER.debug("invalid pending write");
-            return;
         } else if (offset >= PLIC_ENABLE_BASE && offset < PLIC_ENABLE_BASE + PLIC_CONTEXT_COUNT * PLIC_ENABLE_STRIDE) {
             // base + 0x002000: Enable bits for sources 0-31 on context 0
             // base + 0x002004: Enable bits for sources 32-63 on context 0
@@ -183,11 +167,7 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
             final int word = contextOffset >>> 2;
             if (word < sourceWords) {
                 enabled[context * sourceWords + word] = intValue;
-            } else {
-                LOGGER.debug("invalid enabled write [{}]", intValue);
             }
-
-            return;
         } else if (offset >= PLIC_CONTEXT_BASE && offset < PLIC_CONTEXT_BASE + PLIC_CONTEXT_COUNT * PLIC_CONTEXT_STRIDE) {
             // base + 0x200000: Priority threshold for context 0
             // base + 0x200004: Claim/complete for context 0
@@ -201,27 +181,14 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
                 if (Integer.compareUnsigned(intValue, PLIC_MAX_PRIORITY) <= 0) {
                     thresholdByContext[context] = intValue;
                     updateInterrupts();
-                } else {
-                    LOGGER.debug("invalid threshold write [{}]", intValue);
                 }
-
-                return;
             } else if (contextOffset == 4) { // Complete.
                 if (Integer.compareUnsigned(intValue, PLIC_SOURCE_COUNT) < 0) {
                     setClaimed(intValue, false);
                     updateInterrupts();
-                } else {
-                    LOGGER.debug("invalid complete write [{}]", intValue);
                 }
-
-                return;
-            } else {
-                LOGGER.debug("invalid context [{}]", context);
-                return;
             }
         }
-
-        LOGGER.debug("invalid write offset [{}]", Integer.toHexString(offset));
     }
 
     @Override

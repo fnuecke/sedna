@@ -1,10 +1,12 @@
 package li.cil.sedna;
 
 import li.cil.sedna.utils.SoftDouble;
+import li.cil.sedna.utils.SoftFloat;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 
+import java.math.BigInteger;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collection;
@@ -21,19 +23,19 @@ public final class SoftDoubleTests {
                 .map(op -> DynamicTest.dynamicTest(op.getName(), URI.create(op.getName()), () -> {
                     final SoftDouble fpu = new SoftDouble();
                     final Random random = new Random(0);
-                    final long[] args = new long[op.getArgCount()];
-                    final double[] doubleArgs = new double[args.length];
+                    final long[] longArgs = new long[op.getArgCount()];
+                    final double[] doubleArgs = new double[longArgs.length];
                     for (int i = 0; i < 100000; i++) {
-                        for (int j = 0; j < args.length; j++) {
-                            args[j] = random.nextLong();
-                            doubleArgs[j] = Double.longBitsToDouble(args[j]);
+                        for (int j = 0; j < longArgs.length; j++) {
+                            longArgs[j] = random.nextLong();
+                            doubleArgs[j] = Double.longBitsToDouble(longArgs[j]);
                         }
 
-                        final OperationResult result0 = op.runSoftDouble(fpu, args);
-                        final OperationResult result1 = op.runJavaDouble(doubleArgs);
+                        final OperationResult result0 = op.runSoftDouble(fpu, longArgs);
+                        final OperationResult result1 = op.runJavaDouble(doubleArgs, longArgs);
 
                         if (!Objects.equals(result0, result1)) {
-                            Assertions.fail(i + ": " + result0 + " != " + result1 + "\nargs=" + Arrays.toString(args) + "," + Arrays.toString(doubleArgs));
+                            Assertions.fail(i + ": " + result0 + " != " + result1 + "\nargs=" + Arrays.toString(longArgs) + "," + Arrays.toString(doubleArgs));
                         }
                     }
                 })).collect(Collectors.toList());
@@ -41,49 +43,76 @@ public final class SoftDoubleTests {
 
     // NB: min and max are not tested here, because for RISC-V they return the non-NaN value for a
     //     (NaN, not-NaN) argument pair, whereas Java will return NaN. And we want to be RISC-V correct.
+    // NB: Java converts NaNs to zero whereas RISC-V expects them to be treated as positive infinity, so
+    //     we manually catch NaNs in doubleToInt, doubleToUnsignedInt and doubleToLong.
     private static final OperationDescriptor[] OPERATIONS = {
             new LambdaOperationDescriptor("add", 2,
-                    (fpu, args) -> OperationResult.of(fpu.add(args[0], args[1], JAVA_ROUNDING_MODE)),
-                    (args) -> OperationResult.of(args[0] + args[1])),
+                    (fpu, longs) -> OperationResult.of(fpu.add(longs[0], longs[1], JAVA_ROUNDING_MODE)),
+                    (doubles, longs) -> OperationResult.of(doubles[0] + doubles[1])),
             new LambdaOperationDescriptor("sub", 2,
-                    (fpu, args) -> OperationResult.of(fpu.sub(args[0], args[1], JAVA_ROUNDING_MODE)),
-                    (args) -> OperationResult.of(args[0] - args[1])),
+                    (fpu, longs) -> OperationResult.of(fpu.sub(longs[0], longs[1], JAVA_ROUNDING_MODE)),
+                    (doubles, longs) -> OperationResult.of(doubles[0] - doubles[1])),
             new LambdaOperationDescriptor("mul", 2,
-                    (fpu, args) -> OperationResult.of(fpu.mul(args[0], args[1], JAVA_ROUNDING_MODE)),
-                    (args) -> OperationResult.of(args[0] * args[1])),
+                    (fpu, longs) -> OperationResult.of(fpu.mul(longs[0], longs[1], JAVA_ROUNDING_MODE)),
+                    (doubles, longs) -> OperationResult.of(doubles[0] * doubles[1])),
             new LambdaOperationDescriptor("div", 2,
-                    (fpu, args) -> OperationResult.of(fpu.div(args[0], args[1], JAVA_ROUNDING_MODE)),
-                    (args) -> OperationResult.of(args[0] / args[1])),
+                    (fpu, longs) -> OperationResult.of(fpu.div(longs[0], longs[1], JAVA_ROUNDING_MODE)),
+                    (doubles, longs) -> OperationResult.of(doubles[0] / doubles[1])),
             new LambdaOperationDescriptor("sqrt", 1,
-                    (fpu, args) -> OperationResult.of(fpu.sqrt(args[0], JAVA_ROUNDING_MODE)),
-                    (args) -> OperationResult.of(Math.sqrt(args[0]))),
+                    (fpu, longs) -> OperationResult.of(fpu.sqrt(longs[0], JAVA_ROUNDING_MODE)),
+                    (doubles, longs) -> OperationResult.of(Math.sqrt(doubles[0]))),
             new LambdaOperationDescriptor("isNaN", 1,
-                    (fpu, args) -> OperationResult.of(SoftDouble.isNaN(args[0])),
-                    (args) -> OperationResult.of(Double.isNaN(args[0]))),
+                    (fpu, longs) -> OperationResult.of(SoftDouble.isNaN(longs[0])),
+                    (doubles, longs) -> OperationResult.of(Double.isNaN(doubles[0]))),
             new LambdaOperationDescriptor("neg", 1,
-                    (fpu, args) -> OperationResult.of(fpu.neg(args[0])),
-                    (args) -> OperationResult.of(-args[0])),
+                    (fpu, longs) -> OperationResult.of(fpu.neg(longs[0])),
+                    (doubles, longs) -> OperationResult.of(-doubles[0])),
             new LambdaOperationDescriptor("sign", 1,
-                    (fpu, args) -> OperationResult.of(fpu.sign(args[0])),
-                    (args) -> OperationResult.of((long) Math.signum(args[0]))),
+                    (fpu, longs) -> OperationResult.of(fpu.sign(longs[0])),
+                    (doubles, longs) -> OperationResult.of((long) Math.signum(doubles[0]))),
             new LambdaOperationDescriptor("lessThan", 2,
-                    (fpu, args) -> OperationResult.of(fpu.lessThan(args[0], args[1])),
-                    (args) -> OperationResult.of(args[0] < args[1])),
+                    (fpu, longs) -> OperationResult.of(fpu.lessThan(longs[0], longs[1])),
+                    (doubles, longs) -> OperationResult.of(doubles[0] < doubles[1])),
             new LambdaOperationDescriptor("lessOrEqual", 2,
-                    (fpu, args) -> OperationResult.of(fpu.lessOrEqual(args[0], args[1])),
-                    (args) -> OperationResult.of(args[0] <= args[1])),
+                    (fpu, longs) -> OperationResult.of(fpu.lessOrEqual(longs[0], longs[1])),
+                    (doubles, longs) -> OperationResult.of(doubles[0] <= doubles[1])),
             new LambdaOperationDescriptor("intToDouble", 1,
-                    (fpu, args) -> OperationResult.of(fpu.intToDouble((int) args[0], JAVA_ROUNDING_MODE)),
-                    (args) -> OperationResult.of((double) (int) Double.doubleToRawLongBits(args[0]))),
+                    (fpu, longs) -> OperationResult.of(fpu.intToDouble((int) longs[0], JAVA_ROUNDING_MODE)),
+                    (doubles, longs) -> OperationResult.of((double) (int) longs[0])),
             new LambdaOperationDescriptor("unsignedIntToDouble", 1,
-                    (fpu, args) -> OperationResult.of(fpu.unsignedIntToDouble((int) args[0], JAVA_ROUNDING_MODE)),
-                    (args) -> OperationResult.of((double) (Double.doubleToRawLongBits(args[0]) & 0xFFFFFFFFL))),
+                    (fpu, longs) -> OperationResult.of(fpu.unsignedIntToDouble((int) longs[0], JAVA_ROUNDING_MODE)),
+                    (doubles, longs) -> OperationResult.of((double) (longs[0] & 0xFFFFFFFFL))),
+            new LambdaOperationDescriptor("doubleToInt", 1,
+                    (fpu, longs) -> OperationResult.of(SoftDouble.isNaN(longs[0]) ? 0 : fpu.doubleToInt(longs[0], SoftFloat.RM_RTZ)),
+                    (doubles, longs) -> OperationResult.of((int) doubles[0])),
+            new LambdaOperationDescriptor("doubleToUnsignedInt", 1,
+                    (fpu, longs) -> OperationResult.of(SoftDouble.isNaN(longs[0]) ? 0 : fpu.doubleToUnsignedInt(longs[0], SoftFloat.RM_RTZ)),
+                    (doubles, longs) -> OperationResult.of((int) Math.min(0xFFFFFFFFL, (long) Math.max(0, doubles[0])))),
+            new LambdaOperationDescriptor("longToDouble", 1,
+                    (fpu, longs) -> OperationResult.of(fpu.longToDouble(longs[0], JAVA_ROUNDING_MODE)),
+                    (doubles, longs) -> OperationResult.of((double) longs[0])),
+            new LambdaOperationDescriptor("unsignedLongToDouble", 1,
+                    (fpu, longs) -> OperationResult.of(fpu.unsignedLongToDouble(longs[0], JAVA_ROUNDING_MODE)),
+                    (doubles, longs) -> {
+                        final BigInteger a = BigInteger.valueOf(longs[0] & Long.MAX_VALUE);
+                        if (longs[0] >= 0) {
+                            return OperationResult.of(a.doubleValue());
+                        } else {
+                            return OperationResult.of(a.add(BigInteger.ONE.shiftLeft(63)).doubleValue());
+                        }
+                    }),
+            new LambdaOperationDescriptor("doubleToLong", 1,
+                    (fpu, longs) -> OperationResult.of(SoftDouble.isNaN(longs[0]) ? 0L : fpu.doubleToLong(longs[0], SoftFloat.RM_RTZ)),
+                    (doubles, longs) -> OperationResult.of((long) doubles[0])),
+//            new LambdaOperationDescriptor("doubleToUnsignedLong", 1,
+//                    (fpu, longs) -> OperationResult.of(SoftDouble.isNaN(longs[0]) ? 0L : fpu.doubleToUnsignedLong(longs[0], SoftFloat.RM_RTZ)),
+//                    (doubles, longs) -> OperationResult.of(BigDecimal.valueOf(doubles[0]).max(BigDecimal.ZERO).min(new BigDecimal(BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE))).toBigInteger().longValue())),
             new LambdaOperationDescriptor("floatToDouble", 1,
-                    (fpu, args) -> OperationResult.of(fpu.floatToDouble((int) args[0], JAVA_ROUNDING_MODE)),
-                    (args) -> OperationResult.of(Float.intBitsToFloat((int) Double.doubleToRawLongBits(args[0])))),
+                    (fpu, longs) -> OperationResult.of(fpu.floatToDouble((int) longs[0], JAVA_ROUNDING_MODE)),
+                    (doubles, longs) -> OperationResult.of(Float.intBitsToFloat((int) longs[0]))),
             new LambdaOperationDescriptor("doubleToFloat", 1,
-                    (fpu, args) -> OperationResult.of(fpu.doubleToFloat(args[0], JAVA_ROUNDING_MODE)),
-                    (args) -> OperationResult.of(Float.floatToIntBits((float) args[0]))),
+                    (fpu, longs) -> OperationResult.of(fpu.doubleToFloat(longs[0], JAVA_ROUNDING_MODE)),
+                    (doubles, longs) -> OperationResult.of(Float.floatToIntBits((float) doubles[0]))),
     };
 
     private static abstract class OperationDescriptor {
@@ -93,7 +122,7 @@ public final class SoftDoubleTests {
 
         public abstract OperationResult runSoftDouble(final SoftDouble fpu, final long[] args);
 
-        public abstract OperationResult runJavaDouble(final double[] args);
+        public abstract OperationResult runJavaDouble(final double[] doubles, final long[] longs);
     }
 
     private static final class LambdaOperationDescriptor extends OperationDescriptor {
@@ -104,12 +133,12 @@ public final class SoftDoubleTests {
 
         @FunctionalInterface
         public interface SoftDoubleOperation {
-            OperationResult run(final SoftDouble fpu, final long[] args);
+            OperationResult run(final SoftDouble fpu, final long[] longs);
         }
 
         @FunctionalInterface
         public interface JavaDoubleOperation {
-            OperationResult run(final double[] args);
+            OperationResult run(final double[] doubles, final long[] longs);
         }
 
         public LambdaOperationDescriptor(final String name, final int argCount, final SoftDoubleOperation softDoubleOperation, final JavaDoubleOperation javaDoubleOperation) {
@@ -130,13 +159,13 @@ public final class SoftDoubleTests {
         }
 
         @Override
-        public OperationResult runSoftDouble(final SoftDouble fpu, final long[] args) {
-            return softDoubleOperation.run(fpu, args);
+        public OperationResult runSoftDouble(final SoftDouble fpu, final long[] longs) {
+            return softDoubleOperation.run(fpu, longs);
         }
 
         @Override
-        public OperationResult runJavaDouble(final double[] args) {
-            return javaDoubleOperation.run(args);
+        public OperationResult runJavaDouble(final double[] doubles, final long[] longs) {
+            return javaDoubleOperation.run(doubles, longs);
         }
     }
 

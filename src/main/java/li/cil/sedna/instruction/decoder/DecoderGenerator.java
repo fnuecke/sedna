@@ -102,12 +102,15 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                                    final InstructionDeclaration declaration,
                                    final InstructionDefinition definition) {
         context.methodVisitor.visitVarInsn(ALOAD, GeneratorContext.LOCAL_THIS);
+        final StringBuilder methodDescriptor = new StringBuilder("(");
         for (final InstructionArgument argument : definition.parameters) {
             if (argument instanceof ConstantInstructionArgument) {
                 final ConstantInstructionArgument constantArgument = (ConstantInstructionArgument) argument;
                 context.emitFastLdc(constantArgument.value);
+                methodDescriptor.append('I');
             } else if (argument instanceof ProgramCounterInstructionArgument) {
-                context.methodVisitor.visitVarInsn(ILOAD, context.localPc);
+                context.methodVisitor.visitVarInsn(LLOAD, context.localPc);
+                methodDescriptor.append('J');
             } else if (argument instanceof FieldInstructionArgument) {
                 final FieldInstructionArgument fieldArgument = (FieldInstructionArgument) argument;
                 if (context.localVariables.containsKey(fieldArgument)) {
@@ -116,15 +119,21 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                 } else {
                     context.emitGetField(fieldArgument);
                 }
+                methodDescriptor.append('I');
             } else {
                 throw new IllegalArgumentException();
             }
         } // cpu, arg0, ..., argN
 
-        final String methodDescriptor = "(" + StringUtils.repeat('I', definition.parameters.length) + ")"
-                                        + (definition.returnsBoolean ? "Z" : "V");
+        methodDescriptor.append(')');
+        if (definition.returnsBoolean) {
+            methodDescriptor.append('Z');
+        } else {
+            methodDescriptor.append('V');
+        }
+
         context.methodVisitor.visitMethodInsn(INVOKESPECIAL, hostClassInternalName,
-                definition.methodName, methodDescriptor, false);
+                definition.methodName, methodDescriptor.toString(), false);
 
         if (definition.returnsBoolean) {
             final Label updateOffsetAndContinueLabel = new Label();
@@ -215,8 +224,12 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
         public static final int LOCAL_THIS = 0;
         public static final int LOCAL_INST = 2;
         public static final int LOCAL_PC = 3;
-        public static final int LOCAL_INST_OFFSET = 4;
-        public static final int LOCAL_FIRST_FIELD = 6;
+        public static final int LOCAL_INST_OFFSET = 5;
+        public static final int LOCAL_FIRST_FIELD = 7;
+
+        public static final int LOCAL_GEN_INST = 1;
+        public static final int LOCAL_GEN_PC = 2;
+        public static final int LOCAL_GEN_FIRST_FIELD = 4;
 
         public static final int RETURN_CONTINUE = 0; // update pc then keep going
         public static final int RETURN_EXIT_INC_PC = 1; // update pc then exit the decoder loop
@@ -250,9 +263,9 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                                  final int processedMask,
                                  final Object2IntArrayMap<FieldInstructionArgument> localVariables) {
             this(classVisitor, methodVisitor, type, processedMask,
-                    1, // inst is always first arg
-                    2, // pc is always second arg
-                    3 + localVariables.size(), // this + pc + inst + nargs
+                    LOCAL_GEN_INST, // inst is always first arg
+                    LOCAL_GEN_PC, // pc is always second arg
+                    LOCAL_GEN_FIRST_FIELD + localVariables.size(), // this + inst + pc + nargs
                     new Label(), new Label(), localVariables);
         }
 
@@ -315,7 +328,10 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
 
         public void emitIncrementPC(final int value) {
             if (type == ContextType.TOP_LEVEL) {
-                methodVisitor.visitIincInsn(LOCAL_PC, value);
+                methodVisitor.visitVarInsn(LLOAD, LOCAL_PC);
+                methodVisitor.visitLdcInsn((long) value);
+                methodVisitor.visitInsn(LADD);
+                methodVisitor.visitVarInsn(LSTORE, LOCAL_PC);
                 methodVisitor.visitIincInsn(LOCAL_INST_OFFSET, value);
             } // else: caller will increment for us.
         }
@@ -323,8 +339,8 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
         public void emitSavePC() {
             assert type == ContextType.TOP_LEVEL;
             methodVisitor.visitVarInsn(ALOAD, LOCAL_THIS);
-            methodVisitor.visitVarInsn(ILOAD, LOCAL_PC);
-            methodVisitor.visitFieldInsn(PUTFIELD, hostClassInternalName, "pc", "I");
+            methodVisitor.visitVarInsn(LLOAD, LOCAL_PC);
+            methodVisitor.visitFieldInsn(PUTFIELD, hostClassInternalName, "pc", "J");
         }
 
         public void emitGetField(final FieldInstructionArgument argument) {
@@ -369,13 +385,14 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
             // performance). If we're jumping forward, apply the delta to our instOffset instead.
 
             // if (this.pc - pc <= 0) return;
-            methodVisitor.visitVarInsn(ILOAD, localPc); // [pc]
+            methodVisitor.visitVarInsn(LLOAD, localPc); // [pc]
             methodVisitor.visitVarInsn(ALOAD, GeneratorContext.LOCAL_THIS); // [pc, this]
-            methodVisitor.visitFieldInsn(GETFIELD, hostClassInternalName, "pc", "I"); // [pc, this.pc]
-            methodVisitor.visitInsn(DUP); // [pc, this.pc, this.pc]
-            methodVisitor.visitVarInsn(ISTORE, localPc); // [pc, this.pc]
-            methodVisitor.visitInsn(SWAP); // [this.pc, pc]
-            methodVisitor.visitInsn(ISUB); // [this.pc - pc]
+            methodVisitor.visitFieldInsn(GETFIELD, hostClassInternalName, "pc", "J"); // [pc, this.pc]
+            methodVisitor.visitInsn(DUP2); // [pc, this.pc, this.pc]
+            methodVisitor.visitVarInsn(LSTORE, localPc); // [pc, this.pc]
+            methodVisitor.visitInsn(LSUB); // [pc - this.pc]
+            methodVisitor.visitInsn(LNEG); // [this.pc - pc]
+            methodVisitor.visitInsn(L2I); // [this.pc - pc]
             methodVisitor.visitInsn(DUP); // [this.pc - pc, this.pc - pc]
             final Label forwardJumpLabel = new Label();
             methodVisitor.visitJumpInsn(IFGT, forwardJumpLabel); // [this.pc - pc]
@@ -507,7 +524,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
 
             final Object2IntArrayMap<FieldInstructionArgument> localsInMethod = new Object2IntArrayMap<>();
             for (int i = 0; i < parameters.size(); i++) {
-                localsInMethod.put(parameters.get(i), 3 + i); // this + pc + inst
+                localsInMethod.put(parameters.get(i), GeneratorContext.LOCAL_GEN_FIRST_FIELD + i); // this + pc + inst
             }
 
             // If any of the instructions we're about to group into a method can lead to an early return,
@@ -524,11 +541,11 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
             final String methodName = instructions.stream()
                                               .map(i -> i.displayName.replaceAll("[^a-z^A-Z]", "_"))
                                               .collect(Collectors.joining("$")) + "." + System.nanoTime();
-            final String methodDescriptor = "(" + StringUtils.repeat('I', 2 + parameters.size()) + ")" + (containsReturns ? "I" : "V");
+            final String methodDescriptor = "(IJ" + StringUtils.repeat('I', parameters.size()) + ")" + (containsReturns ? "I" : "V");
 
             context.methodVisitor.visitVarInsn(ALOAD, GeneratorContext.LOCAL_THIS);
             context.methodVisitor.visitVarInsn(ILOAD, context.localInst);
-            context.methodVisitor.visitVarInsn(ILOAD, context.localPc);
+            context.methodVisitor.visitVarInsn(LLOAD, context.localPc);
             for (final FieldInstructionArgument parameter : parameters) {
                 final int localIndex = context.localVariables.getInt(parameter);
                 context.methodVisitor.visitVarInsn(ILOAD, localIndex);
@@ -963,7 +980,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
         }
 
         public int asMask() {
-            return BitUtils.maskFromRange(srcLSB, srcMSB);
+            return (int) BitUtils.maskFromRange(srcLSB, srcMSB);
         }
     }
 }

@@ -1,6 +1,8 @@
 package li.cil.sedna.riscv;
 
+import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.memory.MemoryAccessException;
+import li.cil.sedna.utils.BitUtils;
 
 @SuppressWarnings({"unused", "RedundantSuppression", "PointlessBitwiseExpression"})
 public final class R5 {
@@ -60,30 +62,34 @@ public final class R5 {
     public static final int STATUS_TVM_SHIFT = 20; // Trap Virtual Memory
     public static final int STATUS_TW_SHIFT = 21; // Timeout Wait
     public static final int STATUS_TSR_SHIFT = 22; // Trap SRET
-    public static final int STATUS_SD_SHIFT = 31; // State Dirty
-    public static final int STATUSH_GVA_SHIFT = 6; // Guest Virtual Address
-    public static final int STATUSH_MPV_SHIFT = 6; // Machine Previous Virtualization Mode
+    public static final int STATUS_UXL_SHIFT = 32; // User mode XLEN
+    public static final int STATUS_SXL_SHIFT = 34; // Supervisor mode XLEN
+    public static final int STATUS_SBE_SHIFT = 36; // Supervisor mode endianness (0 = little, 1 = bit)
+    public static final int STATUS_MBE_SHIFT = 37; // Machine mode endianness (0 = little, 1 = bit)
+    public static final int STATUS_SD_SHIFT = 63; // State Dirty
 
-    public static final int STATUS_UIE_MASK = 1 << STATUS_UIE_SHIFT;
-    public static final int STATUS_SIE_MASK = 1 << STATUS_SIE_SHIFT;
-    public static final int STATUS_MIE_MASK = 1 << STATUS_MIE_SHIFT;
-    public static final int STATUS_UPIE_MASK = 1 << STATUS_UPIE_SHIFT;
-    public static final int STATUS_SPIE_MASK = 1 << STATUS_SPIE_SHIFT;
-    public static final int STATUS_UBE_MASK = 1 << STATUS_UBE_SHIFT;
-    public static final int STATUS_MPIE_MASK = 1 << STATUS_MPIE_SHIFT;
-    public static final int STATUS_SPP_MASK = 1 << STATUS_SPP_SHIFT;
-    public static final int STATUS_MPP_MASK = 0b11 << STATUS_MPP_SHIFT;
-    public static final int STATUS_FS_MASK = 0b11 << STATUS_FS_SHIFT;
-    public static final int STATUS_XS_MASK = 0b11 << STATUS_XS_SHIFT;
-    public static final int STATUS_MPRV_MASK = 1 << STATUS_MPRV_SHIFT;
-    public static final int STATUS_SUM_MASK = 1 << STATUS_SUM_SHIFT;
-    public static final int STATUS_MXR_MASK = 1 << STATUS_MXR_SHIFT;
-    public static final int STATUS_TVM_MASK = 1 << STATUS_TVM_SHIFT;
-    public static final int STATUS_TW_MASK = 1 << STATUS_TW_SHIFT;
-    public static final int STATUS_TSR_MASK = 1 << STATUS_TSR_SHIFT;
-    public static final int STATUS_SD_MASK = 1 << STATUS_SD_SHIFT;
-    public static final int STATUSH_GVA_MASK = 1 << STATUSH_GVA_SHIFT;
-    public static final int STATUSH_MPV_MASK = 1 << STATUSH_MPV_SHIFT;
+    public static final long STATUS_UIE_MASK = 1L << STATUS_UIE_SHIFT;
+    public static final long STATUS_SIE_MASK = 1L << STATUS_SIE_SHIFT;
+    public static final long STATUS_MIE_MASK = 1L << STATUS_MIE_SHIFT;
+    public static final long STATUS_UPIE_MASK = 1L << STATUS_UPIE_SHIFT;
+    public static final long STATUS_SPIE_MASK = 1L << STATUS_SPIE_SHIFT;
+    public static final long STATUS_UBE_MASK = 1L << STATUS_UBE_SHIFT;
+    public static final long STATUS_MPIE_MASK = 1L << STATUS_MPIE_SHIFT;
+    public static final long STATUS_SPP_MASK = 1L << STATUS_SPP_SHIFT;
+    public static final long STATUS_MPP_MASK = 0b11L << STATUS_MPP_SHIFT;
+    public static final long STATUS_FS_MASK = 0b11L << STATUS_FS_SHIFT;
+    public static final long STATUS_XS_MASK = 0b11L << STATUS_XS_SHIFT;
+    public static final long STATUS_MPRV_MASK = 1L << STATUS_MPRV_SHIFT;
+    public static final long STATUS_SUM_MASK = 1L << STATUS_SUM_SHIFT;
+    public static final long STATUS_MXR_MASK = 1L << STATUS_MXR_SHIFT;
+    public static final long STATUS_TVM_MASK = 1L << STATUS_TVM_SHIFT;
+    public static final long STATUS_TW_MASK = 1L << STATUS_TW_SHIFT;
+    public static final long STATUS_TSR_MASK = 1L << STATUS_TSR_SHIFT;
+    public static final long STATUS_UXL_MASK = 0b11L << STATUS_UXL_SHIFT;
+    public static final long STATUS_SXL_MASK = 0b11L << STATUS_SXL_SHIFT;
+    public static final long STATUS_SBE_MASK = 1L << STATUS_SBE_SHIFT;
+    public static final long STATUS_MBE_MASK = 1L << STATUS_MBE_SHIFT;
+    public static final long STATUS_SD_MASK = 1L << STATUS_SD_SHIFT;
 
     // Exception codes used mep/medeleg CSRs.
     public static final int EXCEPTION_MISALIGNED_FETCH = 0;
@@ -103,7 +109,7 @@ public final class R5 {
     public static final int EXCEPTION_STORE_PAGE_FAULT = 15;
 
     // Highest bit means it's an interrupt/asynchronous exception, otherwise a regular exception.
-    public static final int INTERRUPT = 1 << 31;
+    public static final long INTERRUPT = 1L << 63;
 
     // Supported counters in [m|s]counteren CSRs.
     public static final int MCOUNTERN_CY = 1 << 0;
@@ -112,9 +118,16 @@ public final class R5 {
     public static final int MCOUNTERN_HPM3 = 1 << 3; // Contiguous HPM counters up to HPM31 after this.
 
     // SATP CSR masks.
-    public static final int SATP_PPN_MASK = 0b0000_0000_0011_1111_1111_1111_1111_1111;
-    public static final int SATP_ASID_MASK = 0b0111_1111_1100_0000_0000_0000_0000_0000;
-    public static final int SATP_MODE_MASK = 0b1000_0000_0000_0000_0000_0000_0000_0000;
+    public static final long SATP_PPN_MASK = BitUtils.maskFromRange(0, 43);
+    public static final long SATP_ASID_MASK = BitUtils.maskFromRange(44, 59);
+    public static final long SATP_MODE_MASK = BitUtils.maskFromRange(60, 63);
+
+    // SATP modes.
+    public static final long SATP_MODE_NONE = 0L << 60;
+    public static final long SATP_MODE_SV39 = 8L << 60;
+    public static final long SATP_MODE_SV48 = 9L << 60;
+    public static final long SATP_MODE_SV57 = 10L << 60;
+    public static final long SATP_MODE_SV64 = 11L << 60;
 
     // Page sizes are 4KiB (V2p73).
     public static final int PAGE_ADDRESS_SHIFT = 12; // 1<<12 == 4096; SATP << 12 == root PTE address
@@ -132,11 +145,12 @@ public final class R5 {
     public static final int PTE_D_MASK = 0b1 << 7; // Dirty flag (written).
     public static final int PTE_RSW_MASK = 0b11 << 8; // Reserved for supervisor software.
 
-    // Config for SV32 configuration.
-    public static final int SV32_LEVELS = 2;
-    public static final int SV32_PTE_SIZE_LOG2 = 2; // => * size == << log2(size)
-    public static final int SV32_XPN_SIZE = 10; // page number size per level in bits
-    public static final int SV32_XPN_MASK = (1 << SV32_XPN_SIZE) - 1;
+    // Config for SV39/48 configuration.
+    public static final int SV39_LEVELS = 3;
+    public static final int SV48_LEVELS = 4;
+    public static final int SV39_PTE_SIZE_LOG2 = Sizes.SIZE_64_LOG2; // => * size == << log2(size)
+    public static final int SV39_XPN_SIZE = 9; // page number size per level in bits
+    public static final int SV39_XPN_MASK = (1 << SV39_XPN_SIZE) - 1;
 
     // Floating point extension CSR.
     public static final int FCSR_FFLAGS_NX_MASK = 0b1 << 0; // Inexact.
