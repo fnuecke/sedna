@@ -4,6 +4,7 @@ import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.MemoryMappedDevice;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 public final class FlashMemoryDevice implements MemoryMappedDevice {
     private final ByteBuffer data;
@@ -19,7 +20,7 @@ public final class FlashMemoryDevice implements MemoryMappedDevice {
     }
 
     public FlashMemoryDevice(final int size) {
-        this(ByteBuffer.allocate(size));
+        this(ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN));
     }
 
     public ByteBuffer getData() {
