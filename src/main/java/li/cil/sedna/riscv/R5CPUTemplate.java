@@ -16,8 +16,6 @@ import li.cil.sedna.riscv.exception.R5MemoryAccessException;
 import li.cil.sedna.utils.BitUtils;
 import li.cil.sedna.utils.SoftDouble;
 import li.cil.sedna.utils.SoftFloat;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import javax.annotation.Nullable;
 import java.util.Arrays;
@@ -321,13 +319,16 @@ final class R5CPUTemplate implements R5CPU {
                 // See R5CPUGenerator.                                           //
                 ///////////////////////////////////////////////////////////////////
 
-                if (instOffset < instEnd) { // Likely case: we're still fully in the page.
+                if (Integer.compareUnsigned(instOffset, instEnd) < 0) { // Likely case: we're still fully in the page.
                     inst = (int) device.load(instOffset, Sizes.SIZE_32_LOG2);
                 } else { // Unlikely case: we reached the end of the page. Leave to do interrupts and cycle check.
                     this.pc = pc;
                     return;
                 }
             }
+        } catch (final MemoryAccessException e) {
+            this.pc = pc;
+            raiseException(R5.EXCEPTION_FAULT_FETCH, pc);
         } catch (final R5IllegalInstructionException e) {
             this.pc = pc;
             raiseException(R5.EXCEPTION_ILLEGAL_INSTRUCTION, inst);
