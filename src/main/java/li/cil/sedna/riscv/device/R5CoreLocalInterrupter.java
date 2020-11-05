@@ -67,7 +67,8 @@ public final class R5CoreLocalInterrupter implements Steppable, InterruptSource,
 
     @Override
     public int getSupportedSizes() {
-        return (1 << Sizes.SIZE_32_LOG2);
+        return (1 << Sizes.SIZE_32_LOG2) |
+               (1 << Sizes.SIZE_64_LOG2);
     }
 
     public long load(final int offset, final int sizeLog2) {

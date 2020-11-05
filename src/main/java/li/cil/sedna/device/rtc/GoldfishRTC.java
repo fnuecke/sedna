@@ -46,7 +46,8 @@ public final class GoldfishRTC implements InterruptSource, MemoryMappedDevice {
 
     @Override
     public int getSupportedSizes() {
-        return 1 << Sizes.SIZE_32_LOG2;
+        return (1 << Sizes.SIZE_32_LOG2) |
+               (1 << Sizes.SIZE_64_LOG2);
     }
 
     @Override

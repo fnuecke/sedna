@@ -24,9 +24,8 @@ public class MemoryMappedDeviceProvider implements DeviceTreeProvider {
         final MemoryMappedDevice mappedDevice = (MemoryMappedDevice) device;
         final Optional<MemoryRange> range = memoryMap.getMemoryRange(mappedDevice);
 
-        // TODO in the future when we may want to change bus widths check parent for cell and size cell num.
         range.ifPresent(r -> node.addProp(DevicePropertyNames.REG,
-                ((long) r.address()) & 0xFFFFFFFFL,
-                ((long) r.size()) & 0xFFFFFFFFL));
+                r.address() & 0xFFFFFFFFL,
+                r.size() & 0xFFFFFFFFL));
     }
 }
