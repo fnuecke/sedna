@@ -18,13 +18,12 @@ import li.cil.sedna.utils.SoftDouble;
 import li.cil.sedna.utils.SoftFloat;
 
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.math.BigInteger;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * RISC-V RV32G implementation (RV32IMAFDZicsr_Zifencei).
+ * RISC-V RV64GC implementation.
  * <p>
  * Based on ISA specifications found at https://github.com/riscv/riscv-isa-manual/releases
  * <ul>
@@ -34,7 +33,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>
  * Limitations:
  * <ul>
- * <li>The fence extensions are implemented as no-ops at this time.</li>
+ * <li>The fence operations are implemented as no-ops.</li>
  * </ul>
  */
 @Serialized
@@ -334,7 +333,7 @@ final class R5CPUTemplate implements R5CPU {
             raiseException(R5.EXCEPTION_ILLEGAL_INSTRUCTION, inst);
         } catch (final R5MemoryAccessException e) {
             this.pc = pc;
-            raiseException(R5.convertMemoryException(e.getType()), e.getAddress());
+            raiseException(e.getType(), e.getAddress());
         }
     }
 

@@ -579,7 +579,9 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
             return loadConfig(offset - VIRTIO_MMIO_CONFIG, sizeLog2);
         }
 
-        assert sizeLog2 == Sizes.SIZE_32_LOG2;
+        if (sizeLog2 != Sizes.SIZE_32_LOG2) {
+            return 0;
+        }
 
         switch (offset) {
             case VIRTIO_MMIO_MAGIC: {
