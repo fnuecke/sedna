@@ -39,7 +39,7 @@ public final class R5Board implements Steppable, Resettable {
     private static final long PLIC_ADDRESS = 0x0C000000L;
 
     private static final long FLASH_ADDRESS = 0x1000L; // R5CPU starts executing at 0x1000.
-    private static final int LOW_MEMORY_SIZE = 0x2000; // Just needs to fit "jump to firmware".
+    private static final int FLASH_SIZE = 0x100; // Just needs to fit "jump to firmware".
 
     private final MemoryMap memoryMap;
     private final RealTimeCounter rtc;
@@ -58,7 +58,7 @@ public final class R5Board implements Steppable, Resettable {
         memoryMap = new SimpleMemoryMap();
         rtc = cpu = R5CPU.create(memoryMap);
 
-        flash = new FlashMemoryDevice(LOW_MEMORY_SIZE);
+        flash = new FlashMemoryDevice(FLASH_SIZE);
         clint = new R5CoreLocalInterrupter(rtc);
         plic = new R5PlatformLevelInterruptController();
 
@@ -208,8 +208,7 @@ public final class R5Board implements Steppable, Resettable {
                 if (device.getLength() >= dtb.length) {
                     final MemoryRange memoryRange = memoryMap.getMemoryRange(device).orElseThrow(AssertionError::new);
 
-                    // Align size to 0x1000 so we can push the address with a single LUI.
-                    final long address = (memoryRange.start + memoryRange.size() - dtb.length) & ~(0x1000 - 1);
+                    final long address = (memoryRange.start + memoryRange.size() - dtb.length) & ~0b111L; // align(8)
                     if (Long.compareUnsigned(address, memoryRange.start) < 0) {
                         continue;
                     }
