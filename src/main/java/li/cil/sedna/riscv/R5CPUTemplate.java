@@ -2298,7 +2298,7 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final long a = load32(address);
+        final long a = load64(address);
         final long b = x[rs2];
 
         store64(address, a & b);
