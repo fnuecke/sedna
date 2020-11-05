@@ -23,8 +23,8 @@ public final class FlattenedDeviceTree {
 
     private static final int FDT_HEADER_SIZE = 10 * 4; // 10 * sizeof(int)
 
-    private List<String> names = new ArrayList<>();
-    private IntList nameOffsets = new IntArrayList();
+    private final List<String> names = new ArrayList<>();
+    private final IntList nameOffsets = new IntArrayList();
 
     private final ByteArrayOutputStream structureBlock = new ByteArrayOutputStream();
     private final DataOutputStream structureBlockWriter = new DataOutputStream(structureBlock);

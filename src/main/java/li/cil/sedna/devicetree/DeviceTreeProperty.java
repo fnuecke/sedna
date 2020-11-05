@@ -52,6 +52,7 @@ public final class DeviceTreeProperty {
                     sb.append("0x").append(Integer.toUnsignedString((int) current, 16));
                 } else if (current instanceof Long) {
                     sb.append("0x").append(Integer.toUnsignedString((int) (((long) current) >>> 32), 16));
+                    sb.append(" ");
                     sb.append("0x").append(Integer.toUnsignedString((int) ((long) current), 16));
                 } else {
                     throw new AssertionError();
