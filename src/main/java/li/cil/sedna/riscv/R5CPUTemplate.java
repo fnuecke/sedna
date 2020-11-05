@@ -717,8 +717,6 @@ final class R5CPUTemplate implements R5CPU {
                     }
 
                     satp = validatedValue;
-                    flushTLB(); // TODO If I read the spec right, this should not be necessary.
-                    //      SFENCE.VMA should be used for this by software.
 
                     return true; // Invalidate fetch cache.
                 }
