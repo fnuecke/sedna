@@ -10,6 +10,7 @@ import org.objectweb.asm.*;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Objects;
 
 public final class InstructionDefinitionLoader {
@@ -69,12 +70,17 @@ public final class InstructionDefinitionLoader {
             }
 
             final Type[] argumentTypes = Type.getArgumentTypes(visitor.descriptor);
-            for (final Type argumentType : argumentTypes) {
-                if (!Objects.equals(argumentType, Type.INT_TYPE)) {
+            for (int i = 0; i < argumentTypes.length; i++) {
+                final Type requiredType;
+                if (visitor.parameterAnnotations[i] != null && visitor.parameterAnnotations[i].isProgramCounter) {
+                    requiredType = Type.LONG_TYPE;
+                } else {
+                    requiredType = Type.INT_TYPE;
+                }
+                if (!Objects.equals(argumentTypes[i], requiredType)) {
                     throw new IllegalArgumentException(String.format(
-                            "Instruction definition [%s] uses parameter of type [%s] but only `int` parameters are " +
-                            "supported.",
-                            visitor.name, argumentType.getClassName()));
+                            "Instruction definition [%s] parameter [%d] of type [%s], requires [%s].",
+                            visitor.name, i, argumentTypes[i].getClassName(), requiredType.getClassName()));
                 }
             }
 
@@ -372,12 +378,12 @@ public final class InstructionDefinitionLoader {
                 return;
             }
 
-            propagateWrites();
+            propagateWrites(new HashSet<>());
 
             hasComputedWritesPC = true;
         }
 
-        private boolean propagateWrites() {
+        private boolean propagateWrites(final HashSet<NonStaticMethodInvocation> seen) {
             if (writesPC) {
                 return false;
             }
@@ -385,8 +391,10 @@ public final class InstructionDefinitionLoader {
             for (; ; ) {
                 boolean didAnyChange = false;
                 for (final NonStaticMethodInvocation invocation : invocations) {
-                    final boolean didChange = invocation.propagateWrites();
-                    didAnyChange = didAnyChange || didChange;
+                    if (seen.addAll(invocations)) {
+                        final boolean didChange = invocation.propagateWrites(seen);
+                        didAnyChange = didAnyChange || didChange;
+                    }
                 }
 
                 if (!didAnyChange) {
