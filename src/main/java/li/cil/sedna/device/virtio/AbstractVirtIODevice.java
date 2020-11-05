@@ -910,14 +910,8 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         // };
         // virtq_desc is the structure of which we expect an array at the physical address the `desc` field points at.
 
-        int getDescAddress(final int i) throws VirtIODeviceException, MemoryAccessException {
-            final long value = ((long) memoryMap.load(descIndexToAddress(i) + VIRTQ_DESC_ADDR, Sizes.SIZE_32_LOG2) & 0xFFFFFFFFL) |
-                               ((long) memoryMap.load(descIndexToAddress(i) + VIRTQ_DESC_ADDR + 4, Sizes.SIZE_32_LOG2) << 32);
-            // We're always at maximum a 32 bit architecture, so we should not see addresses that exceed that.
-            if ((value & ~0xFFFFFFFFL) != 0) {
-                throw new VirtIODeviceException();
-            }
-            return (int) value;
+        long getDescAddress(final int i) throws MemoryAccessException {
+            return memoryMap.load(descIndexToAddress(i) + VIRTQ_DESC_ADDR, Sizes.SIZE_64_LOG2);
         }
 
         int getDescLength(final int i) throws MemoryAccessException {
@@ -932,8 +926,8 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
             return (int) memoryMap.load(descIndexToAddress(i) + VIRTQ_DESC_NEXT, Sizes.SIZE_16_LOG2) & 0xFFFF;
         }
 
-        int descIndexToAddress(final int i) {
-            return (int) desc + i * VIRTQ_DESC_TABLE_STRIDE;
+        long descIndexToAddress(final int i) {
+            return desc + i * VIRTQ_DESC_TABLE_STRIDE;
         }
 
         // The following methods provide access to a struct with the following layout:
@@ -946,20 +940,20 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         // virtq_avail is the structure expected at the physical address the `driver` field points at.
 
         int getAvailFlags() throws MemoryAccessException {
-            return (int) memoryMap.load((int) driver + VIRTQ_AVAIL_FLAGS, Sizes.SIZE_16_LOG2) & 0xFFFF;
+            return (int) memoryMap.load(driver + VIRTQ_AVAIL_FLAGS, Sizes.SIZE_16_LOG2) & 0xFFFF;
         }
 
         int getAvailIdx() throws MemoryAccessException {
-            return (int) memoryMap.load((int) driver + VIRTQ_AVAIL_IDX, Sizes.SIZE_16_LOG2) & 0xFFFF;
+            return (int) memoryMap.load(driver + VIRTQ_AVAIL_IDX, Sizes.SIZE_16_LOG2) & 0xFFFF;
         }
 
         int getAvailRing(final int i) throws MemoryAccessException {
-            final int address = (int) driver + VIRTQ_AVAIL_RING + toWrappedRingIndex(i) * VIRTQ_AVAILABLE_RING_STRIDE;
+            final long address = driver + VIRTQ_AVAIL_RING + toWrappedRingIndex(i) * VIRTQ_AVAILABLE_RING_STRIDE;
             return (int) memoryMap.load(address, Sizes.SIZE_16_LOG2) & 0xFFFF;
         }
 
         int getAvailUsedEvent() throws MemoryAccessException {
-            return (int) memoryMap.load((int) driver + VIRTQ_AVAIL_RING + num * VIRTQ_AVAILABLE_RING_STRIDE, Sizes.SIZE_16_LOG2) & 0xFFFF;
+            return (int) memoryMap.load(driver + VIRTQ_AVAIL_RING + num * VIRTQ_AVAILABLE_RING_STRIDE, Sizes.SIZE_16_LOG2) & 0xFFFF;
         }
 
         // The following methods provide access to a struct with the following layout:
@@ -976,25 +970,25 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         // virtq_used is the structure expected at the physical address the `device` field points at.
 
         void setUsedFlags(final int value) throws MemoryAccessException {
-            memoryMap.store((int) device + VIRTQ_USED_FLAGS, value, Sizes.SIZE_16_LOG2);
+            memoryMap.store(device + VIRTQ_USED_FLAGS, value, Sizes.SIZE_16_LOG2);
         }
 
         short getUsedIdx() throws MemoryAccessException {
-            return (short) memoryMap.load((int) device + VIRTQ_USED_IDX, Sizes.SIZE_16_LOG2);
+            return (short) memoryMap.load(device + VIRTQ_USED_IDX, Sizes.SIZE_16_LOG2);
         }
 
         void setUsedIdx(final short value) throws MemoryAccessException {
-            memoryMap.store((int) device + VIRTQ_USED_IDX, value, Sizes.SIZE_16_LOG2);
+            memoryMap.store(device + VIRTQ_USED_IDX, value, Sizes.SIZE_16_LOG2);
         }
 
         void setUsedRing(final int i, final int id, final int len) throws MemoryAccessException {
-            final int address = (int) device + VIRTQ_USED_RING + toWrappedRingIndex(i) * VIRTQ_USED_RING_STRIDE;
+            final long address = device + VIRTQ_USED_RING + toWrappedRingIndex(i) * VIRTQ_USED_RING_STRIDE;
             memoryMap.store(address + VIRTQ_USED_RING_ELEM_ID, id, Sizes.SIZE_32_LOG2);
             memoryMap.store(address + VIRTQ_USED_RING_ELEM_LEN, len, Sizes.SIZE_32_LOG2);
         }
 
         void setUsedAvailEvent(final int value) throws MemoryAccessException {
-            memoryMap.store((int) device + VIRTQ_USED_RING + num * VIRTQ_USED_RING_STRIDE, value, Sizes.SIZE_16_LOG2);
+            memoryMap.store(device + VIRTQ_USED_RING + num * VIRTQ_USED_RING_STRIDE, value, Sizes.SIZE_16_LOG2);
         }
 
         // Utility methods.
@@ -1012,7 +1006,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
             boolean isUsed;
 
             int descIdx;
-            int address;
+            long address;
             int length;
             int position;
             int chainLength = 1;
@@ -1254,7 +1248,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                 assert src.position() == src.limit();
             }
 
-            void setDescriptor(final int descIdx) throws VirtIODeviceException, MemoryAccessException {
+            void setDescriptor(final int descIdx) throws MemoryAccessException {
                 this.descIdx = descIdx;
                 address = getDescAddress(descIdx);
                 length = getDescLength(descIdx);
