@@ -178,7 +178,7 @@ public final class R5 {
     // Upper bit mask for 32bit float values in 64bit registers.
     public static final long NAN_BOXING_MASK = 0xFFFFFFFFL << 32;
 
-    public static final String CANONICAL_ISA_ORDER = "IEMAFDQCLBJTPVNSUHKORWXYZG";
+    public static final String CANONICAL_ISA_ORDER = "IEMAFDQLCBJTPVNSUHKORWXYZG";
 
     /**
      * Computes flags for the machine ISA CSR given a list of extension letters.
