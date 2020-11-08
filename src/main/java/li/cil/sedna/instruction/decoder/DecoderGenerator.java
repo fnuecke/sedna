@@ -862,7 +862,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                 return;
             }
 
-            if (declaration.type == InstructionType.HINT) {
+            if (declaration.type == InstructionType.NOP) {
                 context.emitIncrementPC(declaration.size);
                 context.emitContinue();
                 return;

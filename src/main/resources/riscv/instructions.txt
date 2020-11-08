@@ -1,10 +1,10 @@
 # Fields are declared using the 'field' keyword.
 #
 # Format for fields:
-#    ([s]<msb>[:<lsb>=msb][@mapped_lsb=0])+ [ | <postprocessing method> ]
+#    ([s]<msb>[:<lsb> = msb][@mapped_lsb = 0])+ [ | <postprocessing method> ]
 # The optional 's' at the start indicates sign extension is required.
-# When ommitted, lsb = msb so only one bit is selected.
-# When ommitted, mapped_lsb = 0, so selected bits represent an unshifted
+# When omitted, lsb = msb so only one bit is selected.
+# When omitted, mapped_lsb = 0, so selected bits represent an unshifted
 # number. Otherwise the selected bits will be shifted accordingly.
 #
 # We're selecting the bit-range [lsb,msb] and insert it in the
@@ -25,28 +25,37 @@
 #
 # For a few special cases fields can declare a post-processing method. This
 # must be a method declared in the R5FieldPostprocessor enum, case-insensitive.
-
-# Instructions are declared using the 'inst', 'illegal' or 'hint' keywords.
+#
+#
+# Instructions are declared using the 'inst', 'illegal' or 'nop' keywords.
 #    inst    : A regular instruction.
 #    illegal : An explicitly illegal instruction, raising an illegal instruction exception.
-#    hint    : A hint instruction, used to communicate performance hints. Observed as NOP.
+#    nop     : A no-op, sometimes used to communicate performance hints.
 #
 # Format for instructions:
 #     <name> [ <display name> ] | <bitmask> [ | arguments ]
-# The bitmask allows defining the masking for the instruction by defining
-# valid for each bit in the instruction word. Possible values are:
+#
+# The name is what is used to find a matching instruction definition, i.e. the
+# implementation of the instruction. The display name can be useful for debugging
+# purposes. For RISC-V in particular it is used to retain compressed instruction names.
+#
+# The bitmask allows defining the masking for the instruction by defining what state
+# is valid for each bit in the instruction word. Possible values are:
 #    0 : the bit must be zero.
 #    1 : the bit must be one.
 #    * : the bit may have any value.
 #    . : the bit may have any value and is part of an argument.
-# All bits must be assigned.
+# All bits MUST be assigned. In particular, this means that bits marked with '.' MUST be
+# consumed by an argument.
 #
 # Fields will represent arguments to the method implementing an instruction.
-# The name of the argument equals that of the field unless otherwise specified
-# by a re-assignment in the form of <argument_name>=<field_name>. Alternatively,
-# a constant argument may be defined using <argument_name>=<constant> where the
-# constant must be an integer.
+# The name used to identify the matching argument equals that of the field unless
+# otherwise specified by a re-assignment in the form of <argument_name>=<field_name>.
+# Alternatively, a constant argument may be defined using <argument_name>=<constant>,
+# where the constant must be an integer.
+# Names are matched to arguments using the InstructionDefinition.Field annotation.
 
+# RV32I Base Instruction Set
 field rd                 11:7
 field rs1                19:15
 field rs2                24:20
@@ -59,8 +68,6 @@ field shamt              25:20
 field shamtw             24:20
 field csr                31:20
 
-
-# RV32I Base Instruction Set
 inst LUI               | ....................      ..... 0110111 | rd imm=immu
 inst AUIPC             | ....................      ..... 0010111 | rd imm=immu
 inst JAL               | ....................      ..... 1101111 | rd imm=immj
@@ -282,19 +289,19 @@ inst SW     C.SW       | 110 ... ... .. ...  00 | rs1=cr_9_7 rs2=cr_4_2 imm=cimm
 inst SD     C.SD       | 111 ... ... .. ...  00 | rs1=cr_9_7 rs2=cr_4_2 imm=cimmld
 
 # Quadrant 1
-hint                   | 000 0  00000  00000 01
-hint                   | 000 *  00000  ***** 01   # Defined NOP
-hint                   | 000 0  *****  00000 01
+nop                    | 000 0  00000  00000 01   # Hint, needed to make next two instructions unambiguous.
+nop                    | 000 *  00000  ***** 01   # Defined NOP
+nop                    | 000 0  *****  00000 01   # Hint
 inst ADDI   C.ADDI     | 000 .  .....  ..... 01 | rd=rs1=cr_11_7 imm=cimmi
 inst ADDIW  C.ADDIW    | 001 .  .....  ..... 01 | rd=rs1=cr_11_7 imm=cimmi
-hint                   | 010 *  00000  ***** 01
+nop                    | 010 *  00000  ***** 01   # Hint
 inst ADDI   C.LI       | 010 .  .....  ..... 01 | rd=cr_11_7 rs1=0 imm=cimmi
 illegal                | 011 0  00010  00000 01   # Reserved
 inst ADDI   C.ADDI16SP | 011 .  00010  ..... 01 | rd=2 rs1=2 imm=caddi16sp_imm
-hint                   | 011 *  00000  ***** 01
+nop                    | 011 *  00000  ***** 01   # Hint
 inst LUI    C.LUI      | 011 .  .....  ..... 01 | rd=cr_11_7 imm=clui_imm
 inst SRLI   C.SRLI     | 100 . 00 ...  ..... 01 | rd=rs1=cr_9_7 shamt=cimmu
-hint                   | 100 0 00 ***  00000 01
+nop                    | 100 0 00 ***  00000 01   # Hint
 inst SRAI   C.SRAI     | 100 . 01 ...  ..... 01 | rd=rs1=cr_9_7 shamt=cimmu
 inst ANDI   C.ANDI     | 100 . 10 ...  ..... 01 | rd=rs1=cr_9_7 imm=cimmi
 inst SUB    C.SUB      | 100 0 11 ... 00 ... 01 | rd=rs1=cr_9_7 rs2=cr_4_2
@@ -308,7 +315,7 @@ inst BEQ    C.BEQZ     | 110 ...  ...  ..... 01 | rs1=cr_9_7 rs2=0 imm=cimmb
 inst BNE    C.BNEZ     | 111 ...  ...  ..... 01 | rs1=cr_9_7 rs2=0 imm=cimmb
 
 # Quadrant 2
-hint                   | 000 *  00000  ***** 10
+nop                    | 000 *  00000  ***** 10   # Hint
 inst SLLI   C.SLLI     | 000 .  .....  ..... 10 | rd=rs1=cr_11_7 shamt=cimmu
 inst FLD    C.FLDSP    | 001 .  .....  ..... 10 | rd=cr_11_7 rs1=2 imm=cimmldsp
 illegal                | 010 *  00000  ***** 10   # Reserved
@@ -317,11 +324,11 @@ illegal                | 011 *  00000  ***** 10   # Reserved
 inst LD     C.LDSP     | 011 .  .....  ..... 10 | rd=cr_11_7 rs1=2 imm=cimmldsp
 illegal                | 100 0  00000  00000 10   # Reserved
 inst JALR   C.JR       | 100 0  .....  00000 10 | rd=0 rs1=cr_11_7 imm=0
-hint                   | 100 0  00000  ***** 10
+nop                    | 100 0  00000  ***** 10   # Hint
 inst ADD    C.MV       | 100 0  .....  ..... 10 | rd=cr_11_7 rs1=0 rs2=cr_6_2
 inst EBREAK C.EBREAK   | 100 1  00000  00000 10
 inst JALR   C.JALR     | 100 1  .....  00000 10 | rd=1 rs1=cr_11_7 imm=0
-hint                   | 100 1  00000  ***** 10
+nop                    | 100 1  00000  ***** 10   # Hint
 inst ADD    C.ADD      | 100 1  .....  ..... 10 | rd=rs1=cr_11_7 rs2=cr_6_2
 inst FSD    C.FSDSP    | 101  ......   ..... 10 | rs1=2 rs2=cr_6_2 imm=cimmsdsp
 inst SW     C.SWSP     | 110  ......   ..... 10 | rs1=2 rs2=cr_6_2 imm=cimmswsp

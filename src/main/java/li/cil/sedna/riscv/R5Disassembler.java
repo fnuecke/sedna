@@ -195,7 +195,7 @@ public final class R5Disassembler {
                 .append("    ");
 
         switch (declaration.type) {
-            case HINT:
+            case NOP:
                 sb.append(HINT);
                 return sb.toString();
             case ILLEGAL:

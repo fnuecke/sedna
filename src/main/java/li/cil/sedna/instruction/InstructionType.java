@@ -3,7 +3,7 @@ package li.cil.sedna.instruction;
 import java.util.HashMap;
 
 public enum InstructionType {
-    HINT("hint"),
+    NOP("nop"),
     ILLEGAL("illegal"),
     REGULAR("inst"),
 

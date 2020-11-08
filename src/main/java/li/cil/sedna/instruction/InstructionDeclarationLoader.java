@@ -90,8 +90,8 @@ public final class InstructionDeclarationLoader {
             case REGULAR:
                 name = context.tokens.remove(0);
                 break;
-            case HINT:
-                name = "HINT";
+            case NOP:
+                name = "NOP";
                 break;
             case ILLEGAL:
                 name = "ILLEGAL";
@@ -165,7 +165,7 @@ public final class InstructionDeclarationLoader {
             context.tokens.remove(0);
 
             while (!context.tokens.isEmpty()) {
-                if (type == InstructionType.HINT || type == InstructionType.ILLEGAL) {
+                if (type == InstructionType.NOP || type == InstructionType.ILLEGAL) {
                     throw new IllegalArgumentException(String.format("Unexpected token [%s].", context.tokens.get(0)));
                 }
 
