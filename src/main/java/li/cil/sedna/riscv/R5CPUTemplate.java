@@ -2395,7 +2395,7 @@ final class R5CPUTemplate implements R5CPU {
         }
 
         final int spp = (int) ((mstatus & R5.STATUS_SPP_MASK) >>> R5.STATUS_SPP_SHIFT); // Previous privilege level.
-        final int spie = (int) ((mstatus & R5.STATUS_SPIE_MASK) >>> R5.STATUS_SPIE_SHIFT); // Preview interrupt-enable state.
+        final int spie = (int) ((mstatus & R5.STATUS_SPIE_MASK) >>> R5.STATUS_SPIE_SHIFT); // Previous interrupt-enable state.
         mstatus = (mstatus & ~R5.STATUS_SIE_MASK) | ((R5.STATUS_SIE_MASK * spie) << R5.STATUS_SIE_SHIFT);
         mstatus = (mstatus & ~(1 << spp)) |
                   (spie << spp);
@@ -2416,7 +2416,7 @@ final class R5CPUTemplate implements R5CPU {
         }
 
         final int mpp = (int) ((mstatus & R5.STATUS_MPP_MASK) >>> R5.STATUS_MPP_SHIFT); // Previous privilege level.
-        final int mpie = (int) ((mstatus & R5.STATUS_MPIE_MASK) >>> R5.STATUS_MPIE_SHIFT); // Preview interrupt-enable state.
+        final int mpie = (int) ((mstatus & R5.STATUS_MPIE_MASK) >>> R5.STATUS_MPIE_SHIFT); // Previous interrupt-enable state.
         mstatus = (mstatus & ~R5.STATUS_MIE_MASK) | ((R5.STATUS_MIE_MASK * mpie) << R5.STATUS_MIE_SHIFT);
         mstatus |= R5.STATUS_MPIE_MASK;
         mstatus &= ~R5.STATUS_MPP_MASK;
