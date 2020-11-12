@@ -57,8 +57,7 @@ public final class R5Instructions {
     }
 
     public static void main(final String[] args) {
-        final ArrayList<InstructionDeclaration> declarations = R5Instructions.getDeclarations();
-        final AbstractDecoderTreeNode switchTree = DecoderTree.create(declarations);
-        switchTree.accept(new PrintStreamDecoderTreeVisitor(switchTree.getMaxDepth()));
+        final AbstractDecoderTreeNode tree = R5Instructions.getDecoderTree();
+        tree.accept(new PrintStreamDecoderTreeVisitor(tree.getMaxDepth()));
     }
 }
