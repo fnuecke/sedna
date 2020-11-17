@@ -68,7 +68,7 @@ public final class MemoryMaps {
      * @param length  the number of bytes to copy.
      * @throws MemoryAccessException when an exception is thrown while accessing a device.
      */
-    public static void store(final MemoryMap memory, final int address, final byte[] src, final int offset, final int length) throws MemoryAccessException {
+    public static void store(final MemoryMap memory, final long address, final byte[] src, final int offset, final int length) throws MemoryAccessException {
         final ByteBuffer buffer = ByteBuffer.wrap(src, offset, length);
         buffer.order(ByteOrder.LITTLE_ENDIAN);
         store(memory, address, buffer);
