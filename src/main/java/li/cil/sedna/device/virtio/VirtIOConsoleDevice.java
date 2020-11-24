@@ -2,11 +2,12 @@ package li.cil.sedna.device.virtio;
 
 import it.unimi.dsi.fastutil.bytes.ByteArrayFIFOQueue;
 import li.cil.ceres.api.Serialized;
+import li.cil.sedna.api.device.SerialDevice;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 
 @SuppressWarnings("PointlessBitwiseExpression")
-public final class VirtIOConsoleDevice extends AbstractVirtIODevice {
+public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements SerialDevice {
     private static final short DEFAULT_COLUMN_COUNT = 80;
     private static final short DEFAULT_ROW_COUNT = 25;
 
@@ -46,6 +47,7 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice {
                 .build());
     }
 
+    @Override
     public int read() {
         if (hasDeviceFailed()) {
             return -1;
@@ -74,6 +76,7 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice {
         return transmitBuffer.dequeueByte() & 0xFF;
     }
 
+    @Override
     public boolean canPutByte() {
         if (hasDeviceFailed()) {
             return false;
@@ -82,6 +85,7 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice {
         return receiveBuffer.size() < 32;
     }
 
+    @Override
     public void putByte(final byte value) {
         if (hasDeviceFailed()) {
             return;
@@ -96,6 +100,7 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice {
         }
     }
 
+    @Override
     public void flush() {
         if (hasDeviceFailed()) {
             return;

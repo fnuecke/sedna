@@ -4,10 +4,7 @@ import it.unimi.dsi.fastutil.bytes.ByteArrayFIFOQueue;
 import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Interrupt;
 import li.cil.sedna.api.Sizes;
-import li.cil.sedna.api.device.InterruptSource;
-import li.cil.sedna.api.device.MemoryMappedDevice;
-import li.cil.sedna.api.device.Resettable;
-import li.cil.sedna.api.device.Steppable;
+import li.cil.sedna.api.device.*;
 
 import java.util.Collections;
 
@@ -21,7 +18,7 @@ import java.util.Collections;
  */
 @SuppressWarnings("PointlessBitwiseExpression")
 @Serialized
-public final class UART16550A implements Resettable, Steppable, MemoryMappedDevice, InterruptSource {
+public final class UART16550A implements Resettable, Steppable, MemoryMappedDevice, SerialDevice, InterruptSource {
     private static final int UART_RBR_OFFSET = 0; // Receive buffer register (Read-only)
     private static final int UART_THR_OFFSET = 0; // Transmitter holding register (Write-only)
     private static final int UART_IER_OFFSET = 1; // Interrupt enable register (Read-write)
@@ -142,6 +139,7 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
         return interrupt;
     }
 
+    @Override
     public int read() {
         synchronized (lock) {
             if ((lsr & UART_LSR_TEMT) != 0) {
@@ -168,10 +166,12 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
         }
     }
 
+    @Override
     public boolean canPutByte() {
         return receiveFifo.size() < FIFO_QUEUE_CAPACITY;
     }
 
+    @Override
     public void putByte(final byte value) {
         synchronized (lock) {
             if ((fcr & UART_FCR_FE) != 0) {
