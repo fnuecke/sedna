@@ -5,6 +5,7 @@ import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Interrupt;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.*;
+import li.cil.sedna.api.device.serial.SerialDevice;
 
 import java.util.Collections;
 

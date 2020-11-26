@@ -1,4 +1,4 @@
-package li.cil.sedna.api.device;
+package li.cil.sedna.api.device.serial;
 
 public interface SerialDevice {
     int read();

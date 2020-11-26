@@ -2,7 +2,7 @@ package li.cil.sedna.device.virtio;
 
 import it.unimi.dsi.fastutil.bytes.ByteArrayFIFOQueue;
 import li.cil.ceres.api.Serialized;
-import li.cil.sedna.api.device.SerialDevice;
+import li.cil.sedna.api.device.serial.SerialDevice;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 
