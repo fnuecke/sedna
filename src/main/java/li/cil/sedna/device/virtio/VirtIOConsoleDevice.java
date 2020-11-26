@@ -32,7 +32,7 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
     private static final int VIRTQ_RECEIVE = 0; // receiveq(port0)
     private static final int VIRTQ_TRANSMIT = 1; // transmitq(port0)
     private static final int VIRTQ_RECEIVE_CONTROL = 2; // control receiveq
-    private static final int VIRTQ_TRANSMIT_CONTROL = 2; // control transmitq
+    private static final int VIRTQ_TRANSMIT_CONTROL = 3; // control transmitq
 
     // Store input and output in own buffers to avoid storing chains for serialization.
     @Serialized private final ByteArrayFIFOQueue transmitBuffer = new ByteArrayFIFOQueue(32);
