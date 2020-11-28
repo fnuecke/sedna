@@ -12,8 +12,12 @@ import java.util.stream.Collectors;
 public final class HostFileSystem implements FileSystem {
     private final File root;
 
+    public HostFileSystem() {
+        this(new File("."));
+    }
+
     public HostFileSystem(final File root) {
-        this.root = root;
+        this.root = root.getAbsoluteFile();
     }
 
     @Override
