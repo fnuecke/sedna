@@ -24,17 +24,24 @@ public final class ByteArrayFIFOQueueSerializer implements Serializer<ByteArrayF
     @Override
     public ByteArrayFIFOQueue deserialize(final DeserializationVisitor visitor, final Class<ByteArrayFIFOQueue> type, @Nullable final Object value) throws SerializationException {
         ByteArrayFIFOQueue queue = (ByteArrayFIFOQueue) value;
-        if (visitor.exists("values")) {
-            if (queue == null) {
-                queue = new ByteArrayFIFOQueue();
-            }
-            final byte[] values = (byte[]) visitor.getObject("values", byte[].class, null);
-            if (values != null) {
-                for (int i = 0; i < values.length; i++) {
-                    queue.enqueue(values[i]);
-                }
-            }
+        if (!visitor.exists("values")) {
+            return queue;
         }
+
+        final byte[] values = (byte[]) visitor.getObject("values", byte[].class, null);
+        if (values == null) {
+            return null;
+        }
+
+        if (queue == null) {
+            queue = new ByteArrayFIFOQueue();
+        }
+
+        queue.clear();
+        for (int i = 0; i < values.length; i++) {
+            queue.enqueue(values[i]);
+        }
+
         return queue;
     }
 }
