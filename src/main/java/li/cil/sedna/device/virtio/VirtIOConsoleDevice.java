@@ -11,6 +11,8 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
     private static final short DEFAULT_COLUMN_COUNT = 80;
     private static final short DEFAULT_ROW_COUNT = 25;
 
+    private static final int BUFFER_SIZE = 4 * 1024;
+
     private static final long VIRTIO_CONSOLE_F_SIZE = 1L << 0; // Configuration for cols and rows.
     private static final long VIRTIO_CONSOLE_F_MULTIPORT = 1L << 1; // Configuration max_nr_ports, control virtqueues.
     private static final long VIRTIO_CONSOLE_F_EMERG_WRITE = 1L << 2; // Supports emergency write.
@@ -35,8 +37,8 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
     private static final int VIRTQ_TRANSMIT_CONTROL = 3; // control transmitq
 
     // Store input and output in own buffers to avoid storing chains for serialization.
-    @Serialized private final ByteArrayFIFOQueue transmitBuffer = new ByteArrayFIFOQueue(32);
-    @Serialized private final ByteArrayFIFOQueue receiveBuffer = new ByteArrayFIFOQueue(32);
+    @Serialized private final ByteArrayFIFOQueue transmitBuffer = new ByteArrayFIFOQueue(BUFFER_SIZE);
+    @Serialized private final ByteArrayFIFOQueue receiveBuffer = new ByteArrayFIFOQueue(BUFFER_SIZE);
 
     public VirtIOConsoleDevice(final MemoryMap memoryMap) {
         super(memoryMap, VirtIODeviceSpec
@@ -82,7 +84,7 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
             return false;
         }
 
-        return receiveBuffer.size() < 32;
+        return receiveBuffer.size() < BUFFER_SIZE;
     }
 
     @Override
@@ -91,11 +93,11 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
             return;
         }
 
-        if (receiveBuffer.size() < 32) {
+        if (receiveBuffer.size() < BUFFER_SIZE) {
             receiveBuffer.enqueue(value);
         }
 
-        if (receiveBuffer.size() >= 32) {
+        if (receiveBuffer.size() >= BUFFER_SIZE) {
             flush();
         }
     }
