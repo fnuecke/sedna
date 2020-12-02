@@ -51,6 +51,10 @@ public final class InstructionDefinitionLoader {
         }
 
         for (final InstructionDeclaration declaration : declarations) {
+            if (declaration.type == InstructionType.ILLEGAL || declaration.type == InstructionType.NOP) {
+                continue;
+            }
+
             final InstructionFunctionVisitor visitor = visitorByInstructionName.get(declaration.name);
             if (visitor == null) {
                 LOGGER.warn("No instruction definition for instruction declaration [{}].", declaration.displayName);
