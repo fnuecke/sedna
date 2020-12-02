@@ -5,12 +5,14 @@ import li.cil.sedna.api.device.BlockDevice;
 import li.cil.sedna.api.device.Steppable;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
+import li.cil.sedna.device.block.NullBlockDevice;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ReadOnlyBufferException;
+import java.util.Objects;
 
 public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Steppable, Closeable {
     private static final int VIRTIO_BLK_SECTOR_SIZE = 512;
@@ -96,9 +98,13 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
 
     private static final ThreadLocal<ByteBuffer> REQUEST_HEADER_BUFFER = new ThreadLocal<>();
 
-    private final BlockDevice block;
+    private BlockDevice block;
     private int remainingByteProcessingQuota;
     @Serialized private boolean hasPendingRequest;
+
+    public VirtIOBlockDevice(final MemoryMap memoryMap) {
+        this(memoryMap, NullBlockDevice.INSTANCE);
+    }
 
     public VirtIOBlockDevice(final MemoryMap memoryMap, final BlockDevice block) {
         super(memoryMap, VirtIODeviceSpec.builder(VirtIODeviceType.VIRTIO_DEVICE_ID_BLOCK_DEVICE)
@@ -110,6 +116,14 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
                           VIRTIO_BLK_F_FLUSH)
                 .build());
         this.block = block;
+    }
+
+    public BlockDevice getBlockDevice() {
+        return block;
+    }
+
+    public void setBlockDevice(final BlockDevice block) {
+        this.block = Objects.requireNonNull(block);
     }
 
     @Override
