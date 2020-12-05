@@ -384,25 +384,50 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
             // infinite loops in the decoder (because cycle limit checks are done outside of it for
             // performance). If we're jumping forward, apply the delta to our instOffset instead.
 
-            // if (this.pc - pc <= 0) return;
+            methodVisitor.visitVarInsn(LLOAD, localPc); // [pc]
+            methodVisitor.visitVarInsn(ALOAD, GeneratorContext.LOCAL_THIS); // [pc, this]
+            methodVisitor.visitFieldInsn(GETFIELD, hostClassInternalName, "pc", "J"); // [pc, this.pc]
+
+            // if (pc >= this.pc) return;
+            methodVisitor.visitMethodInsn(INVOKESTATIC,
+                    Type.getInternalName(Long.class), "compareUnsigned",
+                    "(JJ)I", false); // [compare(pc, this.pc)]
+
+            final Label forwardJumpLabel = new Label();
+            methodVisitor.visitJumpInsn(IFLT, forwardJumpLabel); // []
+            methodVisitor.visitInsn(RETURN);
+            methodVisitor.visitLabel(forwardJumpLabel);
+
+            // localPc = this.pc; // update local pc for next inst
             methodVisitor.visitVarInsn(LLOAD, localPc); // [pc]
             methodVisitor.visitVarInsn(ALOAD, GeneratorContext.LOCAL_THIS); // [pc, this]
             methodVisitor.visitFieldInsn(GETFIELD, hostClassInternalName, "pc", "J"); // [pc, this.pc]
             methodVisitor.visitInsn(DUP2); // [pc, this.pc, this.pc]
             methodVisitor.visitVarInsn(LSTORE, localPc); // [pc, this.pc]
+
+            // delta = this.pc - pc;
             methodVisitor.visitInsn(LSUB); // [pc - this.pc]
             methodVisitor.visitInsn(LNEG); // [this.pc - pc]
-            methodVisitor.visitInsn(L2I); // [this.pc - pc]
-            methodVisitor.visitInsn(DUP); // [this.pc - pc, this.pc - pc]
-            final Label forwardJumpLabel = new Label();
-            methodVisitor.visitJumpInsn(IFGT, forwardJumpLabel); // [this.pc - pc]
-            methodVisitor.visitInsn(POP); // []
-            methodVisitor.visitInsn(RETURN);
-            methodVisitor.visitLabel(forwardJumpLabel); // [this.pc - pc]
 
-            // instOffset += this.pc - pc;
-            methodVisitor.visitVarInsn(ILOAD, GeneratorContext.LOCAL_INST_OFFSET); // [this.pc - pc, instOffset]
-            methodVisitor.visitInsn(IADD); // [this.pc - pc + instOffset]
+            // if ((long)(int)delta != delta) return; -> if delta cannot fit into an int we also stop
+            methodVisitor.visitInsn(DUP2); // [delta, delta]
+            methodVisitor.visitInsn(DUP2); // [delta, delta, delta]
+            methodVisitor.visitInsn(L2I); // [delta, delta, (int) delta]
+            methodVisitor.visitInsn(I2L); // [delta, delta, (long) (int) delta]
+            methodVisitor.visitInsn(LSUB); // [delta, delta - (long) (int) delta]
+            methodVisitor.visitInsn(LCONST_0); // [delta, delta - (long) (int) delta, 0]
+            methodVisitor.visitInsn(LCMP); // [delta, compare(delta - (long) (int) delta, 0)]
+
+            final Label notOutOfBoundsLabel = new Label();
+            methodVisitor.visitJumpInsn(IFEQ, notOutOfBoundsLabel); // [delta]
+            methodVisitor.visitInsn(POP2); // [] todo necessary?
+            methodVisitor.visitInsn(RETURN);
+            methodVisitor.visitLabel(notOutOfBoundsLabel);
+
+            // instOffset += delta;
+            methodVisitor.visitInsn(L2I); // [delta]
+            methodVisitor.visitVarInsn(ILOAD, GeneratorContext.LOCAL_INST_OFFSET); // [delta, instOffset]
+            methodVisitor.visitInsn(IADD); // [delta + instOffset]
             methodVisitor.visitVarInsn(ISTORE, GeneratorContext.LOCAL_INST_OFFSET); // []
             methodVisitor.visitJumpInsn(GOTO, continueLabel); // []
         }
