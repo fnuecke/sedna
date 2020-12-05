@@ -420,7 +420,6 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
 
             final Label notOutOfBoundsLabel = new Label();
             methodVisitor.visitJumpInsn(IFEQ, notOutOfBoundsLabel); // [delta]
-            methodVisitor.visitInsn(POP2); // [] todo necessary?
             methodVisitor.visitInsn(RETURN);
             methodVisitor.visitLabel(notOutOfBoundsLabel);
 
