@@ -12,6 +12,8 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.Collectors;
 
+import static org.junit.jupiter.api.Assertions.fail;
+
 public final class SoftFloatTests {
     private static final byte JAVA_ROUNDING_MODE = SoftFloat.RM_RNE;
 
@@ -33,7 +35,7 @@ public final class SoftFloatTests {
                         final OperationResult result1 = op.runJavaFloat(floatArgs, intArgs);
 
                         if (!Objects.equals(result0, result1)) {
-                            Assertions.fail(i + ": " + result0 + " != " + result1 + "\nargs=" + Arrays.toString(intArgs) + "," + Arrays.toString(floatArgs));
+                            fail(i + ": " + result0 + " != " + result1 + "\nargs=" + Arrays.toString(intArgs) + "," + Arrays.toString(floatArgs));
                         }
                     }
                 })).collect(Collectors.toList());

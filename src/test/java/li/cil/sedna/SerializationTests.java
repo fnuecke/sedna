@@ -11,27 +11,28 @@ import li.cil.sedna.device.memory.Memory;
 import li.cil.sedna.device.serial.UART16550A;
 import li.cil.sedna.device.virtio.VirtIOConsoleDevice;
 import li.cil.sedna.memory.SimpleMemoryMap;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 public final class SerializationTests {
     @Test
     public void testAtomicIntegerSerializer() {
         final AtomicInteger value = new AtomicInteger(123);
 
-        final ByteBuffer serialized = Assertions.assertDoesNotThrow(() -> BinarySerialization.serialize(value));
-        AtomicInteger deserialized = Assertions.assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, AtomicInteger.class));
+        final ByteBuffer serialized = assertDoesNotThrow(() -> BinarySerialization.serialize(value));
+        AtomicInteger deserialized = assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, AtomicInteger.class));
 
-        Assertions.assertEquals(value.get(), deserialized.get());
+        assertEquals(value.get(), deserialized.get());
 
         value.set(321);
-        deserialized = Assertions.assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, value));
+        deserialized = assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, value));
 
-        Assertions.assertSame(value, deserialized);
-        Assertions.assertEquals(123, value.get());
+        assertSame(value, deserialized);
+        assertEquals(123, value.get());
     }
 
     @Test
@@ -41,22 +42,22 @@ public final class SerializationTests {
         value.enqueue((byte) 3);
         value.enqueue((byte) 2);
 
-        final ByteBuffer serialized = Assertions.assertDoesNotThrow(() -> BinarySerialization.serialize(value));
-        ByteArrayFIFOQueue deserialized = Assertions.assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, ByteArrayFIFOQueue.class));
+        final ByteBuffer serialized = assertDoesNotThrow(() -> BinarySerialization.serialize(value));
+        ByteArrayFIFOQueue deserialized = assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, ByteArrayFIFOQueue.class));
 
-        Assertions.assertEquals(3, value.size());
-        Assertions.assertEquals(value.size(), deserialized.size());
-        Assertions.assertEquals(value.dequeueByte(), deserialized.dequeueByte());
-        Assertions.assertEquals(value.dequeueByte(), deserialized.dequeueByte());
-        Assertions.assertEquals(value.dequeueByte(), deserialized.dequeueByte());
+        assertEquals(3, value.size());
+        assertEquals(value.size(), deserialized.size());
+        assertEquals(value.dequeueByte(), deserialized.dequeueByte());
+        assertEquals(value.dequeueByte(), deserialized.dequeueByte());
+        assertEquals(value.dequeueByte(), deserialized.dequeueByte());
 
-        deserialized = Assertions.assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, value));
+        deserialized = assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, value));
 
-        Assertions.assertSame(value, deserialized);
-        Assertions.assertEquals(3, value.size());
-        Assertions.assertEquals(4, value.dequeueByte());
-        Assertions.assertEquals(3, value.dequeueByte());
-        Assertions.assertEquals(2, value.dequeueByte());
+        assertSame(value, deserialized);
+        assertEquals(3, value.size());
+        assertEquals(4, value.dequeueByte());
+        assertEquals(3, value.dequeueByte());
+        assertEquals(2, value.dequeueByte());
     }
 
     @Test
@@ -66,22 +67,22 @@ public final class SerializationTests {
         value.put(23, 74251L);
         value.put(75, 9023408235L);
 
-        final ByteBuffer serialized = Assertions.assertDoesNotThrow(() -> BinarySerialization.serialize(value));
-        Int2LongArrayMap deserialized = Assertions.assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, Int2LongArrayMap.class));
+        final ByteBuffer serialized = assertDoesNotThrow(() -> BinarySerialization.serialize(value));
+        Int2LongArrayMap deserialized = assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, Int2LongArrayMap.class));
 
-        Assertions.assertEquals(3, value.size());
-        Assertions.assertEquals(value.size(), deserialized.size());
-        Assertions.assertEquals(value.get(3), deserialized.get(3));
-        Assertions.assertEquals(value.get(23), deserialized.get(23));
-        Assertions.assertEquals(value.get(75), deserialized.get(75));
+        assertEquals(3, value.size());
+        assertEquals(value.size(), deserialized.size());
+        assertEquals(value.get(3), deserialized.get(3));
+        assertEquals(value.get(23), deserialized.get(23));
+        assertEquals(value.get(75), deserialized.get(75));
 
-        deserialized = Assertions.assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, value));
+        deserialized = assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, value));
 
-        Assertions.assertSame(value, deserialized);
-        Assertions.assertEquals(3, value.size());
-        Assertions.assertEquals(5123L, value.get(3));
-        Assertions.assertEquals(74251L, value.get(23));
-        Assertions.assertEquals(9023408235L, value.get(75));
+        assertSame(value, deserialized);
+        assertEquals(3, value.size());
+        assertEquals(5123L, value.get(3));
+        assertEquals(74251L, value.get(23));
+        assertEquals(9023408235L, value.get(75));
     }
 
     @Test
@@ -95,15 +96,15 @@ public final class SerializationTests {
         value.store(0 /* thr */, 72, Sizes.SIZE_8_LOG2);
         value.store(0 /* thr */, 16, Sizes.SIZE_8_LOG2);
 
-        final ByteBuffer serialized = Assertions.assertDoesNotThrow(() -> BinarySerialization.serialize(value));
-        final UART16550A deserialized = Assertions.assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, UART16550A.class));
+        final ByteBuffer serialized = assertDoesNotThrow(() -> BinarySerialization.serialize(value));
+        final UART16550A deserialized = assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, UART16550A.class));
 
-        Assertions.assertNotEquals(0, deserialized.load(2 /*fcr */, Sizes.SIZE_8_LOG2) & 1 /* fifo enabled */);
-        Assertions.assertEquals(5, deserialized.read());
-        Assertions.assertEquals(52, deserialized.read());
-        Assertions.assertEquals(32, deserialized.read());
-        Assertions.assertEquals(72, deserialized.read());
-        Assertions.assertEquals(16, deserialized.read());
+        assertNotEquals(0, deserialized.load(2 /*fcr */, Sizes.SIZE_8_LOG2) & 1 /* fifo enabled */);
+        assertEquals(5, deserialized.read());
+        assertEquals(52, deserialized.read());
+        assertEquals(32, deserialized.read());
+        assertEquals(72, deserialized.read());
+        assertEquals(16, deserialized.read());
     }
 
     @Test
@@ -168,13 +169,13 @@ public final class SerializationTests {
             value.store(0x050 /* notify */, 1 /* queueidx */, Sizes.SIZE_32_LOG2);
         }
 
-        final ByteBuffer serialized = Assertions.assertDoesNotThrow(() -> BinarySerialization.serialize(value));
+        final ByteBuffer serialized = assertDoesNotThrow(() -> BinarySerialization.serialize(value));
         value.reset();
-        final VirtIOConsoleDevice deserialized = Assertions.assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, value));
+        final VirtIOConsoleDevice deserialized = assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, value));
 
-        Assertions.assertEquals('t', deserialized.read());
-        Assertions.assertEquals('e', deserialized.read());
-        Assertions.assertEquals('s', deserialized.read());
-        Assertions.assertEquals('t', deserialized.read());
+        assertEquals('t', deserialized.read());
+        assertEquals('e', deserialized.read());
+        assertEquals('s', deserialized.read());
+        assertEquals('t', deserialized.read());
     }
 }

@@ -9,6 +9,8 @@ import li.cil.sedna.api.device.serial.SerialDevice;
 
 import java.util.Collections;
 
+import static java.util.Collections.singleton;
+
 /**
  * Implements a 16550A UART.
  * <p>
@@ -463,7 +465,7 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
 
     @Override
     public Iterable<Interrupt> getInterrupts() {
-        return Collections.singleton(interrupt);
+        return singleton(interrupt);
     }
 
     private void updateInterrupts() {

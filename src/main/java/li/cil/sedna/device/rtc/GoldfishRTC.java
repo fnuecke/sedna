@@ -9,6 +9,8 @@ import li.cil.sedna.api.device.rtc.RealTimeCounter;
 
 import java.util.Collections;
 
+import static java.util.Collections.singleton;
+
 /**
  * Goldfish RTC.
  * <p>
@@ -36,7 +38,7 @@ public final class GoldfishRTC implements InterruptSource, MemoryMappedDevice {
 
     @Override
     public Iterable<Interrupt> getInterrupts() {
-        return Collections.singleton(interrupt);
+        return singleton(interrupt);
     }
 
     @Override

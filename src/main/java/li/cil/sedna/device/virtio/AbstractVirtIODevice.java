@@ -13,8 +13,9 @@ import li.cil.sedna.memory.MemoryMaps;
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Collections;
 import java.util.NoSuchElementException;
+
+import static java.util.Collections.singletonList;
 
 /**
  * Base class for VirtIO devices taking care of common functionality.
@@ -780,7 +781,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
 
     @Override
     public final Iterable<Interrupt> getInterrupts() {
-        return Collections.singletonList(interrupt);
+        return singletonList(interrupt);
     }
 
     ///////////////////////////////////////////////////////////////////

@@ -21,6 +21,8 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 public final class ISATests {
     private static final Logger LOGGER = LogManager.getLogger();
 
@@ -48,7 +50,7 @@ public final class ISATests {
     @TestFactory
     public Collection<DynamicTest> testISA() {
         final File[] testFiles = new File("src/test/data/riscv-tests").listFiles();
-        Assertions.assertNotNull(testFiles);
+        assertNotNull(testFiles);
         return Arrays.stream(testFiles)
                 .filter(File::isFile)
                 .map(file -> {
@@ -87,7 +89,7 @@ public final class ISATests {
 
                         cpu.reset(true, elf.entryPoint);
 
-                        Assertions.assertThrows(TestSuccessful.class, () -> {
+                        assertThrows(TestSuccessful.class, () -> {
                             for (int i = 0; i < 1_000_000; i++) {
                                 cpu.step(1_000);
                             }
@@ -105,7 +107,7 @@ public final class ISATests {
             }
         }
 
-        Assertions.fail(".tohost not found in ELF");
+        fail(".tohost not found in ELF");
         return 0; // appeasing the compiler: this line will never be executed.
     }
 
@@ -207,7 +209,7 @@ public final class ISATests {
             if (toHost != 0) {
                 final int exitcode = (int) (toHost >>> 1);
                 if (exitcode != 0) {
-                    Assertions.fail("Test failed with exit code [" + exitcode + "].");
+                    fail("Test failed with exit code [" + exitcode + "].");
                 } else {
                     throw new TestSuccessful();
                 }

@@ -14,6 +14,8 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.Collectors;
 
+import static org.junit.jupiter.api.Assertions.fail;
+
 public final class SoftDoubleTests {
     private static final byte JAVA_ROUNDING_MODE = SoftDouble.RM_RNE;
 
@@ -35,7 +37,7 @@ public final class SoftDoubleTests {
                         final OperationResult result1 = op.runJavaDouble(doubleArgs, longArgs);
 
                         if (!Objects.equals(result0, result1)) {
-                            Assertions.fail(i + ": " + result0 + " != " + result1 + "\nargs=" + Arrays.toString(longArgs) + "," + Arrays.toString(doubleArgs));
+                            fail(i + ": " + result0 + " != " + result1 + "\nargs=" + Arrays.toString(longArgs) + "," + Arrays.toString(doubleArgs));
                         }
                     }
                 })).collect(Collectors.toList());
