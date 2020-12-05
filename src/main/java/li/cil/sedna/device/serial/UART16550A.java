@@ -4,10 +4,11 @@ import it.unimi.dsi.fastutil.bytes.ByteArrayFIFOQueue;
 import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Interrupt;
 import li.cil.sedna.api.Sizes;
-import li.cil.sedna.api.device.*;
+import li.cil.sedna.api.device.InterruptSource;
+import li.cil.sedna.api.device.MemoryMappedDevice;
+import li.cil.sedna.api.device.Resettable;
+import li.cil.sedna.api.device.Steppable;
 import li.cil.sedna.api.device.serial.SerialDevice;
-
-import java.util.Collections;
 
 import static java.util.Collections.singleton;
 
@@ -183,14 +184,14 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
                 } else {
                     lsr |= UART_LSR_OE;
                 }
-                lsr |= UART_LSR_DR;
             } else {
                 if ((lsr & UART_LSR_DR) != 0) {
                     lsr |= UART_LSR_OE;
                 }
                 rbr = value;
-                lsr |= UART_LSR_DR;
             }
+
+            lsr |= UART_LSR_DR;
 
             timeoutInterruptPending = true; // Not correct, but good enough.
             interruptUpdatePending = true;

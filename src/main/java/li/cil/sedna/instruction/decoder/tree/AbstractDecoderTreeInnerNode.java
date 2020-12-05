@@ -1,7 +1,7 @@
 package li.cil.sedna.instruction.decoder.tree;
 
-import li.cil.sedna.instruction.argument.FieldInstructionArgument;
 import li.cil.sedna.instruction.InstructionDeclaration;
+import li.cil.sedna.instruction.argument.FieldInstructionArgument;
 import li.cil.sedna.instruction.decoder.DecoderTreeNodeArguments;
 
 import java.util.ArrayList;

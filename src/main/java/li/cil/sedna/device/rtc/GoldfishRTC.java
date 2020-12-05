@@ -7,8 +7,6 @@ import li.cil.sedna.api.device.InterruptSource;
 import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
 
-import java.util.Collections;
-
 import static java.util.Collections.singleton;
 
 /**

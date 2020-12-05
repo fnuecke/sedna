@@ -48,7 +48,7 @@ public final class SoftDouble {
     private static final long QUIET_NAN_MASK = 1L << (MANTISSA_SIZE - 1);
     private static final long QUIET_NAN = (Integer.toUnsignedLong(EXPONENT_MASK) << MANTISSA_SIZE) | QUIET_NAN_MASK;
 
-    public SoftFloat.Flags flags;
+    public final SoftFloat.Flags flags;
 
     public SoftDouble() {
         flags = new SoftFloat.Flags();

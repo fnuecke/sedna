@@ -285,7 +285,7 @@ public final class ZipFileSystem implements FileSystem {
     }
 
     @Override
-    public void rename(final Path oldpath, final Path newpath) throws IOException {
+    public void rename(final Path oldPath, final Path newPath) throws IOException {
         throw new IOException();
     }
 

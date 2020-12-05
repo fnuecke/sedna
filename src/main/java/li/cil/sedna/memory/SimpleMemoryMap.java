@@ -6,7 +6,10 @@ import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MemoryRange;
 
 import javax.annotation.Nullable;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.OptionalLong;
 
 public final class SimpleMemoryMap implements MemoryMap {
     private final Map<MemoryMappedDevice, MemoryRange> devices = new HashMap<>();

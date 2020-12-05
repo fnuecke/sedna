@@ -150,8 +150,8 @@ public final class HostFileSystem implements FileSystem {
     }
 
     @Override
-    public void rename(final Path oldpath, final Path newpath) throws IOException {
-        Files.move(toHost(oldpath), toHost(newpath));
+    public void rename(final Path oldPath, final Path newPath) throws IOException {
+        Files.move(toHost(oldPath), toHost(newPath));
     }
 
     private java.nio.file.Path toHost(final Path path) {

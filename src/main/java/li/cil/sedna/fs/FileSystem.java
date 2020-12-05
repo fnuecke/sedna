@@ -32,5 +32,5 @@ public interface FileSystem {
 
     void unlink(final Path path) throws IOException;
 
-    void rename(final Path oldpath, final Path newpath) throws IOException;
+    void rename(final Path oldPath, final Path newPath) throws IOException;
 }
