@@ -9,7 +9,6 @@ import li.cil.sedna.elf.*;
 import li.cil.sedna.memory.SimpleMemoryMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 

@@ -2,7 +2,6 @@ package li.cil.sedna.riscv;
 
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.device.memory.ByteBufferMemory;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

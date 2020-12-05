@@ -1,7 +1,6 @@
 package li.cil.sedna;
 
 import li.cil.sedna.utils.SoftFloat;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 
