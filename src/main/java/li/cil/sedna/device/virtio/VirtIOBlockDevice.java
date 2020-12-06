@@ -12,7 +12,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ReadOnlyBufferException;
-import java.util.Objects;
+
+import static java.util.Objects.requireNonNull;
 
 public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Steppable, Closeable {
     private static final int VIRTIO_BLK_SECTOR_SIZE = 512;
@@ -123,7 +124,7 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     }
 
     public void setBlockDevice(final BlockDevice block) {
-        this.block = Objects.requireNonNull(block);
+        this.block = requireNonNull(block);
     }
 
     @Override

@@ -3,8 +3,9 @@ package li.cil.sedna.device.virtio;
 import li.cil.sedna.api.memory.MemoryAccessException;
 
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.function.Consumer;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * Provides a way of iterating over in virtqueues and obtain their available descriptor chains.
@@ -64,7 +65,7 @@ public interface VirtqueueIterator {
      * }</pre>
      */
     default void forEachRemaining(final Consumer<DescriptorChain> action) throws VirtIODeviceException, MemoryAccessException {
-        Objects.requireNonNull(action);
+        requireNonNull(action);
         while (hasNext())
             action.accept(next());
     }
