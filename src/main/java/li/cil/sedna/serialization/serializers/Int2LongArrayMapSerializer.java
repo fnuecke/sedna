@@ -6,7 +6,7 @@ import li.cil.ceres.api.*;
 import javax.annotation.Nullable;
 
 @RegisterSerializer
-public class Int2LongArrayMapSerializer implements Serializer<Int2LongArrayMap> {
+public final class Int2LongArrayMapSerializer implements Serializer<Int2LongArrayMap> {
     @Override
     public void serialize(final SerializationVisitor visitor, final Class<Int2LongArrayMap> type, final Object value) throws SerializationException {
         final Int2LongArrayMap map = (Int2LongArrayMap) value;
