@@ -51,10 +51,15 @@ public final class SimpleMemoryMap implements MemoryMap {
 
     @Override
     public boolean addDevice(final long address, final MemoryMappedDevice device) {
+        if (devices.containsKey(device)) {
+            return false;
+        }
+
         final MemoryRange deviceRange = new MemoryRange(device, address);
         if (devices.values().stream().anyMatch(range -> range.intersects(deviceRange))) {
             return false;
         }
+
         devices.put(device, deviceRange);
         return true;
     }
