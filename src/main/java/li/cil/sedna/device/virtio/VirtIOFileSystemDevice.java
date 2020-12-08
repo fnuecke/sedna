@@ -168,7 +168,7 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
     private final FileSystem fileSystem;
     private int remainingByteProcessingQuota;
 
-    @Serialized private final Int2ObjectArrayMap<FileSystemFile> files = new Int2ObjectArrayMap<>();
+    @Serialized private final FileSystemFileMap files = new FileSystemFileMap();
     @Serialized private boolean hasPendingRequest;
 
     public VirtIOFileSystemDevice(final MemoryMap memoryMap, final String tag, final FileSystem fileSystem) {
@@ -900,6 +900,10 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
         public long path;
     }
 
+    // Explicit non-generic type for serialization.
+    public static final class FileSystemFileMap extends Int2ObjectArrayMap<FileSystemFile> {
+    }
+
     /**
      * A reference to some object within a {@link FileSystem}.
      * <p>
@@ -917,6 +921,10 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
 
         private Path path;
         private FileHandle handle;
+
+        // For deserialization.
+        public FileSystemFile() {
+        }
 
         public FileSystemFile(final int id, final Path path) {
             this.id = id;
