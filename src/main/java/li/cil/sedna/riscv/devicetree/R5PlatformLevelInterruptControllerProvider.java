@@ -29,7 +29,7 @@ public final class R5PlatformLevelInterruptControllerProvider implements DeviceT
                 .addProp("#interrupt-cells", 1)
                 .addProp(DeviceNames.INTERRUPT_CONTROLLER)
                 .addProp(DevicePropertyNames.COMPATIBLE, "riscv,plic0")
-                .addProp("riscv,ndev", 31)
+                .addProp("riscv,ndev", R5PlatformLevelInterruptController.INTERRUPT_COUNT)
                 .addProp(DevicePropertyNames.PHANDLE, node.createPHandle(device));
     }
 }

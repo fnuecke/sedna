@@ -20,6 +20,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @Serialized
 public class R5PlatformLevelInterruptController implements MemoryMappedDevice, InterruptController, InterruptSource {
+    public static final int INTERRUPT_COUNT = 31;
+
     private static final int PLIC_PRIORITY_BASE = 0x000004;
     private static final int PLIC_PENDING_BASE = 0x001000;
     private static final int PLIC_ENABLE_BASE = 0x002000;
@@ -28,7 +30,8 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
     private static final int PLIC_CONTEXT_STRIDE = 0x1000;
     private static final int PLIC_LENGTH = 0x04000000;
 
-    private static final int PLIC_SOURCE_COUNT = 32; // Includes always off zero!
+    private static final int PLIC_SOURCE_COUNT = INTERRUPT_COUNT + 1; // Includes always off zero!
+    private static final int PLIC_SOURCE_MASK = INTERRUPT_COUNT; // Only works if interrupt count is 2^n - 1.
     private static final int PLIC_CONTEXT_COUNT = 2; // MEIP and SEIP for one hart.
     private static final int PLIC_MAX_PRIORITY = 7; // Number of priority level supported. Must have all bits set.
 
@@ -44,7 +47,7 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
     private final int[] enabled; // Contiguous words for all sources and all contexts (c0:s0...c0:sN,...,cM:s0...cM:N)
 
     public R5PlatformLevelInterruptController() {
-        sourceWords = (PLIC_SOURCE_COUNT + 31) >>> 5;
+        sourceWords = (PLIC_SOURCE_COUNT + R5PlatformLevelInterruptController.INTERRUPT_COUNT) >>> 5;
         priorityBySource = new int[PLIC_SOURCE_COUNT];
         thresholdByContext = new int[PLIC_CONTEXT_COUNT];
         pending = new AtomicInteger[sourceWords];
@@ -241,7 +244,7 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
 
     private void setPending(final int source, final boolean value) {
         final int word = source >>> 5;
-        final int mask = 1 << (source & 31);
+        final int mask = 1 << (source & PLIC_SOURCE_MASK);
         if (value) {
             pending[word].updateAndGet(operand -> operand |= mask);
         } else {
@@ -280,7 +283,7 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
 
     private void setClaimed(final int source, final boolean value) {
         final int word = source >>> 5;
-        final int mask = 1 << (source & 31);
+        final int mask = 1 << (source & PLIC_SOURCE_MASK);
         if (value) {
             claimed[word].updateAndGet(operand -> operand |= mask);
         } else {
