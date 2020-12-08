@@ -83,6 +83,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
     private final String decoderHook;
     private final String illegalInstructionInternalName;
     private String hostClassInternalName;
+    private int instructionGroupMethodIndex;
 
     public DecoderGenerator(final ClassVisitor cv,
                             final AbstractDecoderTreeNode decoderTree,
@@ -562,9 +563,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                     .collect(Collectors.toList());
             final boolean containsReturns = definitions.stream().anyMatch(d -> d.writesPC || d.returnsBoolean);
 
-            final String methodName = instructions.stream()
-                                              .map(i -> i.displayName.replaceAll("[^a-z^A-Z]", "_"))
-                                              .collect(Collectors.joining("$")) + "." + System.nanoTime();
+            final String methodName = "__GENERATED__instructionGroup" + (instructionGroupMethodIndex++);
             final String methodDescriptor = "(IJ" + StringUtils.repeat('I', parameters.size()) + ")" + (containsReturns ? "I" : "V");
 
             context.methodVisitor.visitVarInsn(ALOAD, GeneratorContext.LOCAL_THIS);
