@@ -116,9 +116,9 @@ final class R5CPUTemplate implements R5CPU {
     // Memory access
 
     // Translation look-aside buffers.
-    private final transient R5CPUTLBEntry[] fetchTLB = new R5CPUTLBEntry[TLB_SIZE];
-    private final transient R5CPUTLBEntry[] loadTLB = new R5CPUTLBEntry[TLB_SIZE];
-    private final transient R5CPUTLBEntry[] storeTLB = new R5CPUTLBEntry[TLB_SIZE];
+    private final transient TLBEntry[] fetchTLB = new TLBEntry[TLB_SIZE];
+    private final transient TLBEntry[] loadTLB = new TLBEntry[TLB_SIZE];
+    private final transient TLBEntry[] storeTLB = new TLBEntry[TLB_SIZE];
 
     // Access to physical memory for load/store operations.
     private final transient MemoryMap physicalMemory;
@@ -141,13 +141,13 @@ final class R5CPUTemplate implements R5CPU {
         this.physicalMemory = physicalMemory;
 
         for (int i = 0; i < TLB_SIZE; i++) {
-            fetchTLB[i] = new R5CPUTLBEntry();
+            fetchTLB[i] = new TLBEntry();
         }
         for (int i = 0; i < TLB_SIZE; i++) {
-            loadTLB[i] = new R5CPUTLBEntry();
+            loadTLB[i] = new TLBEntry();
         }
         for (int i = 0; i < TLB_SIZE; i++) {
-            storeTLB[i] = new R5CPUTLBEntry();
+            storeTLB[i] = new TLBEntry();
         }
 
         reset();
@@ -277,7 +277,7 @@ final class R5CPUTemplate implements R5CPU {
         // instruction would fully fit a page. The last 16bit in a page may be the start of
         // a 32bit instruction spanning two pages, a special case we handle outside the loop.
         try {
-            final R5CPUTLBEntry cache = fetchPage(pc);
+            final TLBEntry cache = fetchPage(pc);
             final MemoryMappedDevice device = cache.device;
             final int instOffset = (int) (pc + cache.toOffset);
             final int instEnd = instOffset - (int) (pc & R5.PAGE_ADDRESS_MASK) // Page start.
@@ -290,7 +290,7 @@ final class R5CPUTemplate implements R5CPU {
                 } else { // Unlikely case, instruction may leave page if it is 32bit.
                     inst = (short) device.load(instOffset, Sizes.SIZE_16_LOG2) & 0xFFFF;
                     if ((inst & 0b11) == 0b11) { // 32bit instruction.
-                        final R5CPUTLBEntry highCache = fetchPage(pc + 2);
+                        final TLBEntry highCache = fetchPage(pc + 2);
                         final MemoryMappedDevice highDevice = cache.device;
                         inst |= highDevice.load((int) (pc + 2 + highCache.toOffset), Sizes.SIZE_16_LOG2) << 16;
                     }
@@ -1007,14 +1007,14 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // MMU
 
-    private R5CPUTLBEntry fetchPage(final long address) throws R5MemoryAccessException {
+    private TLBEntry fetchPage(final long address) throws R5MemoryAccessException {
         if ((address & 1) != 0) {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_MISALIGNED_FETCH);
         }
 
         final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
         final long hash = address & ~R5.PAGE_ADDRESS_MASK;
-        final R5CPUTLBEntry entry = fetchTLB[index];
+        final TLBEntry entry = fetchTLB[index];
         if (entry.hash == hash) {
             return entry;
         } else {
@@ -1059,7 +1059,7 @@ final class R5CPUTemplate implements R5CPU {
         final int alignment = size / 8; // Enforce aligned memory access.
         final int alignmentMask = alignment - 1;
         final long hash = address & ~(R5.PAGE_ADDRESS_MASK & ~alignmentMask);
-        final R5CPUTLBEntry entry = loadTLB[index];
+        final TLBEntry entry = loadTLB[index];
         if (entry.hash == hash) {
             try {
                 return entry.device.load((int) (address + entry.toOffset), sizeLog2);
@@ -1076,7 +1076,7 @@ final class R5CPUTemplate implements R5CPU {
         final int alignment = size / 8; // Enforce aligned memory access.
         final int alignmentMask = alignment - 1;
         final long hash = address & ~(R5.PAGE_ADDRESS_MASK & ~alignmentMask);
-        final R5CPUTLBEntry entry = storeTLB[index];
+        final TLBEntry entry = storeTLB[index];
         if (entry.hash == hash) {
             try {
                 entry.device.store((int) (address + entry.toOffset), value, sizeLog2);
@@ -1088,8 +1088,8 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    private R5CPUTLBEntry fetchPageSlow(final long address) throws R5MemoryAccessException {
-        final long physicalAddress = getPhysicalAddress(address, R5CPUMemoryAccessType.FETCH);
+    private TLBEntry fetchPageSlow(final long address) throws R5MemoryAccessException {
+        final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.FETCH);
         final MemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
         if (range == null || !range.device.supportsFetch()) {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_FETCH);
@@ -1104,7 +1104,7 @@ final class R5CPUTemplate implements R5CPU {
         if (alignment != 0) {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_MISALIGNED_LOAD);
         } else {
-            final long physicalAddress = getPhysicalAddress(address, R5CPUMemoryAccessType.LOAD);
+            final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.LOAD);
             final MemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
             if (range == null) {
                 throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_LOAD);
@@ -1112,7 +1112,7 @@ final class R5CPUTemplate implements R5CPU {
 
             try {
                 if (range.device.supportsFetch()) {
-                    final R5CPUTLBEntry entry = updateTLB(loadTLB, address, physicalAddress, range);
+                    final TLBEntry entry = updateTLB(loadTLB, address, physicalAddress, range);
                     return entry.device.load((int) (address + entry.toOffset), sizeLog2);
                 } else {
                     return range.device.load((int) (physicalAddress - range.start), sizeLog2);
@@ -1129,7 +1129,7 @@ final class R5CPUTemplate implements R5CPU {
         if (alignment != 0) {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_MISALIGNED_STORE);
         } else {
-            final long physicalAddress = getPhysicalAddress(address, R5CPUMemoryAccessType.STORE);
+            final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.STORE);
             final MemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
             if (range == null) {
                 throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_STORE);
@@ -1137,7 +1137,7 @@ final class R5CPUTemplate implements R5CPU {
 
             try {
                 if (range.device.supportsFetch()) {
-                    final R5CPUTLBEntry entry = updateTLB(storeTLB, address, physicalAddress, range);
+                    final TLBEntry entry = updateTLB(storeTLB, address, physicalAddress, range);
                     final int offset = (int) (address + entry.toOffset);
                     entry.device.store(offset, value, sizeLog2);
                     physicalMemory.setDirty(range, offset);
@@ -1150,9 +1150,9 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    private long getPhysicalAddress(final long virtualAddress, final R5CPUMemoryAccessType accessType) throws R5MemoryAccessException {
+    private long getPhysicalAddress(final long virtualAddress, final MemoryAccessType accessType) throws R5MemoryAccessException {
         final int privilege;
-        if ((mstatus & R5.STATUS_MPRV_MASK) != 0 && accessType != R5CPUMemoryAccessType.FETCH) {
+        if ((mstatus & R5.STATUS_MPRV_MASK) != 0 && accessType != MemoryAccessType.FETCH) {
             privilege = (int) ((mstatus & R5.STATUS_MPP_MASK) >>> R5.STATUS_MPP_SHIFT);
         } else {
             privilege = this.priv;
@@ -1216,7 +1216,7 @@ final class R5CPUTemplate implements R5CPU {
             final boolean userModeFlag = (pte & R5.PTE_U_MASK) != 0;
             if (privilege == R5.PRIVILEGE_S) {
                 if (userModeFlag &&
-                    (accessType == R5CPUMemoryAccessType.FETCH || (mstatus & R5.STATUS_SUM_MASK) == 0))
+                    (accessType == MemoryAccessType.FETCH || (mstatus & R5.STATUS_SUM_MASK) == 0))
                     throw getPageFaultException(accessType, virtualAddress);
             } else if (!userModeFlag) {
                 throw getPageFaultException(accessType, virtualAddress);
@@ -1242,9 +1242,9 @@ final class R5CPUTemplate implements R5CPU {
 
             // 7. Update accessed and dirty flags.
             if ((pte & R5.PTE_A_MASK) == 0 ||
-                (accessType == R5CPUMemoryAccessType.STORE && (pte & R5.PTE_D_MASK) == 0)) {
+                (accessType == MemoryAccessType.STORE && (pte & R5.PTE_D_MASK) == 0)) {
                 pte |= R5.PTE_A_MASK;
-                if (accessType == R5CPUMemoryAccessType.STORE) {
+                if (accessType == MemoryAccessType.STORE) {
                     pte |= R5.PTE_D_MASK;
                 }
 
@@ -1264,7 +1264,7 @@ final class R5CPUTemplate implements R5CPU {
         throw getPageFaultException(accessType, virtualAddress);
     }
 
-    private static R5MemoryAccessException getPageFaultException(final R5CPUMemoryAccessType accessType, final long address) {
+    private static R5MemoryAccessException getPageFaultException(final MemoryAccessType accessType, final long address) {
         switch (accessType) {
             case LOAD:
                 return new R5MemoryAccessException(address, R5.EXCEPTION_LOAD_PAGE_FAULT);
@@ -1280,11 +1280,11 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // TLB
 
-    private static R5CPUTLBEntry updateTLB(final R5CPUTLBEntry[] tlb, final long address, final long physicalAddress, final MemoryRange range) {
+    private static TLBEntry updateTLB(final TLBEntry[] tlb, final long address, final long physicalAddress, final MemoryRange range) {
         final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
         final long hash = address & ~R5.PAGE_ADDRESS_MASK;
 
-        final R5CPUTLBEntry entry = tlb[index];
+        final TLBEntry entry = tlb[index];
         entry.hash = hash;
         entry.toOffset = physicalAddress - address - range.start;
         entry.device = range.device;
@@ -3076,7 +3076,7 @@ final class R5CPUTemplate implements R5CPU {
 
     ///////////////////////////////////////////////////////////////////
 
-    private enum R5CPUMemoryAccessType {
+    private enum MemoryAccessType {
         LOAD(R5.PTE_R_MASK),
         STORE(R5.PTE_W_MASK),
         FETCH(R5.PTE_X_MASK),
@@ -3084,12 +3084,12 @@ final class R5CPUTemplate implements R5CPU {
 
         public final int mask;
 
-        R5CPUMemoryAccessType(final int mask) {
+        MemoryAccessType(final int mask) {
             this.mask = mask;
         }
     }
 
-    private static final class R5CPUTLBEntry {
+    private static final class TLBEntry {
         public long hash = -1;
         public long toOffset;
         public MemoryMappedDevice device;
