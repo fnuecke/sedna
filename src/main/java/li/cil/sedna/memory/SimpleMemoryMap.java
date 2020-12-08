@@ -67,7 +67,9 @@ public final class SimpleMemoryMap implements MemoryMap {
     @Override
     public void removeDevice(final MemoryMappedDevice device) {
         devices.remove(device);
-        cache = null;
+        if (cache != null && cache.device == device) {
+            cache = null;
+        }
     }
 
     @Override
