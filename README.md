@@ -54,7 +54,7 @@ Instruction implementations are defined in [the RISC-V CPU class](src/main/java/
 ## Endianness
 
 The emulator presents itself as a little-endian system to code running inside it. This should also work correctly on
-bit-endian host systems, but has not been tested.
+big-endian host systems, but has not been tested.
 
 ## Tests
 
