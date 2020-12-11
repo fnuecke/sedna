@@ -132,6 +132,7 @@ final class R5CPUTemplate implements R5CPU {
     // where it doesn't use the SBI. Not implementing it would cause an illegal instruction exception
     // halting the system.
     private final transient RealTimeCounter rtc;
+    private transient int cycleFrequency = 50_000_000;
 
     public R5CPUTemplate(final MemoryMap physicalMemory, @Nullable final RealTimeCounter rtc) {
         // This cast is necessary so that stack frame computation in ASM does not throw
@@ -212,7 +213,12 @@ final class R5CPUTemplate implements R5CPU {
 
     @Override
     public int getFrequency() {
-        return 50_000_000;
+        return cycleFrequency;
+    }
+
+    @Override
+    public void setFrequency(final int value) {
+        cycleFrequency = value;
     }
 
     @Override
