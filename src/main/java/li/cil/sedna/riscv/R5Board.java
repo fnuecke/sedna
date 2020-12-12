@@ -1,6 +1,7 @@
 package li.cil.sedna.riscv;
 
 import li.cil.ceres.api.Serialized;
+import li.cil.sedna.api.Board;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.*;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
@@ -27,7 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.OptionalLong;
 
-public final class R5Board implements Steppable, Resettable {
+public final class R5Board implements Board {
     private static final Logger LOGGER = LogManager.getLogger();
 
     private static final long PHYSICAL_MEMORY_FIRST = 0x80000000L;
@@ -75,32 +76,29 @@ public final class R5Board implements Steppable, Resettable {
         addDevice(FLASH_ADDRESS, flash);
     }
 
-    public MemoryMap getMemoryMap() {
-        return memoryMap;
+    public boolean isRunning() {
+        return isRunning;
+    }
+
+    public void setRunning(final boolean value) {
+        isRunning = value;
     }
 
     public R5CPU getCpu() {
         return cpu;
     }
 
+    @Override
+    public MemoryMap getMemoryMap() {
+        return memoryMap;
+    }
+
+    @Override
     public InterruptController getInterruptController() {
         return plic;
     }
 
-    public void setBootArguments(final String value) {
-        if (value != null && value.length() > 64) {
-            throw new IllegalArgumentException();
-        }
-        this.bootargs = value;
-    }
-
-    public void setStandardOutputDevice(@Nullable final MemoryMappedDevice device) {
-        if (device != null && !devices.contains(device)) {
-            throw new IllegalArgumentException();
-        }
-        standardOutputDevice = device;
-    }
-
+    @Override
     public boolean addDevice(final long address, final MemoryMappedDevice device) {
         if (device.getLength() == 0) {
             return false;
@@ -126,6 +124,7 @@ public final class R5Board implements Steppable, Resettable {
         return true;
     }
 
+    @Override
     public boolean addDevice(final MemoryMappedDevice device) {
         if (device.getLength() == 0) {
             return false;
@@ -144,6 +143,7 @@ public final class R5Board implements Steppable, Resettable {
         return address.isPresent() && addDevice(address.getAsLong(), device);
     }
 
+    @Override
     public void removeDevice(final MemoryMappedDevice device) {
         memoryMap.removeDevice(device);
         devices.remove(device);
@@ -157,12 +157,25 @@ public final class R5Board implements Steppable, Resettable {
         }
     }
 
-    public boolean isRunning() {
-        return isRunning;
+    @Override
+    public int getInterruptCount() {
+        return R5PlatformLevelInterruptController.INTERRUPT_COUNT;
     }
 
-    public void setRunning(final boolean value) {
-        isRunning = value;
+    @Override
+    public void setBootArguments(final String value) {
+        if (value != null && value.length() > 64) {
+            throw new IllegalArgumentException();
+        }
+        this.bootargs = value;
+    }
+
+    @Override
+    public void setStandardOutputDevice(@Nullable final MemoryMappedDevice device) {
+        if (device != null && !devices.contains(device)) {
+            throw new IllegalArgumentException();
+        }
+        standardOutputDevice = device;
     }
 
     @Override
