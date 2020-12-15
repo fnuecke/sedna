@@ -1,7 +1,5 @@
 package li.cil.sedna.devicetree;
 
-import it.unimi.dsi.fastutil.ints.IntArraySet;
-import it.unimi.dsi.fastutil.ints.IntSet;
 import it.unimi.dsi.fastutil.objects.Object2IntArrayMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import li.cil.sedna.api.device.Device;
@@ -16,8 +14,7 @@ import java.util.function.Consumer;
 final class DeviceTreeImpl implements DeviceTree {
     @Nullable private final DeviceTreeImpl parent;
     private final DeviceTreeImpl root;
-    private final Object2IntMap<Device> phandles;
-    private final IntSet createdPhandles;
+    private final Object2IntMap<Object> phandles;
     private final MemoryMap mmu;
 
     public final String name; // node-name
@@ -29,7 +26,6 @@ final class DeviceTreeImpl implements DeviceTree {
         this.parent = parent;
         this.root = parent != null ? parent.root : this;
         this.phandles = parent != null ? parent.phandles : new Object2IntArrayMap<>();
-        this.createdPhandles = parent != null ? parent.createdPhandles : new IntArraySet();
         this.mmu = mmu;
         this.name = name == null ? "" : validateName(name);
         this.address = address;
@@ -47,15 +43,8 @@ final class DeviceTreeImpl implements DeviceTree {
     }
 
     @Override
-    public int createPHandle(final Device device) {
-        final int phandle = getPHandle(device);
-        createdPhandles.add(phandle);
-        return phandle;
-    }
-
-    @Override
     public int getPHandle(final Device device) {
-        return phandles.computeIntIfAbsent(device, d -> phandles.size() + 1);
+        return phandles.computeIntIfAbsent(device.getIdentity(), d -> phandles.size() + 1);
     }
 
     @Override

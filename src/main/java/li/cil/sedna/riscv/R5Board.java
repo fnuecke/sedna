@@ -308,7 +308,7 @@ public final class R5Board implements Board {
                                 .addProp(DevicePropertyNames.NUM_INTERRUPT_CELLS, 1)
                                 .addProp(DevicePropertyNames.INTERRUPT_CONTROLLER)
                                 .addProp(DevicePropertyNames.COMPATIBLE, "riscv,cpu-intc")
-                                .addProp(DevicePropertyNames.PHANDLE, ic.createPHandle(cpu)))));
+                                .addProp(DevicePropertyNames.PHANDLE, ic.getPHandle(cpu)))));
 
         root.putChild("soc", soc -> soc
                 .addProp(DevicePropertyNames.NUM_ADDRESS_CELLS, 2)

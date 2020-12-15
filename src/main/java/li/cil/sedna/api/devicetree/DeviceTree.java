@@ -9,8 +9,6 @@ import java.util.function.Consumer;
 public interface DeviceTree {
     FlattenedDeviceTree flatten();
 
-    int createPHandle(final Device device);
-
     int getPHandle(final Device device);
 
     DeviceTree find(final String path);

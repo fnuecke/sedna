@@ -24,7 +24,7 @@ public final class SystemControllerProvider implements DeviceTreeProvider {
 
     @Override
     public void visit(final DeviceTree node, final MemoryMap memoryMap, final Device device) {
-        final int handle = node.createPHandle(device);
+        final int handle = node.getPHandle(device);
         node
                 .addProp(DevicePropertyNames.COMPATIBLE, "syscon")
                 .addProp(DevicePropertyNames.PHANDLE, handle);
