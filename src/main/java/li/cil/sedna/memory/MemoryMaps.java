@@ -7,6 +7,8 @@ import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MemoryRange;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -102,6 +104,33 @@ public final class MemoryMaps {
 
             store(range.device, offset, length, src);
             address += length;
+        }
+    }
+
+    public static void store(final MemoryMap memory, long address, final InputStream stream) throws IOException {
+        final byte[] array = new byte[64 * 1024];
+        final ByteBuffer buffer = ByteBuffer.wrap(array);
+        for (; ; ) {
+            final MemoryRange range = memory.getMemoryRange(address);
+            if (range == null) {
+                address++;
+                if (stream.read() < 0) {
+                    break;
+                }
+                continue;
+            }
+
+            final int offset = (int) (address - range.start);
+            final int maxReadCount = Math.min((int) (range.end - address + 1), array.length);
+
+            final int readCount = stream.read(array, 0, maxReadCount);
+            if (readCount < 0) {
+                break;
+            }
+
+            buffer.clear();
+            store(range.device, offset, readCount, buffer);
+            address += readCount;
         }
     }
 
