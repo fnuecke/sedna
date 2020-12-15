@@ -112,8 +112,8 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
                 .configSpaceSize(56)
                 .queueCount(1)
                 .features((block.isReadonly() ? VIRTIO_BLK_F_RO : 0) |
-                          VIRTIO_BLK_F_SIZE_MAX |
-                          VIRTIO_BLK_F_SEG_MAX |
+//                          VIRTIO_BLK_F_SIZE_MAX |
+//                          VIRTIO_BLK_F_SEG_MAX |
                           VIRTIO_BLK_F_FLUSH)
                 .build());
         this.block = block;
