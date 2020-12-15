@@ -140,8 +140,11 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
 
     @Override
     public void step(final int cycles) {
+        final int byteQuota = Math.max(1, cycles * BYTES_PER_THOUSAND_CYCLES / 1000);
         if (remainingByteProcessingQuota <= 0) {
-            remainingByteProcessingQuota += Math.max(1, cycles * BYTES_PER_THOUSAND_CYCLES / 1000);
+            remainingByteProcessingQuota += byteQuota;
+        } else {
+            remainingByteProcessingQuota = byteQuota;
         }
 
         if (!hasPendingRequest) {
