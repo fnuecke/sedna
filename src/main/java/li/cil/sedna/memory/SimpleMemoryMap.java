@@ -1,5 +1,6 @@
 package li.cil.sedna.memory;
 
+import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
@@ -18,7 +19,7 @@ public final class SimpleMemoryMap implements MemoryMap {
     private MemoryRange cache;
 
     @Override
-    public OptionalLong findFreeRange(final long start, final long end, final int size) {
+    public OptionalLong findFreeRange(long start, final long end, final int size) {
         if (size == 0) {
             return OptionalLong.empty();
         }
@@ -33,6 +34,13 @@ public final class SimpleMemoryMap implements MemoryMap {
 
         if (Long.compareUnsigned(start, -1L - size) > 0) {
             return OptionalLong.empty();
+        }
+
+        // Always align to 64 bit. Otherwise device I/O may require load/stores of
+        // individual byte values, which most device implementations do not support.
+        final int alignment = (int) (start % Sizes.SIZE_64_BYTES);
+        if (alignment != 0) {
+            start = start + (Sizes.SIZE_64_BYTES - alignment);
         }
 
         final MemoryRange candidateRange = new MemoryRange(null, start, start + size);
