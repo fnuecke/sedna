@@ -33,6 +33,10 @@ public interface BlockDevice extends Closeable {
      */
     ByteBuffer getView(long offset, int length);
 
+    default ByteBuffer getView() {
+        return getView(0, (int) getCapacity());
+    }
+
     default void flush() {
     }
 
