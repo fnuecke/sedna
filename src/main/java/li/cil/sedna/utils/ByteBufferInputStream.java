@@ -1,5 +1,6 @@
 package li.cil.sedna.utils;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 
@@ -28,5 +29,18 @@ public final class ByteBufferInputStream extends InputStream {
         buffer.get(b, off, len);
 
         return len;
+    }
+
+    @Override
+    public long skip(final long n) throws IOException {
+        final int newPosition = (int) Math.min(buffer.position() + n, buffer.limit());
+        final int skipped = newPosition - buffer.position();
+        buffer.position(newPosition);
+        return skipped;
+    }
+
+    @Override
+    public int available() throws IOException {
+        return buffer.remaining();
     }
 }
