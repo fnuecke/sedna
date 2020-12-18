@@ -1,12 +1,11 @@
 package li.cil.sedna.device.block;
 
 import li.cil.sedna.api.device.BlockDevice;
+import li.cil.sedna.utils.ByteBufferInputStream;
+import li.cil.sedna.utils.ByteBufferOutputStream;
 import org.apache.commons.io.IOUtils;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.RandomAccessFile;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 
@@ -49,19 +48,27 @@ public class ByteBufferBlockDevice implements BlockDevice {
     }
 
     @Override
-    public ByteBuffer getView(final long offset, final int length) {
+    public InputStream getInputStream(final long offset) {
         if (offset < 0 || offset > Integer.MAX_VALUE) {
             throw new IllegalArgumentException();
         }
 
-        data.limit((int) offset + length);
         data.position((int) offset);
-        final ByteBuffer slice = data.slice();
-        if (readonly) {
-            return slice.asReadOnlyBuffer();
-        } else {
-            return slice;
+        return new ByteBufferInputStream(data);
+    }
+
+    @Override
+    public OutputStream getOutputStream(final long offset) {
+        if (isReadonly()) {
+            throw new UnsupportedOperationException();
         }
+
+        if (offset < 0 || offset > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException();
+        }
+
+        data.position((int) offset);
+        return new ByteBufferOutputStream(data);
     }
 
     private static final class FileByteBufferBlockDevice extends ByteBufferBlockDevice {

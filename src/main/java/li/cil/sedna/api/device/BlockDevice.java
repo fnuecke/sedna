@@ -2,14 +2,14 @@ package li.cil.sedna.api.device;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 public interface BlockDevice extends Closeable {
     /**
      * Returns whether this device is read-only.
      * <p>
-     * When {@code true}, modifying the buffer returned from {@link #getView(long, int)}
-     * will throw an {@link UnsupportedOperationException}.
+     * When {@code true}, {@link #getOutputStream()} will throw an {@link UnsupportedOperationException}.
      *
      * @return whether this device is read-only.
      */
@@ -23,18 +23,41 @@ public interface BlockDevice extends Closeable {
     long getCapacity();
 
     /**
-     * Get a view on a section of the data in the block device.
+     * Get a stream that can be used for reading data from the block device.
      *
-     * @param offset the offset of the view.
-     * @param length the length of the view.
-     * @return the view on the specified section
-     * @throws IllegalArgumentException if the interval specified via {@code offset} and
-     *                                  {@code length} does not fit into the block device.
+     * @param offset the position in the block device to start reading from.
+     * @return a stream for reading from the device.
      */
-    ByteBuffer getView(long offset, int length);
+    InputStream getInputStream(long offset);
 
-    default ByteBuffer getView() {
-        return getView(0, (int) getCapacity());
+    /**
+     * Get a stream that can be used for reading data from the block device.
+     * <p>
+     * Starts reading at the start of the block device.
+     *
+     * @return a stream for reading from the device.
+     */
+    default InputStream getInputStream() {
+        return getInputStream(0);
+    }
+
+    /**
+     * Get a stream that can be used to write data to the block device.
+     *
+     * @param offset the position in the block device to start writing at.
+     * @return a stream for writing to the device.
+     */
+    OutputStream getOutputStream(long offset);
+
+    /**
+     * Get a stream that can be used to write data to the block device.
+     * <p>
+     * Starts writing at the start of the block device.
+     *
+     * @return a stream for writing to the device.
+     */
+    default OutputStream getOutputStream() {
+        return getOutputStream(0);
     }
 
     default void flush() {

@@ -9,11 +9,11 @@ import li.cil.sedna.device.block.NullBlockDevice;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ReadOnlyBufferException;
-
-import static java.util.Objects.requireNonNull;
 
 public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Steppable, Closeable {
     private static final int VIRTIO_BLK_SECTOR_SIZE = 512;
@@ -97,9 +97,11 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     private static final int MAX_SEGMENT_COUNT = 64;
     private static final int BYTES_PER_THOUSAND_CYCLES = 32;
 
-    private static final ThreadLocal<ByteBuffer> REQUEST_HEADER_BUFFER = new ThreadLocal<>();
+    private static final ThreadLocal<ByteBuffer> REQUEST_HEADER_BUFFER = ThreadLocal.withInitial(() ->
+            ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN));
+    private static final ThreadLocal<byte[]> COPY_BUFFER = ThreadLocal.withInitial(() -> new byte[64 * 1024]);
 
-    private BlockDevice block;
+    private final BlockDevice block;
     private int remainingByteProcessingQuota;
     @Serialized private boolean hasPendingRequest;
 
@@ -117,14 +119,6 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
                           VIRTIO_BLK_F_FLUSH)
                 .build());
         this.block = block;
-    }
-
-    public BlockDevice getBlockDevice() {
-        return block;
-    }
-
-    public void setBlockDevice(final BlockDevice block) {
-        this.block = requireNonNull(block);
     }
 
     @Override
@@ -293,10 +287,23 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
                 final long offset = sector * VIRTIO_BLK_SECTOR_SIZE;
                 int status = VIRTIO_BLK_S_OK;
                 try {
-                    final ByteBuffer buffer = block.getView(offset, chain.writableBytes() - 1);
-                    buffer.order(ByteOrder.LITTLE_ENDIAN);
-                    chain.put(buffer);
-                } catch (final IllegalArgumentException e) {
+                    final InputStream stream = block.getInputStream(offset);
+                    final byte[] buffer = COPY_BUFFER.get();
+                    final int requestedReadCount = chain.writableBytes() - 1;
+                    int totalReadCount = 0;
+                    while (totalReadCount < requestedReadCount) {
+                        final int count = Math.min(buffer.length, requestedReadCount - totalReadCount);
+                        final int readCount = stream.read(buffer, 0, count);
+                        if (readCount < 0) {
+                            break;
+                        } else {
+                            chain.put(buffer, 0, readCount);
+                            totalReadCount += readCount;
+                        }
+                    }
+
+                    chain.skip(chain.writableBytes() - 1);
+                } catch (final IllegalArgumentException | IOException e) {
                     chain.skip(chain.writableBytes() - 1);
                     status = VIRTIO_BLK_S_IOERR;
                 }
@@ -325,13 +332,21 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
                 final long offset = sector * VIRTIO_BLK_SECTOR_SIZE;
                 int status = VIRTIO_BLK_S_OK;
                 try {
-                    final ByteBuffer buffer = block.getView(offset, chain.readableBytes());
-                    buffer.order(ByteOrder.LITTLE_ENDIAN);
-                    chain.get(buffer);
-                } catch (final IllegalArgumentException | ReadOnlyBufferException e) {
-                    chain.skip(chain.readableBytes());
+                    final OutputStream stream = block.getOutputStream(offset);
+                    final byte[] buffer = COPY_BUFFER.get();
+                    final int requestedWriteCount = chain.readableBytes();
+                    int totalWriteCount = 0;
+                    while (totalWriteCount < requestedWriteCount) {
+                        final int count = Math.min(buffer.length, requestedWriteCount - totalWriteCount);
+                        chain.get(buffer, 0, count);
+                        stream.write(buffer, 0, count);
+                        totalWriteCount += count;
+                    }
+                } catch (final IllegalArgumentException | ReadOnlyBufferException | IOException e) {
                     status = VIRTIO_BLK_S_IOERR;
                 }
+
+                chain.skip(chain.readableBytes());
                 chain.put((byte) status);
                 break;
             }
@@ -373,13 +388,6 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     }
 
     private static ByteBuffer getRequestHeaderBuffer() {
-        ByteBuffer buffer = REQUEST_HEADER_BUFFER.get();
-        if (buffer == null) {
-            buffer = ByteBuffer.allocate(16);
-            buffer.order(ByteOrder.LITTLE_ENDIAN);
-            REQUEST_HEADER_BUFFER.set(buffer);
-        }
-        buffer.clear();
-        return buffer;
+        return (ByteBuffer) REQUEST_HEADER_BUFFER.get().clear();
     }
 }

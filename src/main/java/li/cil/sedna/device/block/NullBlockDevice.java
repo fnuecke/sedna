@@ -2,12 +2,12 @@ package li.cil.sedna.device.block;
 
 import li.cil.sedna.api.device.BlockDevice;
 
-import java.nio.ByteBuffer;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 public final class NullBlockDevice implements BlockDevice {
     public static final NullBlockDevice INSTANCE = new NullBlockDevice();
-
-    private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.allocate(0);
 
     @Override
     public boolean isReadonly() {
@@ -20,10 +20,21 @@ public final class NullBlockDevice implements BlockDevice {
     }
 
     @Override
-    public ByteBuffer getView(final long offset, final int length) {
-        if (offset < 0 || offset > Integer.MAX_VALUE || length > 0) {
-            throw new IllegalArgumentException();
+    public InputStream getInputStream(final long offset) {
+        return NullInputStream.INSTANCE;
+    }
+
+    @Override
+    public OutputStream getOutputStream(final long offset) {
+        throw new UnsupportedOperationException();
+    }
+
+    private static final class NullInputStream extends InputStream {
+        public static final NullInputStream INSTANCE = new NullInputStream();
+
+        @Override
+        public int read() throws IOException {
+            return -1;
         }
-        return EMPTY_BYTE_BUFFER;
     }
 }
