@@ -13,27 +13,37 @@ public final class SparseBlockDevice implements BlockDevice {
 
     private final BlockDevice lower;
     private final int blockSize;
+    private final boolean readonly;
 
     @Serialized private final SparseBlockMap blocks;
 
     public SparseBlockDevice(final BlockDevice lower) {
-        this(lower, DEFAULT_BLOCK_SIZE);
+        this(lower, false, DEFAULT_BLOCK_SIZE);
     }
 
-    public SparseBlockDevice(final BlockDevice lower, final int blockSize) {
+    public SparseBlockDevice(final BlockDevice lower, final boolean readonly) {
+        this(lower, readonly, DEFAULT_BLOCK_SIZE);
+    }
+
+    public SparseBlockDevice(final BlockDevice lower, final boolean readonly, final int blockSize) {
         if (lower.getCapacity() / blockSize > Integer.MAX_VALUE)
             throw new IllegalArgumentException("Lower BlockDevice is too large.");
 
         this.lower = lower;
         this.blockSize = blockSize;
+        this.readonly = readonly;
 
         final int blockCount = Math.max(1, (int) (lower.getCapacity() / blockSize));
         blocks = new SparseBlockMap(blockCount);
     }
 
+    public int getBlockCount() {
+        return blocks.size();
+    }
+
     @Override
     public boolean isReadonly() {
-        return false;
+        return readonly;
     }
 
     @Override
@@ -48,6 +58,10 @@ public final class SparseBlockDevice implements BlockDevice {
 
     @Override
     public OutputStream getOutputStream(final long offset) {
+        if (isReadonly()) {
+            throw new UnsupportedOperationException();
+        }
+
         return new SparseOutputStream(offset);
     }
 
