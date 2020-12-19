@@ -182,7 +182,7 @@ public final class SparseBlockDevice implements BlockDevice {
             final int localOffset = (int) (offset - startOffset);
             final int writtenBytes = Math.min(len, blockSize - localOffset);
 
-            System.arraycopy(block, localOffset, b, off, writtenBytes);
+            System.arraycopy(b, off, block, localOffset, writtenBytes);
             offset += writtenBytes;
 
             if (writtenBytes < len) {
