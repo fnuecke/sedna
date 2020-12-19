@@ -10,9 +10,6 @@ public final class SparseBlockMapSerializer implements Serializer<SparseBlockDev
     @Override
     public void serialize(final SerializationVisitor visitor, final Class<SparseBlockDevice.SparseBlockMap> type, final Object value) throws SerializationException {
         final SparseBlockDevice.SparseBlockMap map = (SparseBlockDevice.SparseBlockMap) value;
-        final int count = map.size();
-
-        visitor.putInt("count", count);
 
         final int[] keys = map.keySet().toArray(new int[0]);
         final byte[][] values = new byte[map.size()][];
@@ -26,6 +23,27 @@ public final class SparseBlockMapSerializer implements Serializer<SparseBlockDev
 
     @Override
     public SparseBlockDevice.SparseBlockMap deserialize(final DeserializationVisitor visitor, final Class<SparseBlockDevice.SparseBlockMap> type, @Nullable final Object value) throws SerializationException {
-        return null;
+        SparseBlockDevice.SparseBlockMap map = (SparseBlockDevice.SparseBlockMap) value;
+        if (!visitor.exists("keys") || !visitor.exists("values")) {
+            return map;
+        }
+
+        final int[] keys = (int[]) visitor.getObject("keys", int[].class, null);
+        final byte[][] values = (byte[][]) visitor.getObject("values", byte[][].class, null);
+        if (keys == null || values == null) {
+            return null;
+        }
+
+        if (map == null) {
+            map = new SparseBlockDevice.SparseBlockMap(keys.length);
+        } else {
+            map.clear();
+
+            for (int i = 0; i < keys.length; i++) {
+                map.put(keys[i], values[i]);
+            }
+        }
+
+        return map;
     }
 }
