@@ -1,4 +1,4 @@
-package li.cil.sedna.riscv;
+package li.cil.sedna.riscv.device;
 
 import li.cil.sedna.device.syscon.AbstractSystemController;
 import li.cil.sedna.riscv.exception.R5SystemPowerOffException;

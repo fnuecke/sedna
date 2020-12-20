@@ -17,6 +17,7 @@ import li.cil.sedna.devicetree.FlattenedDeviceTree;
 import li.cil.sedna.memory.SimpleMemoryMap;
 import li.cil.sedna.riscv.device.R5CoreLocalInterrupter;
 import li.cil.sedna.riscv.device.R5PlatformLevelInterruptController;
+import li.cil.sedna.riscv.device.R5SystemController;
 import li.cil.sedna.riscv.exception.R5SystemPowerOffException;
 import li.cil.sedna.riscv.exception.R5SystemResetException;
 import org.apache.logging.log4j.LogManager;
