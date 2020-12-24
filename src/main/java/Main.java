@@ -1,14 +1,22 @@
+import li.cil.sedna.Sedna;
+import li.cil.sedna.device.serial.UART16550A;
+import li.cil.sedna.device.virtio.VirtIOMouseDevice;
+import li.cil.sedna.device.virtio.gpu.VirtIOGPUDevice;
+import li.cil.sedna.device.virtio.gpu.AbstractVirtIOGPUScanout;
 import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.device.block.ByteBufferBlockDevice;
 import li.cil.sedna.device.memory.Memory;
 import li.cil.sedna.device.virtio.VirtIOBlockDevice;
+import li.cil.sedna.device.virtio.VirtIOFileSystemDevice;
 import li.cil.sedna.device.virtio.VirtIOKeyboardDevice;
-import li.cil.sedna.device.virtio.gpu.GPUViewer;
-import li.cil.sedna.device.virtio.gpu.VirtIOGPUDevice;
-import li.cil.sedna.device.virtio.gpu.VirtIOScanout;
+import li.cil.sedna.fs.HostFileSystem;
 import li.cil.sedna.riscv.R5Board;
 
-import java.io.*;
+import javax.swing.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -18,10 +26,11 @@ import java.util.ArrayList;
 
 public class Main {
 
-	private void run() throws IOException, URISyntaxException {
+	private void run() throws IOException {
+		Sedna.initialize();
 		// Load openSBI
 		PhysicalMemory rom = Memory.create(1024 * 1024 * 64);
-		Path p = Paths.get(this.getClass().getResource("fw_payload.bin").toURI());
+		Path p = Paths.get("fw_payload.bin");
 		rom.store(0, ByteBuffer.wrap(Files.readAllBytes(p)));
 
 		PhysicalMemory ram = Memory.create(1024 * 1024 * 32);
@@ -32,54 +41,60 @@ public class Main {
 
 		File f = new File("rootfs.ext2");
 		//File f = new File("rootfs-fedora.ext2");
-		VirtIOBlockDevice fileSystemDevice = new VirtIOBlockDevice(board.getMemoryMap(), ByteBufferBlockDevice.createFromFile(f, f.length(), true));
+		VirtIOBlockDevice fileSystemDevice = new VirtIOBlockDevice(board.getMemoryMap(), ByteBufferBlockDevice.createFromFile(f, f.length(), false));
 		VirtIOKeyboardDevice keyboardDevice = new VirtIOKeyboardDevice(board.getMemoryMap());
-		GPUViewer viewer = new GPUViewer(board.getMemoryMap(), keyboardDevice);
-		VirtIOScanout scanout = new VirtIOScanout(0, 0, 800, 600, viewer);
+		VirtIOMouseDevice mouseDevice = new VirtIOMouseDevice(board.getMemoryMap());
+		VirtIOFileSystemDevice hostFS = new VirtIOFileSystemDevice(board.getMemoryMap(), "rootfs", new HostFileSystem());
+		SwingVirtIOScanout scanout = new SwingVirtIOScanout(800, 600);
         VirtIOGPUDevice gpuDevice = new VirtIOGPUDevice.Builder(board.getMemoryMap())
-		        .setScanouts(new ArrayList<VirtIOScanout>(){{
-					add(scanout);
+		        .setScanouts(new ArrayList<AbstractVirtIOGPUScanout>(){{
+					add(scanout.getScanout());
 		        }})
 		        .build();
 
-		//new _GPUViewer(board.getMemoryMap(), gpuDevice, keyboardDevice);
+		JFrame frame = new JFrame();
+		frame.setContentPane(scanout.getComponent());
+		frame.pack();
+		frame.setVisible(true);
+
 		//UART16550A uart = new UART16550A();
 		board.addDevice(fileSystemDevice);
 		board.addDevice(gpuDevice);
+		board.addDevice(hostFS);
 		board.addDevice(keyboardDevice);
+		board.addDevice(mouseDevice);
+		//board.addDevice(uart);
 		//board.addDevice(0x09000000, uart);
 		//board.setStandardOutputDevice(uart);
-		board.setBootArguments("root=/dev/vda ro");
+		board.setBootArguments("root=/dev/vda");
 		fileSystemDevice.getInterrupt().set(0x1, board.getInterruptController());
 		gpuDevice.getInterrupt().set(0x2, board.getInterruptController());
 		keyboardDevice.getInterrupt().set(0x3, board.getInterruptController());
-
+		hostFS.getInterrupt().set(0x4, board.getInterruptController());
+		mouseDevice.getInterrupt().set(0x5, board.getInterruptController());
+		//uart.getInterrupt().set(0x6, board.getInterruptController());
+//
 		board.initialize();
         board.setRunning(true);
 		System.out.println("freq: " + board.getCpu().getFrequency());
 
 		BufferedReader inputStreamReader = new BufferedReader(new InputStreamReader(System.in));
 
-//		new Thread(() -> {
-//		    while(board.isRunning()) {
-//				board.step(1);
-//				//viewer.stepMainThread();
-//		}).start();
-
 		while (board.isRunning()) {
 			board.step(1);
-			//while (true) {
-				//int chr = uart.read();
-				//if (chr == -1) {
-					//break;
-				//}
+
+			/*while (true) {
+				int chr = uart.read();
+				if (chr == -1) {
+					break;
+				}
 //
-				//System.out.print((char) chr);
-			//}
-			//System.out.flush();
-			//while (inputStreamReader.ready() && uart.canPutByte()) {
-			//uart.putByte((byte) inputStreamReader.read());
-			//}
+				System.out.print((char) chr);
+			}
+			while (inputStreamReader.ready() && uart.canPutByte()) {
+				uart.putByte((byte) inputStreamReader.read());
+			}
+			 */
 		}
 
 	}
