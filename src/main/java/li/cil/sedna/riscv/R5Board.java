@@ -26,6 +26,7 @@ import org.apache.logging.log4j.Logger;
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.OptionalLong;
 
@@ -116,7 +117,14 @@ public final class R5Board implements Board {
             return false;
         }
 
-        devices.add(device);
+        final int index = Collections.binarySearch(devices, device, (o1, o2) -> {
+            final MemoryRange range1 = memoryMap.getMemoryRange(o1).orElseThrow(AssertionError::new);
+            final MemoryRange range2 = memoryMap.getMemoryRange(o2).orElseThrow(AssertionError::new);
+            return Long.compareUnsigned(range1.address(), range2.address());
+        });
+        assert index < 0;
+
+        devices.add(~index, device);
 
         if (device instanceof Steppable) {
             steppableDevices.add((Steppable) device);
