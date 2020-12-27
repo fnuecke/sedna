@@ -20,8 +20,6 @@ import li.cil.sedna.riscv.device.R5PlatformLevelInterruptController;
 import li.cil.sedna.riscv.device.R5SystemController;
 import li.cil.sedna.riscv.exception.R5SystemPowerOffException;
 import li.cil.sedna.riscv.exception.R5SystemResetException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
@@ -31,8 +29,6 @@ import java.util.List;
 import java.util.OptionalLong;
 
 public final class R5Board implements Board {
-    private static final Logger LOGGER = LogManager.getLogger();
-
     private static final long PHYSICAL_MEMORY_FIRST = 0x80000000L;
     private static final long PHYSICAL_MEMORY_LAST = 0xFFFFFFFFL;
     private static final long DEVICE_MEMORY_FIRST = 0x10000000L;
@@ -216,11 +212,11 @@ public final class R5Board implements Board {
         }
     }
 
-    public void initialize() {
+    public void initialize() throws IllegalStateException, MemoryAccessException {
         initialize(PHYSICAL_MEMORY_FIRST);
     }
 
-    public void initialize(final long programStart) {
+    public void initialize(final long programStart) throws IllegalStateException, MemoryAccessException {
         final FlattenedDeviceTree fdt = buildDeviceTree().flatten();
         final byte[] dtb = fdt.toDTB();
 
@@ -246,44 +242,40 @@ public final class R5Board implements Board {
             throw new IllegalStateException("No memory device present that can fit device tree.");
         }
 
-        try {
-            for (int i = 0; i < dtb.length; i++) {
-                memoryMap.store(fdtAddress.getAsLong() + i, dtb[i], Sizes.SIZE_8_LOG2);
-            }
-
-            final ByteBuffer data = flash.getData();
-            data.clear();
-
-            final int auipc = 0b0010111;
-            final int ld = 0b011_00000_0000011;
-            final int jalr = 0b1100111;
-
-            final int rd_t0 = 5 << 7;
-            final int rd_a1 = 11 << 7;
-            final int rs1_t0 = 5 << 15;
-
-            final int imm_fdtAddressOffset = 0x10 << 20;
-            final int imm_programStartOffset = 0x18 << 20;
-
-            // 0x0000  auipc t0, 0 ; x5 = pc
-            data.putInt(auipc | rd_t0);
-
-            // 0x0004  ld a1, 8(t0) ; a1 = *(t0 + 8) = fdtAddress
-            data.putInt(ld | rd_a1 | rs1_t0 | imm_fdtAddressOffset);
-
-            // 0x0008  ld t0, 12(t0) ; t0 = *(t0 + 12) = programStart
-            data.putInt(ld | rd_t0 | rs1_t0 | imm_programStartOffset);
-
-            // 0x000C  jalr t0 ; jump to firmware
-            data.putInt(jalr | rs1_t0);
-
-            // 0x0010  fdtAddress
-            data.putLong(fdtAddress.getAsLong());
-            // 0x0018  programStart
-            data.putLong(programStart);
-        } catch (final MemoryAccessException e) {
-            LOGGER.error(e);
+        for (int i = 0; i < dtb.length; i++) {
+            memoryMap.store(fdtAddress.getAsLong() + i, dtb[i], Sizes.SIZE_8_LOG2);
         }
+
+        final ByteBuffer data = flash.getData();
+        data.clear();
+
+        final int auipc = 0b0010111;
+        final int ld = 0b011_00000_0000011;
+        final int jalr = 0b1100111;
+
+        final int rd_t0 = 5 << 7;
+        final int rd_a1 = 11 << 7;
+        final int rs1_t0 = 5 << 15;
+
+        final int imm_fdtAddressOffset = 0x10 << 20;
+        final int imm_programStartOffset = 0x18 << 20;
+
+        // 0x0000  auipc t0, 0 ; x5 = pc
+        data.putInt(auipc | rd_t0);
+
+        // 0x0004  ld a1, 8(t0) ; a1 = *(t0 + 8) = fdtAddress
+        data.putInt(ld | rd_a1 | rs1_t0 | imm_fdtAddressOffset);
+
+        // 0x0008  ld t0, 12(t0) ; t0 = *(t0 + 12) = programStart
+        data.putInt(ld | rd_t0 | rs1_t0 | imm_programStartOffset);
+
+        // 0x000C  jalr t0 ; jump to firmware
+        data.putInt(jalr | rs1_t0);
+
+        // 0x0010  fdtAddress
+        data.putLong(fdtAddress.getAsLong());
+        // 0x0018  programStart
+        data.putLong(programStart);
     }
 
     private DeviceTree buildDeviceTree() {
