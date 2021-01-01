@@ -78,7 +78,7 @@ public final class ZipFileSystem implements FileSystem {
     @Override
     public boolean isDirectory(final Path path) {
         final ZipNode node = getNode(path);
-        return node == null || node.entry == null || node.entry.isDirectory();
+        return node != null && (node.entry == null || node.entry.isDirectory());
     }
 
     @Override
@@ -304,15 +304,10 @@ public final class ZipFileSystem implements FileSystem {
     }
 
     private ZipNode getNodeOrThrow(final Path path) throws IOException {
-        ZipNode node = root;
-        for (final String part : path.getParts()) {
-            final ZipNode child = node.children.get(part);
-            if (child == null) {
-                throw new FileNotFoundException();
-            }
-            node = child;
+        final ZipNode node = getNode(path);
+        if (node == null) {
+            throw new FileNotFoundException();
         }
-
         return node;
     }
 }
