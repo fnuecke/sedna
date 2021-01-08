@@ -955,8 +955,8 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
             return (int) memoryMap.load(address, Sizes.SIZE_16_LOG2) & 0xFFFF;
         }
 
-        int getAvailUsedEvent() throws MemoryAccessException {
-            return (int) memoryMap.load(driver + VIRTQ_AVAIL_RING + num * VIRTQ_AVAILABLE_RING_STRIDE, Sizes.SIZE_16_LOG2) & 0xFFFF;
+        short getAvailUsedEvent() throws MemoryAccessException {
+            return (short) memoryMap.load(driver + VIRTQ_AVAIL_RING + num * VIRTQ_AVAILABLE_RING_STRIDE, Sizes.SIZE_16_LOG2);
         }
 
         // The following methods provide access to a struct with the following layout:
@@ -1105,7 +1105,8 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                     final int flags = getAvailFlags();
                     sendNotification = flags == 0;
                 } else {
-                    final int usedEvent = getAvailUsedEvent();
+                    short usedEvent = getAvailUsedEvent();
+                    usedEvent++;
                     sendNotification = index == usedEvent;
                 }
 
