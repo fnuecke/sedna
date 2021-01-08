@@ -92,7 +92,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
     private static final int VIRTIO_MMIO_CONFIG_GENERATION = 0x0FC; // R
     private static final int VIRTIO_MMIO_CONFIG = 0x100; // RW
 
-    private static final int VIRTQ_MAX_QUEUE_SIZE = 16; // Size of descriptor rings.
+    private static final int VIRTQ_MAX_QUEUE_SIZE = 256; // Size of descriptor rings.
     private static final int VIRTQ_MAX_CHAIN_LENGTH = 128; // Max chain length because we don't trust drivers.
 
     private final transient MemoryMap memoryMap;
