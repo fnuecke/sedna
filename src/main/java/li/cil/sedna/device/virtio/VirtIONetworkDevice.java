@@ -29,7 +29,7 @@ public final class VirtIONetworkDevice extends AbstractVirtIODevice {
     }
 
     @Nullable
-    public byte[] readPacket() {
+    public byte[] readEthernetFrame() {
         if (hasDeviceFailed()) {
             return null;
         }
@@ -57,7 +57,7 @@ public final class VirtIONetworkDevice extends AbstractVirtIODevice {
         }
     }
 
-    public void writePacket(final byte[] packet) {
+    public void writeEthernetFrame(final byte[] packet) {
         if (hasDeviceFailed()) {
             return;
         }
