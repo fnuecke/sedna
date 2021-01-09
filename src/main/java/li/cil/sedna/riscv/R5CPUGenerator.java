@@ -69,6 +69,11 @@ public final class R5CPUGenerator {
                     }
                     return commonSuperClass;
                 }
+
+                @Override
+                protected ClassLoader getClassLoader() {
+                    return R5CPUGenerator.class.getClassLoader();
+                }
             };
             final ClassRemapper remapper = new ClassRemapper(writer, new Remapper() {
                 @Override
