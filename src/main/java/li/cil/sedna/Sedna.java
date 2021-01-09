@@ -47,7 +47,6 @@ public final class Sedna {
         Ceres.putSerializer(R5CPU.class, new R5CPUSerializer());
         Ceres.putSerializer(SparseBlockDevice.SparseBlockMap.class, new SparseBlockMapSerializer());
 
-
         DeviceTreeRegistry.putProvider(FlashMemoryDevice.class, new FlashMemoryProvider());
         DeviceTreeRegistry.putProvider(GoldfishRTC.class, new GoldfishRTCProvider());
         DeviceTreeRegistry.putProvider(InterruptSource.class, new InterruptSourceProvider());
