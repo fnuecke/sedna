@@ -334,49 +334,55 @@ public final class InstructionDefinitionLoader {
             }
 
             final String ownerClassName = Type.getObjectType(owner).getClassName();
-            final ClassReader reader = new ClassReader(ownerClassName);
-            reader.accept(new ClassVisitor(Opcodes.ASM7) {
-                @Override
-                public MethodVisitor visitMethod(final int access, final String methodName, final String methodDescriptor, final String signature, final String[] exceptions) {
-                    if (methodName.equals(NonStaticMethodInvocation.this.name) &&
-                        methodDescriptor.equals(NonStaticMethodInvocation.this.descriptor)) {
-                        return new MethodVisitor(Opcodes.ASM7) {
-                            @Override
-                            public void visitMethodInsn(final int opcode, final String invokedMethodOwner, final String invokedMethodName, final String invokedMethodDescriptor, final boolean isInterface) {
-                                super.visitMethodInsn(opcode, invokedMethodOwner, invokedMethodName, invokedMethodDescriptor, isInterface);
-
-                                if (owner.startsWith("Ljava/lang/")) { // Skip built-ins.
-                                    return;
-                                }
-
-                                if (opcode != Opcodes.INVOKESTATIC) {
-                                    final NonStaticMethodInvocation invocation = new NonStaticMethodInvocation(implementation, invokedMethodOwner, invokedMethodName, invokedMethodDescriptor);
-                                    invocations.add(getUniqueInvocation(invocation, knownMethodInvocations));
-                                }
-                            }
-
-                            @Override
-                            public void visitFieldInsn(final int opcode, final String owner, final String name, final String descriptor) {
-                                super.visitFieldInsn(opcode, owner, name, descriptor);
-                                if (Objects.equals(owner, Type.getInternalName(implementation)) && Objects.equals(name, "pc")) {
-                                    if (opcode == Opcodes.GETFIELD) {
-                                        throw new IllegalArgumentException(
-                                                String.format("Method [%s] which is invoked by an instruction is " +
-                                                              "reading from PC field. This value will be incorrect. " +
-                                                              "Use the @ProgramCounter annotation to have the current " +
-                                                              "PC value passed to the instruction and pass it along.", methodName));
-                                    }
-                                    if (opcode == Opcodes.PUTFIELD) {
-                                        writesPC = true;
-                                    }
-                                }
-                            }
-                        };
-                    } else {
-                        return super.visitMethod(access, methodName, methodDescriptor, signature, exceptions);
-                    }
+            try (final InputStream stream = implementation.getClassLoader().getResourceAsStream(ownerClassName.replace('.', '/') + ".class")) {
+                if (stream == null) {
+                    throw new IOException("Could not load class file for class [" + implementation + "].");
                 }
-            }, 0);
+
+                final ClassReader reader = new ClassReader(stream);
+                reader.accept(new ClassVisitor(Opcodes.ASM7) {
+                    @Override
+                    public MethodVisitor visitMethod(final int access, final String methodName, final String methodDescriptor, final String signature, final String[] exceptions) {
+                        if (methodName.equals(NonStaticMethodInvocation.this.name) &&
+                            methodDescriptor.equals(NonStaticMethodInvocation.this.descriptor)) {
+                            return new MethodVisitor(Opcodes.ASM7) {
+                                @Override
+                                public void visitMethodInsn(final int opcode, final String invokedMethodOwner, final String invokedMethodName, final String invokedMethodDescriptor, final boolean isInterface) {
+                                    super.visitMethodInsn(opcode, invokedMethodOwner, invokedMethodName, invokedMethodDescriptor, isInterface);
+
+                                    if (owner.startsWith("Ljava/lang/")) { // Skip built-ins.
+                                        return;
+                                    }
+
+                                    if (opcode != Opcodes.INVOKESTATIC) {
+                                        final NonStaticMethodInvocation invocation = new NonStaticMethodInvocation(implementation, invokedMethodOwner, invokedMethodName, invokedMethodDescriptor);
+                                        invocations.add(getUniqueInvocation(invocation, knownMethodInvocations));
+                                    }
+                                }
+
+                                @Override
+                                public void visitFieldInsn(final int opcode, final String owner, final String name, final String descriptor) {
+                                    super.visitFieldInsn(opcode, owner, name, descriptor);
+                                    if (Objects.equals(owner, Type.getInternalName(implementation)) && Objects.equals(name, "pc")) {
+                                        if (opcode == Opcodes.GETFIELD) {
+                                            throw new IllegalArgumentException(
+                                                    String.format("Method [%s] which is invoked by an instruction is " +
+                                                                  "reading from PC field. This value will be incorrect. " +
+                                                                  "Use the @ProgramCounter annotation to have the current " +
+                                                                  "PC value passed to the instruction and pass it along.", methodName));
+                                        }
+                                        if (opcode == Opcodes.PUTFIELD) {
+                                            writesPC = true;
+                                        }
+                                    }
+                                }
+                            };
+                        } else {
+                            return super.visitMethod(access, methodName, methodDescriptor, signature, exceptions);
+                        }
+                    }
+                }, 0);
+            }
 
             hasResolvedInvocations = true;
 
