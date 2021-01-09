@@ -1,15 +1,17 @@
 package li.cil.sedna.serialization.serializers;
 
-import li.cil.ceres.api.*;
-import li.cil.sedna.device.block.SparseBlockDevice;
+import li.cil.ceres.api.DeserializationVisitor;
+import li.cil.ceres.api.SerializationException;
+import li.cil.ceres.api.SerializationVisitor;
+import li.cil.ceres.api.Serializer;
+import li.cil.sedna.device.block.SparseBlockDevice.SparseBlockMap;
 
 import javax.annotation.Nullable;
 
-@RegisterSerializer
-public final class SparseBlockMapSerializer implements Serializer<SparseBlockDevice.SparseBlockMap> {
+public final class SparseBlockMapSerializer implements Serializer<SparseBlockMap> {
     @Override
-    public void serialize(final SerializationVisitor visitor, final Class<SparseBlockDevice.SparseBlockMap> type, final Object value) throws SerializationException {
-        final SparseBlockDevice.SparseBlockMap map = (SparseBlockDevice.SparseBlockMap) value;
+    public void serialize(final SerializationVisitor visitor, final Class<SparseBlockMap> type, final Object value) throws SerializationException {
+        final SparseBlockMap map = (SparseBlockMap) value;
 
         final int[] keys = map.keySet().toArray(new int[0]);
         final byte[][] values = new byte[map.size()][];
@@ -22,8 +24,8 @@ public final class SparseBlockMapSerializer implements Serializer<SparseBlockDev
     }
 
     @Override
-    public SparseBlockDevice.SparseBlockMap deserialize(final DeserializationVisitor visitor, final Class<SparseBlockDevice.SparseBlockMap> type, @Nullable final Object value) throws SerializationException {
-        SparseBlockDevice.SparseBlockMap map = (SparseBlockDevice.SparseBlockMap) value;
+    public SparseBlockMap deserialize(final DeserializationVisitor visitor, final Class<SparseBlockMap> type, @Nullable final Object value) throws SerializationException {
+        SparseBlockMap map = (SparseBlockMap) value;
         if (!visitor.exists("keys") || !visitor.exists("values")) {
             return map;
         }
@@ -35,7 +37,7 @@ public final class SparseBlockMapSerializer implements Serializer<SparseBlockDev
         }
 
         if (map == null) {
-            map = new SparseBlockDevice.SparseBlockMap(keys.length);
+            map = new SparseBlockMap(keys.length);
         } else {
             map.clear();
 

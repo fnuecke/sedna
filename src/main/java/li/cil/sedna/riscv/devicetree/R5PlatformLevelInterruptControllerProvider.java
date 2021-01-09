@@ -2,14 +2,16 @@ package li.cil.sedna.riscv.devicetree;
 
 import li.cil.sedna.api.device.Device;
 import li.cil.sedna.api.device.MemoryMappedDevice;
-import li.cil.sedna.api.devicetree.*;
+import li.cil.sedna.api.devicetree.DeviceNames;
+import li.cil.sedna.api.devicetree.DevicePropertyNames;
+import li.cil.sedna.api.devicetree.DeviceTree;
+import li.cil.sedna.api.devicetree.DeviceTreeProvider;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MemoryRange;
 import li.cil.sedna.riscv.device.R5PlatformLevelInterruptController;
 
 import java.util.Optional;
 
-@RegisterDeviceTreeProvider(R5PlatformLevelInterruptController.class)
 public final class R5PlatformLevelInterruptControllerProvider implements DeviceTreeProvider {
     @Override
     public Optional<String> getName(final Device device) {

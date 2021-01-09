@@ -11,6 +11,7 @@ import li.cil.sedna.device.memory.Memory;
 import li.cil.sedna.device.serial.UART16550A;
 import li.cil.sedna.device.virtio.VirtIOConsoleDevice;
 import li.cil.sedna.memory.SimpleMemoryMap;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -19,6 +20,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 public final class SerializationTests {
+    @BeforeAll
+    public static void setup() {
+        Sedna.initialize();
+    }
+
     @Test
     public void testAtomicIntegerSerializer() {
         final AtomicInteger value = new AtomicInteger(123);

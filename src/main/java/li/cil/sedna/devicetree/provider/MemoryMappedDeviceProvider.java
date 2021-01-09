@@ -5,13 +5,11 @@ import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.devicetree.DevicePropertyNames;
 import li.cil.sedna.api.devicetree.DeviceTree;
 import li.cil.sedna.api.devicetree.DeviceTreeProvider;
-import li.cil.sedna.api.devicetree.RegisterDeviceTreeProvider;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MemoryRange;
 
 import java.util.Optional;
 
-@RegisterDeviceTreeProvider(MemoryMappedDevice.class)
 public class MemoryMappedDeviceProvider implements DeviceTreeProvider {
     @Override
     public Optional<DeviceTree> createNode(final DeviceTree root, final MemoryMap memoryMap, final Device device, final String deviceName) {

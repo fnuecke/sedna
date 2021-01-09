@@ -3,11 +3,9 @@ package li.cil.sedna.devicetree;
 import li.cil.sedna.api.device.Device;
 import li.cil.sedna.api.devicetree.DeviceTree;
 import li.cil.sedna.api.devicetree.DeviceTreeProvider;
-import li.cil.sedna.api.devicetree.RegisterDeviceTreeProvider;
 import li.cil.sedna.api.memory.MemoryMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.reflections.Reflections;
 
 import javax.annotation.Nullable;
 import java.util.*;
@@ -18,34 +16,6 @@ public final class DeviceTreeRegistry {
 
     private static final Map<Class<? extends Device>, DeviceTreeProvider> PROVIDERS = new HashMap<>();
     private static final Map<Class<? extends Device>, DeviceTreeProvider> PROVIDER_CACHE = new HashMap<>();
-    private static boolean isInitialized = false;
-
-    static {
-        initialize();
-    }
-
-    public static void initialize() {
-        if (isInitialized) {
-            return;
-        }
-
-        isInitialized = true;
-
-        for (final Class<? extends DeviceTreeProvider> type : new Reflections().getSubTypesOf(DeviceTreeProvider.class)) {
-            if (!type.isAnnotationPresent(RegisterDeviceTreeProvider.class)) {
-                continue;
-            }
-
-            final Class<? extends Device> targetType = type.getAnnotation(RegisterDeviceTreeProvider.class).value();
-
-            try {
-                final DeviceTreeProvider provider = type.newInstance();
-                putProvider(targetType, provider);
-            } catch (final InstantiationException | IllegalAccessException e) {
-                LOGGER.error("Failed instantiating device tree provider [{}]: {}", type, e);
-            }
-        }
-    }
 
     public static void putProvider(final Class<? extends Device> type, final DeviceTreeProvider provider) {
         PROVIDERS.put(type, provider);

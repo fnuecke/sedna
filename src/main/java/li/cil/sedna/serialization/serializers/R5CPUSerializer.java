@@ -1,13 +1,15 @@
 package li.cil.sedna.serialization.serializers;
 
 import li.cil.ceres.Ceres;
-import li.cil.ceres.api.*;
+import li.cil.ceres.api.DeserializationVisitor;
+import li.cil.ceres.api.SerializationException;
+import li.cil.ceres.api.SerializationVisitor;
+import li.cil.ceres.api.Serializer;
 import li.cil.sedna.riscv.R5CPU;
 import li.cil.sedna.riscv.R5CPUGenerator;
 
 import javax.annotation.Nullable;
 
-@RegisterSerializer
 public final class R5CPUSerializer implements Serializer<R5CPU> {
     @SuppressWarnings({"unchecked", "rawtypes"})
     @Override

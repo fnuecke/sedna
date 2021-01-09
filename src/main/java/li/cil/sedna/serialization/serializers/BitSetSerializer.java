@@ -1,11 +1,13 @@
 package li.cil.sedna.serialization.serializers;
 
-import li.cil.ceres.api.*;
+import li.cil.ceres.api.DeserializationVisitor;
+import li.cil.ceres.api.SerializationException;
+import li.cil.ceres.api.SerializationVisitor;
+import li.cil.ceres.api.Serializer;
 
 import javax.annotation.Nullable;
 import java.util.BitSet;
 
-@RegisterSerializer
 public final class BitSetSerializer implements Serializer<BitSet> {
     @Override
     public void serialize(final SerializationVisitor visitor, final Class<BitSet> type, final Object value) throws SerializationException {

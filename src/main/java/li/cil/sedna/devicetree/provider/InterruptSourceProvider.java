@@ -8,10 +8,8 @@ import li.cil.sedna.api.device.InterruptController;
 import li.cil.sedna.api.device.InterruptSource;
 import li.cil.sedna.api.devicetree.DeviceTree;
 import li.cil.sedna.api.devicetree.DeviceTreeProvider;
-import li.cil.sedna.api.devicetree.RegisterDeviceTreeProvider;
 import li.cil.sedna.api.memory.MemoryMap;
 
-@RegisterDeviceTreeProvider(InterruptSource.class)
 public final class InterruptSourceProvider implements DeviceTreeProvider {
     @Override
     public void visit(final DeviceTree node, final MemoryMap memoryMap, final Device device) {

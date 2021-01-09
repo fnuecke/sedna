@@ -1,13 +1,15 @@
 package li.cil.sedna.serialization.serializers;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectArrayMap;
-import li.cil.ceres.api.*;
+import li.cil.ceres.api.DeserializationVisitor;
+import li.cil.ceres.api.SerializationException;
+import li.cil.ceres.api.SerializationVisitor;
+import li.cil.ceres.api.Serializer;
 import li.cil.sedna.device.virtio.VirtIOFileSystemDevice.FileSystemFile;
 import li.cil.sedna.device.virtio.VirtIOFileSystemDevice.FileSystemFileMap;
 
 import javax.annotation.Nullable;
 
-@RegisterSerializer
 public final class FileSystemFileMapSerializer implements Serializer<FileSystemFileMap> {
     @Override
     public void serialize(final SerializationVisitor visitor, final Class<FileSystemFileMap> type, final Object value) throws SerializationException {

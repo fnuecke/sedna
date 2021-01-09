@@ -1,11 +1,13 @@
 package li.cil.sedna.serialization.serializers;
 
 import it.unimi.dsi.fastutil.ints.Int2LongArrayMap;
-import li.cil.ceres.api.*;
+import li.cil.ceres.api.DeserializationVisitor;
+import li.cil.ceres.api.SerializationException;
+import li.cil.ceres.api.SerializationVisitor;
+import li.cil.ceres.api.Serializer;
 
 import javax.annotation.Nullable;
 
-@RegisterSerializer
 public final class Int2LongArrayMapSerializer implements Serializer<Int2LongArrayMap> {
     @Override
     public void serialize(final SerializationVisitor visitor, final Class<Int2LongArrayMap> type, final Object value) throws SerializationException {
