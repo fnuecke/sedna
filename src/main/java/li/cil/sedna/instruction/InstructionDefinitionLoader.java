@@ -8,6 +8,7 @@ import org.apache.logging.log4j.Logger;
 import org.objectweb.asm.*;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,15 +21,22 @@ public final class InstructionDefinitionLoader {
         final HashMap<InstructionDeclaration, InstructionDefinition> definitions = new HashMap<>();
 
         final ArrayList<InstructionFunctionVisitor> visitors = new ArrayList<>();
-        final ClassReader cr = new ClassReader(implementation.getName());
-        cr.accept(new ClassVisitor(Opcodes.ASM7) {
-            @Override
-            public MethodVisitor visitMethod(final int access, final String name, final String descriptor, final String signature, final String[] exceptions) {
-                final InstructionFunctionVisitor visitor = new InstructionFunctionVisitor(implementation, name, descriptor, exceptions);
-                visitors.add(visitor);
-                return visitor;
+        try (final InputStream stream = implementation.getClassLoader().getResourceAsStream(implementation.getName().replace('.', '/') + ".class")) {
+            if (stream == null) {
+                throw new IOException("Could not load class file for class [" + implementation + "].");
             }
-        }, 0);
+
+            final ClassReader cr = new ClassReader(stream);
+            cr.accept(new ClassVisitor(Opcodes.ASM7) {
+                @Override
+                public MethodVisitor visitMethod(final int access, final String name, final String descriptor, final String signature, final String[] exceptions) {
+                    final InstructionFunctionVisitor visitor = new InstructionFunctionVisitor(implementation, name, descriptor, exceptions);
+                    visitors.add(visitor);
+                    return visitor;
+                }
+            }, 0);
+        }
+
         visitors.removeIf(v -> !v.isImplementation);
 
         // Used to only having to check invoked methods once. We only expect few unique invocations,

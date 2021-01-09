@@ -12,6 +12,8 @@ import org.objectweb.asm.commons.ClassRemapper;
 import org.objectweb.asm.commons.Remapper;
 
 import javax.annotation.Nullable;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -85,14 +87,20 @@ public final class R5CPUGenerator {
                     "interpretTrace",
                     "decode");
 
-            final ClassReader reader = new ClassReader(R5CPUTemplate.class.getName());
-            reader.accept(generator, ClassReader.EXPAND_FRAMES);
+            try (final InputStream stream = R5CPUTemplate.class.getClassLoader().getResourceAsStream(R5CPUTemplate.class.getName().replace('.', '/') + ".class")) {
+                if (stream == null) {
+                    throw new IOException("Could not load class file for class [" + R5CPUTemplate.class + "].");
+                }
 
-            final byte[] bytes = writer.toByteArray();
+                final ClassReader reader = new ClassReader(stream);
+                reader.accept(generator, ClassReader.EXPAND_FRAMES);
 
-            final Method defineClass = ClassLoader.class.getDeclaredMethod("defineClass", String.class, byte[].class, int.class, int.class);
-            defineClass.setAccessible(true);
-            return (Class<?>) defineClass.invoke(R5CPUTemplate.class.getClassLoader(), null, bytes, 0, bytes.length);
+                final byte[] bytes = writer.toByteArray();
+
+                final Method defineClass = ClassLoader.class.getDeclaredMethod("defineClass", String.class, byte[].class, int.class, int.class);
+                defineClass.setAccessible(true);
+                return (Class<?>) defineClass.invoke(R5CPUTemplate.class.getClassLoader(), null, bytes, 0, bytes.length);
+            }
         } catch (final Throwable e) {
             throw new AssertionError(e);
         }
