@@ -3,6 +3,7 @@ package li.cil.sedna;
 import li.cil.ceres.BinarySerialization;
 import li.cil.sedna.device.block.ByteBufferBlockDevice;
 import li.cil.sedna.device.block.SparseBlockDevice;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -18,6 +19,11 @@ public final class SparseBlockDeviceTests {
     private byte[] array;
     private ByteBufferBlockDevice lower;
     private SparseBlockDevice sparse;
+
+    @BeforeAll
+    public static void setup() {
+        Sedna.initialize();
+    }
 
     @BeforeEach
     public void setupEach() {
