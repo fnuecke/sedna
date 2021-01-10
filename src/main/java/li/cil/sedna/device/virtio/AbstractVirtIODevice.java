@@ -192,6 +192,21 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
     }
 
     /**
+     * Sets a list byte values in the config space at the specified offset to the specified value.
+     * <p>
+     * This will automatically call {@link #notifyConfigChanged()}.
+     *
+     * @param offset the offset into the config space to write at.
+     * @param value  the value to write.
+     */
+    protected final void setConfigValue(final int offset, final byte[] value) {
+        for (int i = 0; i < value.length; i++) {
+            configuration.put(offset + i, value[i]);
+        }
+        notifyConfigChanged();
+    }
+
+    /**
      * Reads a value from the config space of this device.
      * <p>
      * Override this for computed/dynamic config space values.
