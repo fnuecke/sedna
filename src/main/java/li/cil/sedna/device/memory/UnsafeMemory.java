@@ -18,7 +18,10 @@ public final class UnsafeMemory extends PhysicalMemory {
         if ((size & 0b11) != 0)
             throw new IllegalArgumentException("size must be a multiple of four");
 
-        final ByteBuffer buffer = ByteBuffer.allocateDirect(size).order(ByteOrder.LITTLE_ENDIAN);
+        // Extra padding after original size so we don't have to do size specific
+        // bounds checks -- if trying to read something out of bounds it'll just
+        // result in bogus, but that's fine.
+        final ByteBuffer buffer = ByteBuffer.allocateDirect(size + Long.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         try {
             final Method getAddress = buffer.getClass().getMethod("address");
             getAddress.setAccessible(true);
@@ -58,7 +61,7 @@ public final class UnsafeMemory extends PhysicalMemory {
 
     @Override
     public long load(final int offset, final int sizeLog2) throws MemoryAccessException {
-        if (offset < 0 || offset > size - (1L << sizeLog2)) {
+        if (offset < 0 || offset >= size) {
             throw new MemoryAccessException();
         }
         switch (sizeLog2) {
@@ -77,7 +80,7 @@ public final class UnsafeMemory extends PhysicalMemory {
 
     @Override
     public void store(final int offset, final long value, final int sizeLog2) throws MemoryAccessException {
-        if (offset < 0 || offset > size - (1L << sizeLog2)) {
+        if (offset < 0 || offset >= size) {
             throw new MemoryAccessException();
         }
         switch (sizeLog2) {
