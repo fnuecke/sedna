@@ -3,6 +3,7 @@ package li.cil.sedna.device.virtio;
 import li.cil.sedna.api.memory.MemoryAccessException;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 /**
  * Represents a single descriptor chain in a virtqueue.
@@ -103,7 +104,7 @@ public interface DescriptorChain {
      * @throws IllegalStateException     when called after {@link #use()} has been called.
      */
     default void get(final byte[] dst, final int offset, final int length) throws VirtIODeviceException, MemoryAccessException {
-        get(ByteBuffer.wrap(dst, offset, length));
+        get(ByteBuffer.wrap(dst, offset, length).order(ByteOrder.LITTLE_ENDIAN));
     }
 
     /**
@@ -142,7 +143,7 @@ public interface DescriptorChain {
      *                                   {@link #readableBytes()} is non-zero.
      */
     default void put(final byte[] src, final int offset, final int length) throws VirtIODeviceException, MemoryAccessException {
-        put(ByteBuffer.wrap(src, offset, length));
+        put(ByteBuffer.wrap(src, offset, length).order(ByteOrder.LITTLE_ENDIAN));
     }
 
     /**
