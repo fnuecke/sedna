@@ -9,7 +9,7 @@ public final class Memory {
         if (ByteOrder.nativeOrder() != ByteOrder.LITTLE_ENDIAN) {
             return new ByteBufferMemory(sizeInBytes);
         } else {
-            return new UnsafeMemory(sizeInBytes);
+            return UnsafeMemory.create(sizeInBytes);
         }
     }
 }

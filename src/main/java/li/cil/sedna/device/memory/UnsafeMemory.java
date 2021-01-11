@@ -4,46 +4,51 @@ import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.utils.UnsafeGetter;
-import sun.misc.Cleaner;
 import sun.misc.Unsafe;
-import sun.misc.VM;
 
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 // Tends to be around 10% faster than ByteBufferMemory during regular emulation.
 public final class UnsafeMemory extends PhysicalMemory {
     private static final Unsafe UNSAFE = UnsafeGetter.get();
 
-    private final long address;
-    private final long size;
-    private final Cleaner cleaner;
-
-    public UnsafeMemory(final int size) {
+    public static PhysicalMemory create(final int size) {
         if ((size & 0b11) != 0)
             throw new IllegalArgumentException("size must be a multiple of four");
 
-        // Handling for page aligned memory taken from DirectByteBuffer.
-
-        final boolean isAligned = VM.isDirectMemoryPageAligned();
-        final int pageSize = UNSAFE.pageSize();
-
-        this.size = Math.max(4L, (long) size + (isAligned ? pageSize : 0));
-
-        final long base = UNSAFE.allocateMemory(this.size);
-
-        UNSAFE.setMemory(base, this.size, (byte) 0);
-
-        if (isAligned && (base % pageSize != 0)) {
-            address = base + pageSize - (base & (pageSize - 1));
-        } else {
-            address = base;
+        final ByteBuffer buffer = ByteBuffer.allocateDirect(size).order(ByteOrder.LITTLE_ENDIAN);
+        try {
+            final Method getAddress = buffer.getClass().getMethod("address");
+            getAddress.setAccessible(true);
+            final long address = (long) getAddress.invoke(buffer);
+            return new UnsafeMemory(buffer, address, size);
+        } catch (final Throwable e) {
+            return new ByteBufferMemory(buffer);
         }
+    }
 
-        cleaner = Cleaner.create(this, new Deallocator(address));
+    private final ByteBuffer buffer;
+    private final long address;
+    private final long size;
+
+    private UnsafeMemory(final ByteBuffer buffer, final long address, final int size) {
+        this.buffer = buffer;
+        this.address = address;
+        this.size = size;
     }
 
     public void dispose() {
-        cleaner.clean();
+        try {
+            final Method getCleaner = buffer.getClass().getMethod("cleaner");
+            getCleaner.setAccessible(true);
+            final Object cleaner = getCleaner.invoke(buffer);
+            final Method clean = cleaner.getClass().getMethod("clean");
+            clean.setAccessible(true);
+            clean.invoke(cleaner);
+        } catch (final Throwable ignored) {
+        }
     }
 
     @Override
@@ -53,7 +58,7 @@ public final class UnsafeMemory extends PhysicalMemory {
 
     @Override
     public long load(final int offset, final int sizeLog2) throws MemoryAccessException {
-        if (offset < 0 || offset > size - (1 << sizeLog2)) {
+        if (offset < 0 || offset > size - (1L << sizeLog2)) {
             throw new MemoryAccessException();
         }
         switch (sizeLog2) {
@@ -72,7 +77,7 @@ public final class UnsafeMemory extends PhysicalMemory {
 
     @Override
     public void store(final int offset, final long value, final int sizeLog2) throws MemoryAccessException {
-        if (offset < 0 || offset > size - (1 << sizeLog2)) {
+        if (offset < 0 || offset > size - (1L << sizeLog2)) {
             throw new MemoryAccessException();
         }
         switch (sizeLog2) {
@@ -110,22 +115,6 @@ public final class UnsafeMemory extends PhysicalMemory {
         }
         while (src.hasRemaining()) {
             UNSAFE.putByte(address + offset++, src.get());
-        }
-    }
-
-    private static final class Deallocator implements Runnable {
-        private long address;
-
-        public Deallocator(final long address) {
-            this.address = address;
-        }
-
-        @Override
-        public void run() {
-            if (address != 0) {
-                UNSAFE.freeMemory(address);
-                address = 0;
-            }
         }
     }
 }

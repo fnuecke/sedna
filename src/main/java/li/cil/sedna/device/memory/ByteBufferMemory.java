@@ -16,8 +16,14 @@ public class ByteBufferMemory extends PhysicalMemory {
     public ByteBufferMemory(final int size) {
         if ((size & 0b11) != 0)
             throw new IllegalArgumentException("size must be a multiple of four");
-        this.data = ByteBuffer.allocateDirect(size);
+        data = ByteBuffer.allocateDirect(size);
         data.order(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    public ByteBufferMemory(final ByteBuffer buffer) {
+        if ((buffer.capacity() & 0b11) != 0)
+            throw new IllegalArgumentException("size must be a multiple of four");
+        data = buffer.order(ByteOrder.LITTLE_ENDIAN);
     }
 
     @Override
