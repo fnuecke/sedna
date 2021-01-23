@@ -168,6 +168,11 @@ public final class R5Board implements Board {
     }
 
     @Override
+    public long getDefaultProgramStart() {
+        return PHYSICAL_MEMORY_FIRST;
+    }
+
+    @Override
     public void setBootArguments(final String value) {
         if (value != null && value.length() > 64) {
             throw new IllegalArgumentException();
@@ -213,7 +218,7 @@ public final class R5Board implements Board {
     }
 
     public void initialize() throws IllegalStateException, MemoryAccessException {
-        initialize(PHYSICAL_MEMORY_FIRST);
+        initialize(getDefaultProgramStart());
     }
 
     public void initialize(final long programStart) throws IllegalStateException, MemoryAccessException {

@@ -21,6 +21,8 @@ public interface Board extends Steppable, Resettable {
 
     int getInterruptCount();
 
+    long getDefaultProgramStart();
+
     void setBootArguments(String value);
 
     void setStandardOutputDevice(@Nullable MemoryMappedDevice device);
