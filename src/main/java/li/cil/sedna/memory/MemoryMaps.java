@@ -60,9 +60,7 @@ public final class MemoryMaps {
         while (dst.hasRemaining()) {
             final MemoryRange range = memory.getMemoryRange(address);
             if (range == null) {
-                address++;
-                dst.put((byte) 0);
-                continue;
+                throw new MemoryAccessException();
             }
 
             final int offset = (int) (address - range.start);
@@ -107,9 +105,7 @@ public final class MemoryMaps {
         while (src.hasRemaining()) {
             final MemoryRange range = memory.getMemoryRange(address);
             if (range == null) {
-                address++;
-                src.position(src.position() + 1);
-                continue;
+                throw new MemoryAccessException();
             }
 
             final int offset = (int) (address - range.start);
@@ -129,11 +125,7 @@ public final class MemoryMaps {
         for (; ; ) {
             final MemoryRange range = memory.getMemoryRange(address);
             if (range == null) {
-                address++;
-                if (stream.read() < 0) {
-                    break;
-                }
-                continue;
+                throw new MemoryAccessException();
             }
 
             final int offset = (int) (address - range.start);
