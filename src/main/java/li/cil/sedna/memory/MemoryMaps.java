@@ -14,6 +14,22 @@ import java.nio.ByteOrder;
 
 public final class MemoryMaps {
     /**
+     * Computes the size of continuous physical memory starting at and including the specified address.
+     *
+     * @param memory  the memory map the address is local to.
+     * @param address the address to start at.
+     * @return the size of the continuous memory range.
+     */
+    public static int getContinuousMemorySize(final MemoryMap memory, final long address) {
+        final MemoryRange range = memory.getMemoryRange(address);
+        if (range == null || !(range.device instanceof PhysicalMemory)) {
+            return 0;
+        }
+
+        return range.size() + getContinuousMemorySize(memory, range.end + 1);
+    }
+
+    /**
      * Block-copies data from a {@link MemoryMap} into the specified range of the specified array.
      *
      * @param memory  the memory map to copy from.
