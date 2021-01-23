@@ -119,6 +119,18 @@ public final class MemoryMaps {
         }
     }
 
+    /**
+     * Block-copies data to a {@link MemoryMap} from the specified {@link InputStream}.
+     * <p>
+     * This method uses buffering to perform the copy. Using a {@link java.io.BufferedInputStream}
+     * is unlikely to improve performance by much.
+     *
+     * @param memory  the memory map to copy to.
+     * @param address the address in memory to copy to.
+     * @param stream  the stream to copy from.
+     * @throws MemoryAccessException when the data cannot be continuously copied into memory.
+     * @throws IOException           if accessing the input stream throws an exception.
+     */
     public static void store(final MemoryMap memory, long address, final InputStream stream) throws IOException {
         final byte[] array = new byte[64 * 1024];
         final ByteBuffer buffer = ByteBuffer.wrap(array);
