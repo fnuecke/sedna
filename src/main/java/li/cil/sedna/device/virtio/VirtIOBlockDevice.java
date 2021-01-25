@@ -101,7 +101,7 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
             ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN));
     private static final ThreadLocal<byte[]> COPY_BUFFER = ThreadLocal.withInitial(() -> new byte[64 * 1024]);
 
-    private final BlockDevice block;
+    private BlockDevice block;
     private int remainingByteProcessingQuota;
     @Serialized private boolean hasPendingRequest;
 
@@ -119,6 +119,15 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
                           VIRTIO_BLK_F_FLUSH)
                 .build());
         this.block = block;
+    }
+
+    public void setBlock(final BlockDevice block) throws IOException {
+        if (this.block != null) {
+            this.block.close();
+        }
+
+        this.block = block;
+        notifyConfigChanged();
     }
 
     @Override
