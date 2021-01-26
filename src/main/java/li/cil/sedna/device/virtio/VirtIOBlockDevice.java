@@ -122,12 +122,13 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     }
 
     public void setBlock(final BlockDevice block) throws IOException {
-        if (this.block != null) {
-            this.block.close();
-        }
-
+        final BlockDevice oldBlock = this.block;
         this.block = block;
         notifyConfigChanged();
+
+        if (oldBlock != null) {
+            oldBlock.close();
+        }
     }
 
     @Override
