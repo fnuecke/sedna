@@ -130,9 +130,9 @@ public final class R5Board implements Board {
     }
 
     @Override
-    public boolean addDevice(final MemoryMappedDevice device) {
+    public OptionalLong addDevice(final MemoryMappedDevice device) {
         if (device.getLength() == 0) {
-            return false;
+            return OptionalLong.empty();
         }
 
         final long startMin, startMax;
@@ -145,7 +145,11 @@ public final class R5Board implements Board {
         }
 
         final OptionalLong address = memoryMap.findFreeRange(startMin, startMax, device.getLength());
-        return address.isPresent() && addDevice(address.getAsLong(), device);
+        if (address.isPresent() && addDevice(address.getAsLong(), device)) {
+            return address;
+        }
+
+        return OptionalLong.empty();
     }
 
     @Override
