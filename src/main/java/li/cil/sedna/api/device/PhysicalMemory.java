@@ -2,7 +2,7 @@ package li.cil.sedna.api.device;
 
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.api.memory.MemoryRange;
+import li.cil.sedna.api.memory.MappedMemoryRange;
 
 import java.nio.ByteBuffer;
 
@@ -13,7 +13,7 @@ import java.nio.ByteBuffer;
  * in a translation look-aside buffer.
  * <p>
  * In particular, implementing this interface communicates that values written to
- * this device can be read back from the same address, and that the {@link MemoryRange}
+ * this device can be read back from the same address, and that the {@link MappedMemoryRange}
  * they occupy can be used as a continuous whole, without any inaccessible areas in
  * it.
  */

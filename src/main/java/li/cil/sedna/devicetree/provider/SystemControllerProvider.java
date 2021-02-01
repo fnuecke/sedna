@@ -7,7 +7,7 @@ import li.cil.sedna.api.devicetree.DevicePropertyNames;
 import li.cil.sedna.api.devicetree.DeviceTree;
 import li.cil.sedna.api.devicetree.DeviceTreeProvider;
 import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.api.memory.MemoryRange;
+import li.cil.sedna.api.memory.MappedMemoryRange;
 import li.cil.sedna.device.syscon.AbstractSystemController;
 
 import java.util.Optional;
@@ -20,7 +20,7 @@ public final class SystemControllerProvider implements DeviceTreeProvider {
 
     @Override
     public Optional<DeviceTree> createNode(final DeviceTree root, final MemoryMap memoryMap, final Device device, final String deviceName) {
-        final Optional<MemoryRange> range = memoryMap.getMemoryRange((MemoryMappedDevice) device);
+        final Optional<MappedMemoryRange> range = memoryMap.getMemoryRange((MemoryMappedDevice) device);
         return range.map(r -> root.find("/soc").getChild(deviceName, r.address()));
     }
 

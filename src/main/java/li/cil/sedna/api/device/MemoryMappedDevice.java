@@ -3,7 +3,7 @@ package li.cil.sedna.api.device;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.api.memory.MemoryRange;
+import li.cil.sedna.api.memory.MappedMemoryRange;
 
 /**
  * {@link MemoryMappedDevice}s can be registered with a {@link MemoryMap}
@@ -13,7 +13,7 @@ public interface MemoryMappedDevice extends Device {
     /**
      * The number of bytes this device occupies in memory.
      * <p>
-     * This is used by a {@link MemoryMap} to compute the {@link MemoryRange} the
+     * This is used by a {@link MemoryMap} to compute the {@link MappedMemoryRange} the
      * device will occupy.
      *
      * @return the size of the device in bytes.

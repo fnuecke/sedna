@@ -5,28 +5,17 @@ import li.cil.sedna.api.device.MemoryMappedDevice;
 
 import javax.annotation.Nullable;
 import java.util.Optional;
-import java.util.OptionalLong;
 
 /**
  * Represents a physical memory mapping of devices.
  */
 public interface MemoryMap {
     /**
-     * Tries to find a vacant memory range of the specified size in the specified ranged.
-     *
-     * @param start the minimum starting address for the memory range to find (inclusive).
-     * @param end   the maximum starting address for the memory range to find (inclusive).
-     * @param size  the size of the memory range to find.
-     * @return the address of a free memory range, if one was found.
-     */
-    OptionalLong findFreeRange(final long start, final long end, final int size);
-
-    /**
      * Tries to add a new device to the mapping at the specified address.
      * <p>
      * This can fail if the new device would overlap a memory range already occupied by
      * an existing device. In that case this method will return <code>false</code>. Use
-     * {@link #findFreeRange(long, long, int)} to obtain an address the device can be
+     * a {@link MemoryRangeAllocationStrategy} to obtain an address the device can be
      * added at.
      *
      * @param address the address to add the device add.
@@ -50,7 +39,15 @@ public interface MemoryMap {
      * @param device the device to get the memory range for.
      * @return the range the device occupies, if it is in this mapping.
      */
-    Optional<MemoryRange> getMemoryRange(final MemoryMappedDevice device);
+    Optional<MappedMemoryRange> getMemoryRange(final MemoryMappedDevice device);
+
+    /**
+     * Return a mapped memory range intersecting the specified memory range, if any.
+     *
+     * @param range the memory range to find an intersect for.
+     * @return a range intersecting the specified range, if any.
+     */
+    Optional<MappedMemoryRange> getMemoryRange(final MemoryRange range);
 
     /**
      * Returns the memory range that the specified address fall into, if any.
@@ -64,7 +61,7 @@ public interface MemoryMap {
      * @return the memory range the address falls into, if any.
      */
     @Nullable
-    MemoryRange getMemoryRange(final long address);
+    MappedMemoryRange getMemoryRange(final long address);
 
     /**
      * Marks a location in memory dirty.

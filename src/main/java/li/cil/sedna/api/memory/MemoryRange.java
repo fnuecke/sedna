@@ -1,17 +1,18 @@
 package li.cil.sedna.api.memory;
 
-import li.cil.sedna.api.device.MemoryMappedDevice;
-
 import java.util.Objects;
 
 /**
- * Represents a segment of memory mapped by a {@link MemoryMap}.
+ * Represents a range in memory.
  */
-public final class MemoryRange {
-    /**
-     * The device assigned to this memory range.
-     */
-    public final MemoryMappedDevice device;
+public class MemoryRange {
+    public static MemoryRange of(final long start, final long end) {
+        return new MemoryRange(start, end);
+    }
+
+    public static MemoryRange at(final long address, final int length) {
+        return new MemoryRange(address, address + length - 1);
+    }
 
     /**
      * The first byte-aligned address inside this memory range (inclusive).
@@ -23,7 +24,7 @@ public final class MemoryRange {
      */
     public final long end;
 
-    public MemoryRange(final MemoryMappedDevice device, final long start, final long end) {
+    protected MemoryRange(final long start, final long end) {
         if (Long.compareUnsigned(start, end) > 0) {
             throw new IllegalArgumentException();
         }
@@ -31,13 +32,8 @@ public final class MemoryRange {
             throw new IllegalArgumentException();
         }
 
-        this.device = device;
         this.start = start;
         this.end = end;
-    }
-
-    public MemoryRange(final MemoryMappedDevice device, final long address) {
-        this(device, address, address + device.getLength() - 1);
     }
 
     /**
@@ -86,17 +82,16 @@ public final class MemoryRange {
         if (o == null || getClass() != o.getClass()) return false;
         final MemoryRange that = (MemoryRange) o;
         return start == that.start &&
-               end == that.end &&
-               device.equals(that.device);
+               end == that.end;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(device, start, end);
+        return Objects.hash(start, end);
     }
 
     @Override
     public String toString() {
-        return String.format("%s@[%x-%x]", device, start, end);
+        return String.format("[%x-%x]", start, end);
     }
 }

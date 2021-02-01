@@ -3,9 +3,9 @@ package li.cil.sedna.memory;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.PhysicalMemory;
+import li.cil.sedna.api.memory.MappedMemoryRange;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.api.memory.MemoryRange;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,7 +21,7 @@ public final class MemoryMaps {
      * @return the size of the continuous memory range.
      */
     public static int getContinuousMemorySize(final MemoryMap memory, final long address) {
-        final MemoryRange range = memory.getMemoryRange(address);
+        final MappedMemoryRange range = memory.getMemoryRange(address);
         if (range == null || !(range.device instanceof PhysicalMemory)) {
             return 0;
         }
@@ -58,7 +58,7 @@ public final class MemoryMaps {
      */
     public static void load(final MemoryMap memory, long address, final ByteBuffer dst) throws MemoryAccessException {
         while (dst.hasRemaining()) {
-            final MemoryRange range = memory.getMemoryRange(address);
+            final MappedMemoryRange range = memory.getMemoryRange(address);
             if (range == null) {
                 throw new MemoryAccessException();
             }
@@ -103,7 +103,7 @@ public final class MemoryMaps {
      */
     public static void store(final MemoryMap memory, long address, final ByteBuffer src) throws MemoryAccessException {
         while (src.hasRemaining()) {
-            final MemoryRange range = memory.getMemoryRange(address);
+            final MappedMemoryRange range = memory.getMemoryRange(address);
             if (range == null) {
                 throw new MemoryAccessException();
             }
@@ -135,7 +135,7 @@ public final class MemoryMaps {
         final byte[] array = new byte[64 * 1024];
         final ByteBuffer buffer = ByteBuffer.wrap(array);
         for (; ; ) {
-            final MemoryRange range = memory.getMemoryRange(address);
+            final MappedMemoryRange range = memory.getMemoryRange(address);
             if (range == null) {
                 throw new MemoryAccessException();
             }

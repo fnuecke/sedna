@@ -4,9 +4,9 @@ import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
+import li.cil.sedna.api.memory.MappedMemoryRange;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.api.memory.MemoryRange;
 import li.cil.sedna.instruction.InstructionDefinition.Field;
 import li.cil.sedna.instruction.InstructionDefinition.Instruction;
 import li.cil.sedna.instruction.InstructionDefinition.InstructionSize;
@@ -1096,7 +1096,7 @@ final class R5CPUTemplate implements R5CPU {
 
     private TLBEntry fetchPageSlow(final long address) throws R5MemoryAccessException {
         final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.FETCH);
-        final MemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
+        final MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
         if (range == null || !range.device.supportsFetch()) {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_FETCH);
         }
@@ -1111,7 +1111,7 @@ final class R5CPUTemplate implements R5CPU {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_MISALIGNED_LOAD);
         } else {
             final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.LOAD);
-            final MemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
+            final MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
             if (range == null) {
                 throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_LOAD);
             }
@@ -1121,7 +1121,7 @@ final class R5CPUTemplate implements R5CPU {
                     final TLBEntry entry = updateTLB(loadTLB, address, physicalAddress, range);
                     return entry.device.load((int) (address + entry.toOffset), sizeLog2);
                 } else {
-                    return range.device.load((int) (physicalAddress - range.start), sizeLog2);
+                    return range.device.load((int) (physicalAddress - range.address()), sizeLog2);
                 }
             } catch (final MemoryAccessException e) {
                 throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_LOAD);
@@ -1136,7 +1136,7 @@ final class R5CPUTemplate implements R5CPU {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_MISALIGNED_STORE);
         } else {
             final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.STORE);
-            final MemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
+            final MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
             if (range == null) {
                 throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_STORE);
             }
@@ -1286,7 +1286,7 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // TLB
 
-    private static TLBEntry updateTLB(final TLBEntry[] tlb, final long address, final long physicalAddress, final MemoryRange range) {
+    private static TLBEntry updateTLB(final TLBEntry[] tlb, final long address, final long physicalAddress, final MappedMemoryRange range) {
         final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
         final long hash = address & ~R5.PAGE_ADDRESS_MASK;
 

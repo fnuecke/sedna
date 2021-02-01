@@ -8,9 +8,10 @@ import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.devicetree.DeviceNames;
 import li.cil.sedna.api.devicetree.DevicePropertyNames;
 import li.cil.sedna.api.devicetree.DeviceTree;
+import li.cil.sedna.api.memory.MappedMemoryRange;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.api.memory.MemoryRange;
+import li.cil.sedna.api.memory.MemoryRangeAllocationStrategy;
 import li.cil.sedna.device.flash.FlashMemoryDevice;
 import li.cil.sedna.devicetree.DeviceTreeRegistry;
 import li.cil.sedna.devicetree.FlattenedDeviceTree;
@@ -29,16 +30,14 @@ import java.util.List;
 import java.util.OptionalLong;
 
 public final class R5Board implements Board {
-    private static final long PHYSICAL_MEMORY_FIRST = 0x80000000L;
-    private static final long PHYSICAL_MEMORY_LAST = 0xFFFFFFFFL;
-    private static final long DEVICE_MEMORY_FIRST = 0x10000000L;
-    private static final long DEVICE_MEMORY_LAST = 0x7FFFFFFFL;
     private static final long SYSCON_ADDRESS = 0x01000000L;
     private static final long CLINT_ADDRESS = 0x02000000L;
     private static final long PLIC_ADDRESS = 0x0C000000L;
 
     private static final long FLASH_ADDRESS = 0x1000L; // R5CPU starts executing at 0x1000.
     private static final int FLASH_SIZE = 0x100; // Just needs to fit "jump to firmware".
+
+    private final MemoryRangeAllocationStrategy allocationStrategy = new R5MemoryRangeAllocationStrategy();
 
     private final MemoryMap memoryMap;
     private final RealTimeCounter rtc;
@@ -97,6 +96,11 @@ public final class R5Board implements Board {
     }
 
     @Override
+    public MemoryRangeAllocationStrategy getAllocationStrategy() {
+        return allocationStrategy;
+    }
+
+    @Override
     public boolean addDevice(final long address, final MemoryMappedDevice device) {
         if (device.getLength() == 0) {
             return false;
@@ -114,8 +118,8 @@ public final class R5Board implements Board {
         }
 
         final int index = Collections.binarySearch(devices, device, (o1, o2) -> {
-            final MemoryRange range1 = memoryMap.getMemoryRange(o1).orElseThrow(AssertionError::new);
-            final MemoryRange range2 = memoryMap.getMemoryRange(o2).orElseThrow(AssertionError::new);
+            final MappedMemoryRange range1 = memoryMap.getMemoryRange(o1).orElseThrow(AssertionError::new);
+            final MappedMemoryRange range2 = memoryMap.getMemoryRange(o2).orElseThrow(AssertionError::new);
             return Long.compareUnsigned(range1.address(), range2.address());
         });
         assert index < 0;
@@ -131,20 +135,7 @@ public final class R5Board implements Board {
 
     @Override
     public OptionalLong addDevice(final MemoryMappedDevice device) {
-        if (device.getLength() == 0) {
-            return OptionalLong.empty();
-        }
-
-        final long startMin, startMax;
-        if (device instanceof PhysicalMemory) {
-            startMin = PHYSICAL_MEMORY_FIRST;
-            startMax = PHYSICAL_MEMORY_LAST - device.getLength() + 1;
-        } else {
-            startMin = DEVICE_MEMORY_FIRST;
-            startMax = DEVICE_MEMORY_LAST - device.getLength() + 1;
-        }
-
-        final OptionalLong address = memoryMap.findFreeRange(startMin, startMax, device.getLength());
+        final OptionalLong address = allocationStrategy.findMemoryRange(device, MemoryRangeAllocationStrategy.getMemoryMapIntersectionProvider(memoryMap));
         if (address.isPresent() && addDevice(address.getAsLong(), device)) {
             return address;
         }
@@ -173,7 +164,7 @@ public final class R5Board implements Board {
 
     @Override
     public long getDefaultProgramStart() {
-        return PHYSICAL_MEMORY_FIRST;
+        return R5MemoryRangeAllocationStrategy.PHYSICAL_MEMORY_FIRST;
     }
 
     @Override
@@ -203,7 +194,7 @@ public final class R5Board implements Board {
                 device.step(cycles);
             }
         } catch (final R5SystemResetException e) {
-            cpu.reset(false, PHYSICAL_MEMORY_FIRST);
+            cpu.reset(false, getDefaultProgramStart());
         } catch (final R5SystemPowerOffException e) {
             reset();
             isRunning = false;
@@ -233,7 +224,7 @@ public final class R5Board implements Board {
         for (final MemoryMappedDevice device : devices) {
             if (device instanceof PhysicalMemory) {
                 if (device.getLength() >= dtb.length) {
-                    final MemoryRange memoryRange = memoryMap.getMemoryRange(device).orElseThrow(AssertionError::new);
+                    final MappedMemoryRange memoryRange = memoryMap.getMemoryRange(device).orElseThrow(AssertionError::new);
 
                     final long address = (memoryRange.start + memoryRange.size() - dtb.length) & ~0b111L; // align(8)
                     if (Long.compareUnsigned(address, memoryRange.start) < 0) {
