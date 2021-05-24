@@ -3,8 +3,8 @@ package li.cil.sedna.device.syscon;
 import li.cil.sedna.api.device.MemoryMappedDevice;
 
 public abstract class AbstractSystemController implements MemoryMappedDevice {
-    public static final int SYSCON_RESET = 0x0000;
-    public static final int SYSCON_POWEROFF = 0x0001;
+    public static final int SYSCON_RESET = 0x1000;
+    public static final int SYSCON_POWEROFF = 0x2000;
 
     @Override
     public int getLength() {
