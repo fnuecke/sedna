@@ -346,7 +346,7 @@ public final class R5Board implements Board {
     private static String getISAString(final R5CPU cpu) {
         final StringBuilder isa = new StringBuilder("rv64");
         for (final char i : R5.CANONICAL_ISA_ORDER.toCharArray()) {
-            if ((cpu.getISA() & (1 << (Character.toLowerCase(i) - 'a'))) != 0) {
+            if ((cpu.getISA() & (1L << (Character.toLowerCase(i) - 'a'))) != 0) {
                 isa.append(Character.toLowerCase(i));
             }
         }
