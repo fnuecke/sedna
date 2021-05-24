@@ -28,7 +28,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.OptionalLong;
-import java.util.function.Consumer;
 
 public final class R5Board implements Board {
     private static final long SYSCON_ADDRESS = 0x01000000L;
@@ -40,7 +39,6 @@ public final class R5Board implements Board {
 
     private final MemoryRangeAllocationStrategy allocationStrategy = new R5MemoryRangeAllocationStrategy();
 
-    private final Consumer<R5Board> resetCallback;
     private final MemoryMap memoryMap;
     private final RealTimeCounter rtc;
     private final FlashMemoryDevice flash;
@@ -53,14 +51,9 @@ public final class R5Board implements Board {
     @Serialized private final R5PlatformLevelInterruptController plic;
     @Serialized private String bootargs;
     @Serialized private boolean isRunning;
+    @Serialized private boolean isRestarting;
 
     public R5Board() {
-        this(board -> board.cpu.reset(false, board.getDefaultProgramStart()));
-    }
-
-    public R5Board(final Consumer<R5Board> resetCallback) {
-        this.resetCallback = resetCallback;
-
         memoryMap = new SimpleMemoryMap();
         rtc = cpu = R5CPU.create(memoryMap);
 
@@ -82,11 +75,15 @@ public final class R5Board implements Board {
     }
 
     public boolean isRunning() {
-        return isRunning;
+        return isRunning && !isRestarting;
     }
 
     public void setRunning(final boolean value) {
         isRunning = value;
+    }
+
+    public boolean isRestarting() {
+        return isRestarting;
     }
 
     public R5CPU getCpu() {
@@ -193,7 +190,7 @@ public final class R5Board implements Board {
 
     @Override
     public void step(final int cycles) {
-        if (!isRunning) {
+        if (!isRunning()) {
             return;
         }
 
@@ -203,9 +200,10 @@ public final class R5Board implements Board {
             }
         } catch (final R5SystemResetException e) {
             reset();
+            isRestarting = true;
         } catch (final R5SystemPowerOffException e) {
-            isRunning = false;
             reset();
+            isRunning = false;
         }
     }
 
@@ -218,8 +216,6 @@ public final class R5Board implements Board {
                 ((Resettable) device).reset();
             }
         }
-
-        resetCallback.accept(this);
     }
 
     public void initialize() throws IllegalStateException, MemoryAccessException {
@@ -227,6 +223,8 @@ public final class R5Board implements Board {
     }
 
     public void initialize(final long programStart) throws IllegalStateException, MemoryAccessException {
+        isRestarting = false;
+
         final FlattenedDeviceTree fdt = buildDeviceTree().flatten();
         final byte[] dtb = fdt.toDTB();
 
