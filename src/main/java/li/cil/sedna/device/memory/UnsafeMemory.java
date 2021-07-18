@@ -35,7 +35,7 @@ public final class UnsafeMemory extends PhysicalMemory {
 
     private final ByteBuffer buffer;
     private final long address;
-    private final long size;
+    private long size;
 
     private UnsafeMemory(final ByteBuffer buffer, final long address, final int size) {
         this.buffer = buffer;
@@ -49,6 +49,7 @@ public final class UnsafeMemory extends PhysicalMemory {
     }
 
     public void dispose() {
+        size = 0;
         DirectByteBufferUtils.release(buffer);
     }
 
@@ -59,7 +60,7 @@ public final class UnsafeMemory extends PhysicalMemory {
 
     @Override
     public long load(final int offset, final int sizeLog2) throws MemoryAccessException {
-        if (offset < 0 || offset > size - (1L << sizeLog2)) {
+        if (offset < 0 || offset > getLength() - (1 << sizeLog2)) {
             throw new MemoryAccessException();
         }
         switch (sizeLog2) {
@@ -78,7 +79,7 @@ public final class UnsafeMemory extends PhysicalMemory {
 
     @Override
     public void store(final int offset, final long value, final int sizeLog2) throws MemoryAccessException {
-        if (offset < 0 || offset > size - (1L << sizeLog2)) {
+        if (offset < 0 || offset > getLength() - (1 << sizeLog2)) {
             throw new MemoryAccessException();
         }
         switch (sizeLog2) {
@@ -101,7 +102,7 @@ public final class UnsafeMemory extends PhysicalMemory {
 
     @Override
     public void load(int offset, final ByteBuffer dst) throws MemoryAccessException {
-        if (offset < 0 || offset > size - dst.remaining()) {
+        if (offset < 0 || offset > getLength() - dst.remaining()) {
             throw new MemoryAccessException();
         }
         while (dst.hasRemaining()) {
@@ -111,7 +112,7 @@ public final class UnsafeMemory extends PhysicalMemory {
 
     @Override
     public void store(int offset, final ByteBuffer src) throws MemoryAccessException {
-        if (offset < 0 || offset > size - src.remaining()) {
+        if (offset < 0 || offset > getLength() - src.remaining()) {
             throw new MemoryAccessException();
         }
         while (src.hasRemaining()) {
