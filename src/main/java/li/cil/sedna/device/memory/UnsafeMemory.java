@@ -61,7 +61,7 @@ public final class UnsafeMemory extends PhysicalMemory {
 
     @Override
     public long load(final int offset, final int sizeLog2) throws MemoryAccessException {
-        if (offset < 0 || offset >= size) {
+        if (offset < 0 || offset > size - (1L << sizeLog2)) {
             throw new MemoryAccessException();
         }
         switch (sizeLog2) {
@@ -80,7 +80,7 @@ public final class UnsafeMemory extends PhysicalMemory {
 
     @Override
     public void store(final int offset, final long value, final int sizeLog2) throws MemoryAccessException {
-        if (offset < 0 || offset >= size) {
+        if (offset < 0 || offset > size - (1L << sizeLog2)) {
             throw new MemoryAccessException();
         }
         switch (sizeLog2) {
