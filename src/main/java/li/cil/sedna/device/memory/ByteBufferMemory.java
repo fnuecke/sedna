@@ -3,6 +3,7 @@ package li.cil.sedna.device.memory;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.memory.MemoryAccessException;
+import li.cil.sedna.utils.DirectByteBufferUtils;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -27,13 +28,18 @@ public class ByteBufferMemory extends PhysicalMemory {
     }
 
     @Override
+    public void close() throws Exception {
+        DirectByteBufferUtils.release(data);
+    }
+
+    @Override
     public int getLength() {
         return data.capacity();
     }
 
     @Override
     public long load(final int offset, final int sizeLog2) throws MemoryAccessException {
-        if (offset < 0 || offset > data.limit() - (1 << sizeLog2)) {
+        if (offset < 0 || offset > getLength() - (1 << sizeLog2)) {
             throw new MemoryAccessException();
         }
         switch (sizeLog2) {
@@ -52,7 +58,7 @@ public class ByteBufferMemory extends PhysicalMemory {
 
     @Override
     public void store(final int offset, final long value, final int sizeLog2) throws MemoryAccessException {
-        if (offset < 0 || offset > data.limit() - (1 << sizeLog2)) {
+        if (offset < 0 || offset > getLength() - (1 << sizeLog2)) {
             throw new MemoryAccessException();
         }
         switch (sizeLog2) {
@@ -74,7 +80,10 @@ public class ByteBufferMemory extends PhysicalMemory {
     }
 
     @Override
-    public void load(final int offset, final ByteBuffer dst) {
+    public void load(final int offset, final ByteBuffer dst) throws MemoryAccessException {
+        if (offset < 0 || offset > getLength() - dst.remaining()) {
+            throw new MemoryAccessException();
+        }
         final ByteBuffer slice = data.slice();
         slice.position(offset);
         slice.limit(offset + dst.remaining());
@@ -82,7 +91,10 @@ public class ByteBufferMemory extends PhysicalMemory {
     }
 
     @Override
-    public void store(final int offset, final ByteBuffer src) {
+    public void store(final int offset, final ByteBuffer src) throws MemoryAccessException {
+        if (offset < 0 || offset > getLength() - src.remaining()) {
+            throw new MemoryAccessException();
+        }
         final ByteBuffer slice = data.slice();
         slice.position(offset);
         slice.limit(offset + src.remaining());

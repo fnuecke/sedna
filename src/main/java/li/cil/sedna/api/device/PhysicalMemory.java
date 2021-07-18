@@ -1,8 +1,8 @@
 package li.cil.sedna.api.device;
 
 import li.cil.sedna.api.Sizes;
-import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MappedMemoryRange;
+import li.cil.sedna.api.memory.MemoryAccessException;
 
 import java.nio.ByteBuffer;
 
@@ -17,7 +17,7 @@ import java.nio.ByteBuffer;
  * they occupy can be used as a continuous whole, without any inaccessible areas in
  * it.
  */
-public abstract class PhysicalMemory implements MemoryMappedDevice {
+public abstract class PhysicalMemory implements MemoryMappedDevice, AutoCloseable {
     @Override
     public boolean supportsFetch() {
         return true;
@@ -47,5 +47,12 @@ public abstract class PhysicalMemory implements MemoryMappedDevice {
         while (src.hasRemaining()) {
             store(offset++, src.get(), Sizes.SIZE_8_LOG2);
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void close() throws Exception {
     }
 }

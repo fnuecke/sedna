@@ -3,6 +3,7 @@ package li.cil.sedna.device.memory;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.memory.MemoryAccessException;
+import li.cil.sedna.utils.DirectByteBufferUtils;
 import li.cil.sedna.utils.UnsafeGetter;
 import sun.misc.Unsafe;
 
@@ -42,16 +43,13 @@ public final class UnsafeMemory extends PhysicalMemory {
         this.size = size;
     }
 
+    @Override
+    public void close() throws Exception {
+        dispose();
+    }
+
     public void dispose() {
-        try {
-            final Method getCleaner = buffer.getClass().getMethod("cleaner");
-            getCleaner.setAccessible(true);
-            final Object cleaner = getCleaner.invoke(buffer);
-            final Method clean = cleaner.getClass().getMethod("clean");
-            clean.setAccessible(true);
-            clean.invoke(cleaner);
-        } catch (final Throwable ignored) {
-        }
+        DirectByteBufferUtils.release(buffer);
     }
 
     @Override
