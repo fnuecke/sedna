@@ -6,7 +6,7 @@ import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
 
 public final class FileMappedMemory extends ByteBufferMemory {
-    private final RandomAccessFile file;
+    private final FileChannel channel;
     private int size;
 
     public FileMappedMemory(final int size, final File file) throws IOException {
@@ -14,15 +14,18 @@ public final class FileMappedMemory extends ByteBufferMemory {
     }
 
     private FileMappedMemory(final int size, final RandomAccessFile file) throws IOException {
-        super(file.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, size));
-        this.file = file;
-        this.size = size;
+        this(size, file.getChannel());
+    }
+
+    private FileMappedMemory(final int size, final FileChannel channel) throws IOException {
+        super(channel.map(FileChannel.MapMode.READ_WRITE, 0, size));
+        this.channel = channel;
     }
 
     @Override
     public void close() throws Exception {
         try {
-            file.close();
+            channel.close();
         } catch (final IOException ignored) {
         }
         size = 0;

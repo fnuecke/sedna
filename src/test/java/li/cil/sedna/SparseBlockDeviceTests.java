@@ -30,7 +30,7 @@ public final class SparseBlockDeviceTests {
         array = new byte[1024];
         new Random(0xdeadbeef).nextBytes(array);
         final ByteBuffer data = ByteBuffer.wrap(array);
-        lower = new ByteBufferBlockDevice(data, true);
+        lower = ByteBufferBlockDevice.wrap(data, true);
         sparse = new SparseBlockDevice(lower);
     }
 
