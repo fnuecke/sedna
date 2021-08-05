@@ -5,22 +5,22 @@ plugins {
 
 def getGitRef() {
     try {
-        def stdout = new ByteArrayOutputStream()
+        final def stdout = new ByteArrayOutputStream()
         exec {
             commandLine 'git', 'rev-parse', '--short', 'HEAD'
             standardOutput = stdout
         }
         return stdout.toString().trim()
-    } catch (Throwable ignored) {
-        return "unknown"
+    } catch (final Throwable ignored) {
+        return 'unknown'
     }
 }
 
-String semver = "${version_major}.${version_minor}.${version_patch}"
+final String semver = "${version_major}.${version_minor}.${version_patch}"
 
-String build_number = System.getenv("PROMOTED_NUMBER")
+String build_number = System.getenv('PROMOTED_NUMBER')
 if (build_number == null)
-    build_number = System.getenv("BUILD_NUMBER")
+    build_number = System.getenv('BUILD_NUMBER')
 if (build_number == null)
     build_number = getGitRef()
 
@@ -41,7 +41,7 @@ compileJava {
 
 repositories {
     mavenCentral()
-    maven { url "http://maven.cil.li/" } // Ceres
+    maven { url 'https://maven.cil.li/' } // Ceres
 }
 
 dependencies {
@@ -58,7 +58,7 @@ dependencies {
 
     implementation 'li.cil.ceres:ceres:0.0.2+18'
 
-    testImplementation "org.mockito:mockito-core:2.+"
+    testImplementation 'org.mockito:mockito-core:2.+'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.3.1'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.3.1'
 }
@@ -71,7 +71,7 @@ publishing {
     }
     repositories {
         maven {
-            url System.getenv("MAVEN_PATH")
+            url System.getenv('MAVEN_PATH')
         }
     }
 }
