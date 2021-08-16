@@ -768,6 +768,7 @@ final class R5CPUTemplate implements R5CPU {
                 if ((value & 0b11) < 2) { // Don't allow reserved modes.
                     mtvec = value;
                 }
+                break;
             }
             case 0x306: { // mcounteren Machine counter enable.
                 mcounteren = (int) (value & COUNTEREN_MASK);
