@@ -67,6 +67,15 @@ publishing {
     publications {
         mavenJava(MavenPublication) {
             artifact jar
+
+            versionMapping {
+                usage('java-api') {
+                    fromResolutionOf('runtimeClasspath')
+                }
+                usage('java-runtime') {
+                    fromResolutionResult()
+                }
+            }
         }
     }
     repositories {
