@@ -5,6 +5,10 @@ import li.cil.sedna.utils.BitUtils;
 
 @SuppressWarnings({"unused", "RedundantSuppression", "PointlessBitwiseExpression"})
 public final class R5 {
+    // Supported XLEN values.
+    public static final int XLEN_32 = 32;
+    public static final int XLEN_64 = 64;
+
     // Privilege levels.
     public static final int PRIVILEGE_U = 0; // User
     public static final int PRIVILEGE_S = 1; // Supervisor
@@ -107,9 +111,6 @@ public final class R5 {
     public static final int EXCEPTION_LOAD_PAGE_FAULT = 13;
     public static final int EXCEPTION_STORE_PAGE_FAULT = 15;
 
-    // Highest bit means it's an interrupt/asynchronous exception, otherwise a regular exception.
-    public static final long INTERRUPT = 1L << 63;
-
     // Supported counters in [m|s]counteren CSRs.
     public static final int MCOUNTERN_CY = 1 << 0;
     public static final int MCOUNTERN_TM = 1 << 1;
@@ -117,12 +118,16 @@ public final class R5 {
     public static final int MCOUNTERN_HPM3 = 1 << 3; // Contiguous HPM counters up to HPM31 after this.
 
     // SATP CSR masks.
-    public static final long SATP_PPN_MASK = BitUtils.maskFromRange(0, 43);
-    public static final long SATP_ASID_MASK = BitUtils.maskFromRange(44, 59);
-    public static final long SATP_MODE_MASK = BitUtils.maskFromRange(60, 63);
+    public static final long SATP_PPN_MASK32 = BitUtils.maskFromRange(0, 21);
+    public static final long SATP_ASID_MASK32 = BitUtils.maskFromRange(22, 30);
+    public static final long SATP_MODE_MASK32 = BitUtils.maskFromRange(31, 31);
+    public static final long SATP_PPN_MASK64 = BitUtils.maskFromRange(0, 43);
+    public static final long SATP_ASID_MASK64 = BitUtils.maskFromRange(44, 59);
+    public static final long SATP_MODE_MASK64 = BitUtils.maskFromRange(60, 63);
 
     // SATP modes.
     public static final long SATP_MODE_NONE = 0L << 60;
+    public static final long SATP_MODE_SV32 = 1L << 31;
     public static final long SATP_MODE_SV39 = 8L << 60;
     public static final long SATP_MODE_SV48 = 9L << 60;
     public static final long SATP_MODE_SV57 = 10L << 60;
@@ -145,11 +150,9 @@ public final class R5 {
     public static final int PTE_RSW_MASK = 0b11 << 8; // Reserved for supervisor software.
 
     // Config for SV39/48 configuration.
+    public static final int SV32_LEVELS = 2;
     public static final int SV39_LEVELS = 3;
     public static final int SV48_LEVELS = 4;
-    public static final int SV39_PTE_SIZE_LOG2 = Sizes.SIZE_64_LOG2; // => * size == << log2(size)
-    public static final int SV39_XPN_SIZE = 9; // page number size per level in bits
-    public static final int SV39_XPN_MASK = (1 << SV39_XPN_SIZE) - 1;
 
     // Floating point extension CSR.
     public static final int FCSR_FFLAGS_NX_MASK = 0b1 << 0; // Inexact.
@@ -205,7 +208,7 @@ public final class R5 {
      * @param xlen the XLEN to get the MXL value for. Must be 32, 64 or 128.
      * @return the MXL for the specified XLEN.
      */
-    public static int mxl(final int xlen) {
+    public static long mxl(final int xlen) {
         switch (xlen) {
             case 32:
                 return 0b01;
@@ -216,5 +219,43 @@ public final class R5 {
             default:
                 throw new IllegalArgumentException();
         }
+    }
+
+    public static int xlen(final long mxl) {
+        switch ((int) mxl) {
+            case 0b01:
+                return 32;
+            case 0b10:
+                return 64;
+            case 0b11:
+                return 128;
+            default:
+                return 0;
+        }
+    }
+
+    public static int mxlShift(final int xlen) {
+        return xlen - 2;
+    }
+
+    public static long mxlMask(final int xlen) {
+        return 0b11L << mxlShift(xlen);
+    }
+
+    public static long interrupt(final int xlen) {
+        // Highest bit means it's an interrupt/asynchronous exception, otherwise a regular exception.
+        return 1L << (xlen - 1);
+    }
+
+    /**
+     * Gets the mask for extracting the status dirty flag.
+     * <p>
+     * The position of this bit depends on the current {@code XLEN}.
+     *
+     * @param xlen the current {@code XLEN}.
+     * @return the mask for the status dirty bit.
+     */
+    public static long getStatusStateDirtyMask(final int xlen) {
+        return 1L << (xlen - 1);
     }
 }

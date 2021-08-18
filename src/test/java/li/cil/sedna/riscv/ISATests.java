@@ -26,21 +26,8 @@ public final class ISATests {
     private static final Logger LOGGER = LogManager.getLogger();
 
     private static final String[] TEST_FILTERS = {
-            "rv64mi-p-.*",
-            "rv64si-p-.*",
-            "rv64ua-p-.*",
-            "rv64uc-p-.*",
-            "rv64ud-p-.*",
-            "rv64uf-p-.*",
-            "rv64ui-p-.*",
-            "rv64um-p-.*",
-
-            "rv64ua-v-.*",
-            "rv64uc-v-.*",
-            "rv64ud-v-.*",
-            "rv64uf-v-.*",
-            "rv64ui-v-.*",
-            "rv64um-v-.*",
+            "rv32.*",
+            "rv64.*"
     };
 
     private static final long PHYSICAL_MEMORY_START = 0x80000000L;
@@ -87,6 +74,9 @@ public final class ISATests {
                         memoryMap.addDevice(toHostAddress, htif);
 
                         cpu.reset(true, elf.entryPoint);
+                        if (file.getName().startsWith("rv32")) {
+                            cpu.setXLEN(R5.XLEN_32);
+                        }
 
                         assertThrows(TestSuccessful.class, () -> {
                             for (int i = 0; i < 1_000_000; i++) {

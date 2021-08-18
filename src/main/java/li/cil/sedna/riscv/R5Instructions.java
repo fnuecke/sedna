@@ -19,45 +19,58 @@ import java.util.HashMap;
 public final class R5Instructions {
     private static final Logger LOGGER = LogManager.getLogger();
 
-    private static final String RISCV_INSTRUCTIONS_FILE = "/riscv/instructions.txt";
-    private static final ArrayList<InstructionDeclaration> DECLARATIONS = new ArrayList<>();
-    private static final HashMap<InstructionDeclaration, InstructionDefinition> DEFINITIONS = new HashMap<>();
-    private static final AbstractDecoderTreeNode DECODER_TREE;
-
-    static {
-        try (final InputStream stream = R5Instructions.class.getResourceAsStream(RISCV_INSTRUCTIONS_FILE)) {
-            if (stream == null) {
-                throw new IOException("File not found.");
-            }
-            DECLARATIONS.addAll(InstructionDeclarationLoader.load(stream));
-        } catch (final Throwable e) {
-            LOGGER.error("Failed loading RISC-V instruction declarations.", e);
-        }
-
-        try {
-            DEFINITIONS.putAll(InstructionDefinitionLoader.load(R5CPUTemplate.class, DECLARATIONS));
-        } catch (final Throwable e) {
-            LOGGER.error("Failed loading RISC-V instruction definitions.", e);
-        }
-
-        DECODER_TREE = DecoderTree.create(DECLARATIONS);
-    }
-
-    public static ArrayList<InstructionDeclaration> getDeclarations() {
-        return DECLARATIONS;
-    }
+    public static final Spec RV32 = new Spec("/riscv/instructions32.txt");
+    public static final Spec RV64 = new Spec("/riscv/instructions64.txt");
 
     @Nullable
     public static InstructionDefinition getDefinition(final InstructionDeclaration declaration) {
-        return DEFINITIONS.get(declaration);
+        return RV64.getDefinition(declaration);
     }
 
     public static AbstractDecoderTreeNode getDecoderTree() {
-        return DECODER_TREE;
+        return RV64.getDecoderTree();
+    }
+
+    public static final class Spec {
+        private final ArrayList<InstructionDeclaration> DECLARATIONS = new ArrayList<>();
+        private final HashMap<InstructionDeclaration, InstructionDefinition> DEFINITIONS = new HashMap<>();
+        private final AbstractDecoderTreeNode DECODER_TREE;
+
+        public Spec(final String instructionsFile) {
+            try (final InputStream stream = R5Instructions.class.getResourceAsStream(instructionsFile)) {
+                if (stream == null) {
+                    throw new IOException("File not found.");
+                }
+                DECLARATIONS.addAll(InstructionDeclarationLoader.load(stream));
+            } catch (final Throwable e) {
+                LOGGER.error("Failed loading RISC-V instruction declarations.", e);
+            }
+
+            try {
+                DEFINITIONS.putAll(InstructionDefinitionLoader.load(R5CPUTemplate.class, DECLARATIONS));
+            } catch (final Throwable e) {
+                LOGGER.error("Failed loading RISC-V instruction definitions.", e);
+            }
+
+            DECODER_TREE = DecoderTree.create(DECLARATIONS);
+        }
+
+        public ArrayList<InstructionDeclaration> getDeclarations() {
+            return DECLARATIONS;
+        }
+
+        @Nullable
+        public InstructionDefinition getDefinition(final InstructionDeclaration declaration) {
+            return DEFINITIONS.get(declaration);
+        }
+
+        public AbstractDecoderTreeNode getDecoderTree() {
+            return DECODER_TREE;
+        }
     }
 
     public static void main(final String[] args) {
-        final AbstractDecoderTreeNode tree = R5Instructions.getDecoderTree();
+        final AbstractDecoderTreeNode tree = RV64.getDecoderTree();
         tree.accept(new PrintStreamDecoderTreeVisitor(tree.getMaxDepth()));
     }
 }

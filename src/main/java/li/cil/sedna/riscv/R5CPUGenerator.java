@@ -85,11 +85,17 @@ public final class R5CPUGenerator {
                     }
                 }
             });
-            final DecoderGenerator generator = new DecoderGenerator(remapper,
-                    R5Instructions.getDecoderTree(),
-                    R5Instructions::getDefinition,
+            final DecoderGenerator generator64 = new DecoderGenerator(remapper,
+                    R5Instructions.RV64.getDecoderTree(),
+                    R5Instructions.RV64::getDefinition,
                     R5IllegalInstructionException.class,
-                    "interpretTrace",
+                    "interpretTrace64",
+                    "decode");
+            final DecoderGenerator generator32 = new DecoderGenerator(generator64,
+                    R5Instructions.RV32.getDecoderTree(),
+                    R5Instructions.RV32::getDefinition,
+                    R5IllegalInstructionException.class,
+                    "interpretTrace32",
                     "decode");
 
             try (final InputStream stream = R5CPUTemplate.class.getClassLoader().getResourceAsStream(R5CPUTemplate.class.getName().replace('.', '/') + ".class")) {
@@ -98,7 +104,7 @@ public final class R5CPUGenerator {
                 }
 
                 final ClassReader reader = new ClassReader(stream);
-                reader.accept(generator, ClassReader.EXPAND_FRAMES);
+                reader.accept(generator32, ClassReader.EXPAND_FRAMES);
 
                 final byte[] bytes = writer.toByteArray();
 

@@ -19,6 +19,8 @@ public interface R5CPU extends Steppable, Resettable, RealTimeCounter, Interrupt
 
     long getISA();
 
+    void setXLEN(final int xlen);
+
     void reset(boolean hard, long pc);
 
     void setFrequency(int value);

@@ -1,0 +1,286 @@
+# Fields are declared using the 'field' keyword.
+#
+# Format for fields:
+#    ([s]<msb>[:<lsb> = msb][@mapped_lsb = 0])+ [ | <postprocessing method> ]
+# The optional 's' at the start indicates sign extension is required.
+# When omitted, lsb = msb so only one bit is selected.
+# When omitted, mapped_lsb = 0, so selected bits represent an unshifted
+# number. Otherwise the selected bits will be shifted accordingly.
+#
+# We're selecting the bit-range [lsb,msb] and insert it in the
+# resulting field value at the specified offset. In pseudo-code,
+# this can be represented as:
+#    (inst & 0b0..01..10..0) >> lsb << mapped_lsb
+#                  ^  ^
+#                msb  lsb
+# Where inst is the instruction being parsed.
+# For example, given the inst value
+#    0b000100110011100011110000
+# The format 18:9@2 would result in
+#    0b000100110011100011110000
+#           ^        ^
+#           +--------+
+#           0110011100 << 2 (because of @2)
+#     =>  011001110000
+#
+# For a few special cases fields can declare a post-processing method. This
+# must be a method declared in the R5FieldPostprocessor enum, case-insensitive.
+#
+#
+# Instructions are declared using the 'inst', 'illegal' or 'nop' keywords.
+#    inst    : A regular instruction.
+#    illegal : An explicitly illegal instruction, raising an illegal instruction exception.
+#    nop     : A no-op, sometimes used to communicate performance hints.
+#
+# Format for instructions:
+#     <name> [ <display name> ] | <bitmask> [ | arguments ]
+#
+# The name is what is used to find a matching instruction definition, i.e. the
+# implementation of the instruction. The display name can be useful for debugging
+# purposes. For RISC-V in particular it is used to retain compressed instruction names.
+#
+# The bitmask allows defining the masking for the instruction by defining what state
+# is valid for each bit in the instruction word. Possible values are:
+#    0 : the bit must be zero.
+#    1 : the bit must be one.
+#    * : the bit may have any value.
+#    . : the bit may have any value and is part of an argument.
+# All bits MUST be assigned. In particular, this means that bits marked with '.' MUST be
+# consumed by an argument.
+#
+# Fields will represent arguments to the method implementing an instruction.
+# The name used to identify the matching argument equals that of the field unless
+# otherwise specified by a re-assignment in the form of <argument_name>=<field_name>.
+# Alternatively, a constant argument may be defined using <argument_name>=<constant>,
+# where the constant must be an integer.
+# Names are matched to arguments using the InstructionDefinition.Field annotation.
+
+# RV32I Base Instruction Set
+field rd                 11:7
+field rs1                19:15
+field rs2                24:20
+field immi               s31:20
+field imms               s31:25@5 11:7
+field immb               s31@12 30:25@5 11:8@1 7@11
+field immu               s31:12@12
+field immj               s31@20 30:21@1 20@11 19:12@12
+field shamt             24:20
+field csr                31:20
+
+inst LUI               | ....................      ..... 0110111 | rd imm=immu
+inst AUIPCW            | ....................      ..... 0010111 | rd imm=immu
+inst JALW              | ....................      ..... 1101111 | rd imm=immj
+inst JALRW             | ............    ..... 000 ..... 1100111 | rd rs1 imm=immi
+inst BEQ               | ....... .....   ..... 000 ..... 1100011 | rs1 rs2 imm=immb
+inst BNE               | ....... .....   ..... 001 ..... 1100011 | rs1 rs2 imm=immb
+inst BLT               | ....... .....   ..... 100 ..... 1100011 | rs1 rs2 imm=immb
+inst BGE               | ....... .....   ..... 101 ..... 1100011 | rs1 rs2 imm=immb
+inst BLTU              | ....... .....   ..... 110 ..... 1100011 | rs1 rs2 imm=immb
+inst BGEU              | ....... .....   ..... 111 ..... 1100011 | rs1 rs2 imm=immb
+inst LB                | ............    ..... 000 ..... 0000011 | rd rs1 imm=immi
+inst LH                | ............    ..... 001 ..... 0000011 | rd rs1 imm=immi
+inst LW                | ............    ..... 010 ..... 0000011 | rd rs1 imm=immi
+inst LBU               | ............    ..... 100 ..... 0000011 | rd rs1 imm=immi
+inst LHU               | ............    ..... 101 ..... 0000011 | rd rs1 imm=immi
+inst SB                | ....... .....   ..... 000 ..... 0100011 | rs1 rs2 imm=imms
+inst SH                | ....... .....   ..... 001 ..... 0100011 | rs1 rs2 imm=imms
+inst SW                | ....... .....   ..... 010 ..... 0100011 | rs1 rs2 imm=imms
+inst ADDIW             | ............    ..... 000 ..... 0010011 | rd rs1 imm=immi
+inst SLTI              | ............    ..... 010 ..... 0010011 | rd rs1 imm=immi
+inst SLTIU             | ............    ..... 011 ..... 0010011 | rd rs1 imm=immi
+inst XORI              | ............    ..... 100 ..... 0010011 | rd rs1 imm=immi
+inst ORI               | ............    ..... 110 ..... 0010011 | rd rs1 imm=immi
+inst ANDI              | ............    ..... 111 ..... 0010011 | rd rs1 imm=immi
+inst SLLIW             | 0000000 .....   ..... 001 ..... 0010011 | rd rs1 shamt
+inst SRLIW             | 0000000 .....   ..... 101 ..... 0010011 | rd rs1 shamt
+inst SRAIW             | 0100000 .....   ..... 101 ..... 0010011 | rd rs1 shamt
+inst ADDW              | 0000000 .....   ..... 000 ..... 0110011 | rd rs1 rs2
+inst SUBW              | 0100000 .....   ..... 000 ..... 0110011 | rd rs1 rs2
+inst SLLW              | 0000000 .....   ..... 001 ..... 0110011 | rd rs1 rs2
+inst SLT               | 0000000 .....   ..... 010 ..... 0110011 | rd rs1 rs2
+inst SLTU              | 0000000 .....   ..... 011 ..... 0110011 | rd rs1 rs2
+inst XOR               | 0000000 .....   ..... 100 ..... 0110011 | rd rs1 rs2
+inst SRLW              | 0000000 .....   ..... 101 ..... 0110011 | rd rs1 rs2
+inst SRAW              | 0100000 .....   ..... 101 ..... 0110011 | rd rs1 rs2
+inst OR                | 0000000 .....   ..... 110 ..... 0110011 | rd rs1 rs2
+inst AND               | 0000000 .....   ..... 111 ..... 0110011 | rd rs1 rs2
+inst FENCE             | **** **** ****  ***** 000 ***** 0001111
+inst ECALL             | 000000000000    00000 000 00000 1110011
+inst EBREAK            | 000000000001    00000 000 00000 1110011
+
+# RV32/RV64 Zifencei Standard Extension
+inst FENCE.I           | **** **** ****  ***** 001 ***** 0001111
+
+# RV32/RV64 Zicsr Standard Extension
+inst CSRRW             | ............    ..... 001 ..... 1110011 | rd rs1 csr
+inst CSRRS             | ............    ..... 010 ..... 1110011 | rd rs1 csr
+inst CSRRC             | ............    ..... 011 ..... 1110011 | rd rs1 csr
+inst CSRRWI            | ............    ..... 101 ..... 1110011 | rd rs1 csr
+inst CSRRSI            | ............    ..... 110 ..... 1110011 | rd rs1 csr
+inst CSRRCI            | ............    ..... 111 ..... 1110011 | rd rs1 csr
+
+# RV32M Standard Extension
+inst MULW              | 0000001   ..... ..... 000 ..... 0110011 | rd rs1 rs2
+inst MULHW             | 0000001   ..... ..... 001 ..... 0110011 | rd rs1 rs2
+inst MULHSUW           | 0000001   ..... ..... 010 ..... 0110011 | rd rs1 rs2
+inst MULHUW            | 0000001   ..... ..... 011 ..... 0110011 | rd rs1 rs2
+inst DIVW              | 0000001   ..... ..... 100 ..... 0110011 | rd rs1 rs2
+inst DIVUW             | 0000001   ..... ..... 101 ..... 0110011 | rd rs1 rs2
+inst REMW              | 0000001   ..... ..... 110 ..... 0110011 | rd rs1 rs2
+inst REMUW             | 0000001   ..... ..... 111 ..... 0110011 | rd rs1 rs2
+
+# RV32A Standard Extension
+inst LR.W              | 00010 * * 00000 ..... 010 ..... 0101111 | rd rs1
+inst SC.W              | 00011 * * ..... ..... 010 ..... 0101111 | rd rs1 rs2
+inst AMOSWAP.W         | 00001 * * ..... ..... 010 ..... 0101111 | rd rs1 rs2
+inst AMOADD.W          | 00000 * * ..... ..... 010 ..... 0101111 | rd rs1 rs2
+inst AMOXOR.W          | 00100 * * ..... ..... 010 ..... 0101111 | rd rs1 rs2
+inst AMOAND.W          | 01100 * * ..... ..... 010 ..... 0101111 | rd rs1 rs2
+inst AMOOR.W           | 01000 * * ..... ..... 010 ..... 0101111 | rd rs1 rs2
+inst AMOMIN.W          | 10000 * * ..... ..... 010 ..... 0101111 | rd rs1 rs2
+inst AMOMAX.W          | 10100 * * ..... ..... 010 ..... 0101111 | rd rs1 rs2
+inst AMOMINU.W         | 11000 * * ..... ..... 010 ..... 0101111 | rd rs1 rs2
+inst AMOMAXU.W         | 11100 * * ..... ..... 010 ..... 0101111 | rd rs1 rs2
+
+# RV32F Standard Extension
+field rs3                31:27
+field rm                 14:12
+
+inst FLW               | ............    ..... 010 ..... 0000111 | rd rs1 imm=immi
+inst FSW               | ....... .....   ..... 010 ..... 0100111 | rs1 rs2 imm=imms
+inst FMADD.S           | ..... 00  ..... ..... ... ..... 1000011 | rd rs1 rs2 rs3 rm
+inst FMSUB.S           | ..... 00  ..... ..... ... ..... 1000111 | rd rs1 rs2 rs3 rm
+inst FNMSUB.S          | ..... 00  ..... ..... ... ..... 1001011 | rd rs1 rs2 rs3 rm
+inst FNMADD.S          | ..... 00  ..... ..... ... ..... 1001111 | rd rs1 rs2 rs3 rm
+inst FADD.S            | 0000000   ..... ..... ... ..... 1010011 | rd rs1 rs2 rm
+inst FSUB.S            | 0000100   ..... ..... ... ..... 1010011 | rd rs1 rs2 rm
+inst FMUL.S            | 0001000   ..... ..... ... ..... 1010011 | rd rs1 rs2 rm
+inst FDIV.S            | 0001100   ..... ..... ... ..... 1010011 | rd rs1 rs2 rm
+inst FSQRT.S           | 0101100   00000 ..... ... ..... 1010011 | rd rs1 rm
+inst FSGNJ.S           | 0010000   ..... ..... 000 ..... 1010011 | rd rs1 rs2
+inst FSGNJN.S          | 0010000   ..... ..... 001 ..... 1010011 | rd rs1 rs2
+inst FSGNJX.S          | 0010000   ..... ..... 010 ..... 1010011 | rd rs1 rs2
+inst FMIN.S            | 0010100   ..... ..... 000 ..... 1010011 | rd rs1 rs2
+inst FMAX.S            | 0010100   ..... ..... 001 ..... 1010011 | rd rs1 rs2
+inst FCVT.W.S          | 1100000   00000 ..... ... ..... 1010011 | rd rs1 rm
+inst FCVT.WU.S         | 1100000   00001 ..... ... ..... 1010011 | rd rs1 rm
+inst FMV.X.W           | 1110000   00000 ..... 000 ..... 1010011 | rd rs1
+inst FEQ.S             | 1010000   ..... ..... 010 ..... 1010011 | rd rs1 rs2
+inst FLT.S             | 1010000   ..... ..... 001 ..... 1010011 | rd rs1 rs2
+inst FLE.S             | 1010000   ..... ..... 000 ..... 1010011 | rd rs1 rs2
+inst FCLASS.S          | 1110000   00000 ..... 001 ..... 1010011 | rd rs1
+inst FCVT.S.W          | 1101000   00000 ..... ... ..... 1010011 | rd rs1 rm
+inst FCVT.S.WU         | 1101000   00001 ..... ... ..... 1010011 | rd rs1 rm
+inst FMV.W.X           | 1111000   00000 ..... 000 ..... 1010011 | rd rs1
+
+# RV32D Standard Extension
+inst FLD               | ............    ..... 011 ..... 0000111 | rd rs1 imm=immi
+inst FSD               | .......   ..... ..... 011 ..... 0100111 | rs1 rs2 imm=imms
+inst FMADD.D           | ..... 01  ..... ..... ... ..... 1000011 | rd rs1 rs2 rs3 rm
+inst FMSUB.D           | ..... 01  ..... ..... ... ..... 1000111 | rd rs1 rs2 rs3 rm
+inst FNMSUB.D          | ..... 01  ..... ..... ... ..... 1001011 | rd rs1 rs2 rs3 rm
+inst FNMADD.D          | ..... 01  ..... ..... ... ..... 1001111 | rd rs1 rs2 rs3 rm
+inst FADD.D            | 0000001   ..... ..... ... ..... 1010011 | rd rs1 rs2 rm
+inst FSUB.D            | 0000101   ..... ..... ... ..... 1010011 | rd rs1 rs2 rm
+inst FMUL.D            | 0001001   ..... ..... ... ..... 1010011 | rd rs1 rs2 rm
+inst FDIV.D            | 0001101   ..... ..... ... ..... 1010011 | rd rs1 rs2 rm
+inst FSQRT.D           | 0101101   00000 ..... ... ..... 1010011 | rd rs1 rm
+inst FSGNJ.D           | 0010001   ..... ..... 000 ..... 1010011 | rd rs1 rs2
+inst FSGNJN.D          | 0010001   ..... ..... 001 ..... 1010011 | rd rs1 rs2
+inst FSGNJX.D          | 0010001   ..... ..... 010 ..... 1010011 | rd rs1 rs2
+inst FMIN.D            | 0010101   ..... ..... 000 ..... 1010011 | rd rs1 rs2
+inst FMAX.D            | 0010101   ..... ..... 001 ..... 1010011 | rd rs1 rs2
+inst FCVT.S.D          | 0100000   00001 ..... ... ..... 1010011 | rd rs1 rm
+inst FCVT.D.S          | 0100001   00000 ..... ... ..... 1010011 | rd rs1 rm
+inst FEQ.D             | 1010001   ..... ..... 010 ..... 1010011 | rd rs1 rs2
+inst FLT.D             | 1010001   ..... ..... 001 ..... 1010011 | rd rs1 rs2
+inst FLE.D             | 1010001   ..... ..... 000 ..... 1010011 | rd rs1 rs2
+inst FCLASS.D          | 1110001   00000 ..... 001 ..... 1010011 | rd rs1
+inst FCVT.W.D          | 1100001   00000 ..... ... ..... 1010011 | rd rs1 rm
+inst FCVT.WU.D         | 1100001   00001 ..... ... ..... 1010011 | rd rs1 rm
+inst FCVT.D.W          | 1101001   00000 ..... ... ..... 1010011 | rd rs1 rm
+inst FCVT.D.WU         | 1101001   00001 ..... ... ..... 1010011 | rd rs1 rm
+
+# Privileged Instructions
+inst SRET              | 0001000   00010 00000 000 00000 1110011
+inst MRET              | 0011000   00010 00000 000 00000 1110011
+inst WFI               | 0001000   00101 00000 000 00000 1110011
+inst SFENCE.VMA        | 0001001   ..... ..... 000 00000 1110011 | rs1 rs2
+
+# RV32C Standard Extension
+field cr_11_7            11:7
+field cr_6_2             6:2
+field cr_9_7             9:7 | add_8
+field cr_4_2             4:2 | add_8
+
+field cimmi              s12@5 6:2
+field cimmu              12@5 6:2
+field cimmslli           6:2
+field cimmj              s12@11 11@4 10:9@8 8@10 7@6 6@7 5:3@1 2@5
+field cimmb              s12@8 11:10@3 6:5@6 4:3@1 2@5
+field cimmlw             12:10@3 6@2 5@6
+field cimmld             12:10@3 6:5@6
+field cimmlwsp           12@5 6:4@2 3:2@6
+field cimmldsp           12@5 6:5@3 4:2@6
+field cimmswsp           12:9@2 8:7@6
+field cimmsdsp           12:10@3 9:7@6
+
+field caddi4spn_imm      12:11@4 10:7@6 6@2 5@3
+field caddi16sp_imm      s12@9 6@4 5@6 4:3@7 2@5
+field clui_imm           s12@17 6:2@12
+
+# Quadrant 0
+illegal                | 000  00000000  000  00   # Defined illegal instruction
+illegal                | 000  00000000  ***  00   # Reserved
+inst ADDIW  C.ADDI4SPN | 000  ........  ...  00 | rd=cr_4_2 rs1=2 imm=caddi4spn_imm
+inst FLD    C.FLD      | 001 ... ... .. ...  00 | rd=cr_4_2 rs1=cr_9_7 imm=cimmld
+inst LW     C.LW       | 010 ... ... .. ...  00 | rd=cr_4_2 rs1=cr_9_7 imm=cimmlw
+inst FLW    C.FLW      | 011 ... ... .. ...  00 | rd=cr_4_2 rs1=cr_9_7 imm=cimmlw
+inst FSD    C.FSD      | 101 ... ... .. ...  00 | rs1=cr_9_7 rs2=cr_4_2 imm=cimmld
+inst SW     C.SW       | 110 ... ... .. ...  00 | rs1=cr_9_7 rs2=cr_4_2 imm=cimmlw
+inst FSW    C.FSW      | 111 ... ... .. ...  00 | rs1=cr_9_7 rs2=cr_4_2 imm=cimmlw
+
+# Quadrant 1
+nop                    | 000 0  00000  00000 01   # Hint, needed to make next two instructions unambiguous.
+nop                    | 000 *  00000  ***** 01   # Defined NOP
+nop                    | 000 0  *****  00000 01   # Hint
+inst ADDIW  C.ADDI     | 000 .  .....  ..... 01 | rd=rs1=cr_11_7 imm=cimmi
+inst JALW   C.JAL      | 001 .  .....  ..... 01 | rd=1 imm=cimmj
+nop                    | 010 *  00000  ***** 01   # Hint
+inst ADDIW  C.LI       | 010 .  .....  ..... 01 | rd=cr_11_7 rs1=0 imm=cimmi
+illegal                | 011 0  00010  00000 01   # Reserved
+inst ADDIW  C.ADDI16SP | 011 .  00010  ..... 01 | rd=2 rs1=2 imm=caddi16sp_imm
+nop                    | 011 *  00000  ***** 01   # Hint
+inst LUI    C.LUI      | 011 .  .....  ..... 01 | rd=cr_11_7 imm=clui_imm
+inst SRLIW  C.SRLI     | 100 . 00 ...  ..... 01 | rd=rs1=cr_9_7 shamt=cimmu
+nop                    | 100 0 00 ***  00000 01   # Hint
+inst SRAIW  C.SRAI     | 100 . 01 ...  ..... 01 | rd=rs1=cr_9_7 shamt=cimmu
+inst ANDI   C.ANDI     | 100 . 10 ...  ..... 01 | rd=rs1=cr_9_7 imm=cimmi
+inst SUBW   C.SUB      | 100 0 11 ... 00 ... 01 | rd=rs1=cr_9_7 rs2=cr_4_2
+inst XOR    C.XOR      | 100 0 11 ... 01 ... 01 | rd=rs1=cr_9_7 rs2=cr_4_2
+inst OR     C.OR       | 100 0 11 ... 10 ... 01 | rd=rs1=cr_9_7 rs2=cr_4_2
+inst AND    C.AND      | 100 0 11 ... 11 ... 01 | rd=rs1=cr_9_7 rs2=cr_4_2
+inst SUBW   C.SUBW     | 100 1 11 ... 00 ... 01 | rd=rs1=cr_9_7 rs2=cr_4_2
+inst ADDW   C.ADDW     | 100 1 11 ... 01 ... 01 | rd=rs1=cr_9_7 rs2=cr_4_2
+inst JALW   C.J        | 101   ...........   01 | rd=0 imm=cimmj
+inst BEQ    C.BEQZ     | 110 ...  ...  ..... 01 | rs1=cr_9_7 rs2=0 imm=cimmb
+inst BNE    C.BNEZ     | 111 ...  ...  ..... 01 | rs1=cr_9_7 rs2=0 imm=cimmb
+
+# Quadrant 2
+nop                    | 000 1  00000  ***** 10   # Hint
+inst SLLIW  C.SLLI     | 000 0  .....  ..... 10 | rd=rs1=cr_11_7 shamt=cimmslli
+inst FLD    C.FLDSP    | 001 .  .....  ..... 10 | rd=cr_11_7 rs1=2 imm=cimmldsp
+illegal                | 010 *  00000  ***** 10   # Reserved
+inst LW     C.LWSP     | 010 .  .....  ..... 10 | rd=cr_11_7 rs1=2 imm=cimmlwsp
+inst FLWSP  C.FLWSP    | 011 .  .....  ..... 10 | rd=cr_11_7 rs1=2 imm=cimmlwsp
+illegal                | 100 0  00000  00000 10   # Reserved
+inst JALRW  C.JR       | 100 0  .....  00000 10 | rd=0 rs1=cr_11_7 imm=0
+nop                    | 100 0  00000  ***** 10   # Hint
+inst ADDW   C.MV       | 100 0  .....  ..... 10 | rd=cr_11_7 rs1=0 rs2=cr_6_2
+inst EBREAK C.EBREAK   | 100 1  00000  00000 10
+inst JALRW  C.JALR     | 100 1  .....  00000 10 | rd=1 rs1=cr_11_7 imm=0
+nop                    | 100 1  00000  ***** 10   # Hint
+inst ADDW   C.ADD      | 100 1  .....  ..... 10 | rd=rs1=cr_11_7 rs2=cr_6_2
+inst FSD    C.FSDSP    | 101  ......   ..... 10 | rs1=2 rs2=cr_6_2 imm=cimmsdsp
+inst SW     C.SWSP     | 110  ......   ..... 10 | rs1=2 rs2=cr_6_2 imm=cimmswsp
+inst FSWSP  C.FSWSP    | 111  ......   ..... 10 | rs1=2 rs2=cr_6_2 imm=cimmswsp

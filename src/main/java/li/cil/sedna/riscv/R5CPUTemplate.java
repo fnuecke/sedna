@@ -40,12 +40,6 @@ import java.util.concurrent.atomic.AtomicLong;
 final class R5CPUTemplate implements R5CPU {
     private static final int PC_INIT = 0x1000; // Initial position of program counter.
 
-    private static final int XLEN = 64; // Integer register width.
-
-    // Base ISA descriptor CSR (misa) (V2p16).
-    private static final long MISA = ((long) R5.mxl(XLEN) << (XLEN - 2)) |
-                                     R5.isa('I', 'M', 'A', 'C', 'F', 'D', 'S', 'U');
-
     // UBE, SBE, MBE hardcoded to zero for little endianness.
     private static final long MSTATUS_MASK = ~R5.STATUS_UBE_MASK & ~R5.STATUS_SBE_MASK & ~R5.STATUS_MBE_MASK;
 
@@ -57,16 +51,17 @@ final class R5CPUTemplate implements R5CPU {
                                               R5.STATUS_UPIE_MASK | R5.STATUS_SPIE_MASK |
                                               R5.STATUS_SPP_MASK | R5.STATUS_FS_MASK |
                                               R5.STATUS_XS_MASK | R5.STATUS_SUM_MASK |
-                                              R5.STATUS_MXR_MASK | R5.STATUS_UXL_MASK |
-                                              R5.STATUS_SD_MASK);
+                                              R5.STATUS_MXR_MASK | R5.STATUS_UXL_MASK);
 
     // Translation look-aside buffer config.
     private static final int TLB_SIZE = 256; // Must be a power of two for fast modulo via `& (TLB_SIZE - 1)`.
 
     ///////////////////////////////////////////////////////////////////
-    // RV64I
+    // RV32I / RV64I
     private long pc; // Program counter.
-    private final long[] x = new long[32]; // Integer registers.
+    private byte mxl; // Current MXLEN, stored to restore after privilege change.
+    private int xlen; // Current XLEN, allows switching between RV32I and RV64I.
+    private final long[] x = new long[32]; // Integer registers. We use sign-extended longs for 32 bit mode.
 
     ///////////////////////////////////////////////////////////////////
     // RV64FD
@@ -156,7 +151,23 @@ final class R5CPUTemplate implements R5CPU {
 
     @Override
     public long getISA() {
-        return MISA;
+        return misa();
+    }
+
+    public void setXLEN(final int xlen) {
+        mxl = (byte) R5.mxl(xlen);
+        this.xlen = xlen;
+
+        mstatus = mstatus
+                  & ~(R5.STATUS_UXL_MASK | R5.STATUS_SXL_MASK)
+                  | (R5.mxl(xlen) << R5.STATUS_UXL_SHIFT)
+                  | (R5.mxl(xlen) << R5.STATUS_SXL_SHIFT);
+
+        if (xlen == R5.XLEN_32) {
+            for (int i = 0; i < x.length; i++) {
+                x[i] = (int) x[i];
+            }
+        }
     }
 
     @Override
@@ -175,6 +186,10 @@ final class R5CPUTemplate implements R5CPU {
         mstatus = mstatus & ~R5.STATUS_MPRV_MASK;
         mcause = 0;
 
+        // Volume 2, 3.1.1: The MXL field is always set to the widest supported ISA variant at reset.
+        mxl = (byte) R5.mxl(R5.XLEN_64);
+        xlen = R5.XLEN_64;
+
         flushTLB();
 
         if (hard) {
@@ -184,8 +199,8 @@ final class R5CPUTemplate implements R5CPU {
 
             mcycle = 0;
 
-            mstatus = ((long) R5.mxl(XLEN) << R5.STATUS_UXL_SHIFT) |
-                      ((long) R5.mxl(XLEN) << R5.STATUS_SXL_SHIFT);
+            mstatus = (R5.mxl(xlen) << R5.STATUS_UXL_SHIFT) |
+                      (R5.mxl(xlen) << R5.STATUS_SXL_SHIFT);
             mtvec = 0;
             medeleg = 0;
             mideleg = 0;
@@ -269,6 +284,15 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // Interpretation
 
+    private long misa() {
+        // Base ISA descriptor CSR (misa) (V2p16).
+        return (R5.mxl(xlen) << R5.mxlShift(xlen)) | R5.isa('I', 'M', 'A', 'C', 'F', 'D', 'S', 'U');
+    }
+
+    private long getSupervisorStatusMask() {
+        return SSTATUS_MASK | R5.getStatusStateDirtyMask(xlen);
+    }
+
     private void interpret() {
         // The idea here is to run many sequential instructions with very little overhead.
         // We only need to exit the inner loop when we either leave the page we started in,
@@ -306,14 +330,52 @@ final class R5CPUTemplate implements R5CPU {
                 return;
             }
 
-            interpretTrace(device, inst, pc, instOffset, instEnd);
+            if (xlen == R5.XLEN_32) {
+                interpretTrace32(device, inst, pc, instOffset, instEnd);
+            } else {
+                interpretTrace64(device, inst, pc, instOffset, instEnd);
+            }
         } catch (final R5MemoryAccessException e) {
             raiseException(e.getType(), e.getAddress());
         }
     }
 
+    // NB: Yes, having the same method more or less duplicated sucks, but it's just so
+    //     much faster than having the actual decoding happen in one more method.
+
     @SuppressWarnings("LocalCanBeFinal") // `pc` and `instOffset` get updated by the generated code replacing decode().
-    private void interpretTrace(final MemoryMappedDevice device, int inst, long pc, int instOffset, final int instEnd) {
+    private void interpretTrace32(final MemoryMappedDevice device, int inst, long pc, int instOffset, final int instEnd) {
+        try { // Catch any exceptions to patch PC field.
+            for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
+                mcycle++;
+
+                ///////////////////////////////////////////////////////////////////
+                // This is the hook we replace when generating the decoder code. //
+                decode();                                                        //
+                // See R5CPUGenerator.                                           //
+                ///////////////////////////////////////////////////////////////////
+
+                if (Integer.compareUnsigned(instOffset, instEnd) < 0) { // Likely case: we're still fully in the page.
+                    inst = (int) device.load(instOffset, Sizes.SIZE_32_LOG2);
+                } else { // Unlikely case: we reached the end of the page. Leave to do interrupts and cycle check.
+                    this.pc = pc;
+                    return;
+                }
+            }
+        } catch (final MemoryAccessException e) {
+            this.pc = pc;
+            raiseException(R5.EXCEPTION_FAULT_FETCH, pc);
+        } catch (final R5IllegalInstructionException e) {
+            this.pc = pc;
+            raiseException(R5.EXCEPTION_ILLEGAL_INSTRUCTION, inst);
+        } catch (final R5MemoryAccessException e) {
+            this.pc = pc;
+            raiseException(e.getType(), e.getAddress());
+        }
+    }
+
+    @SuppressWarnings("LocalCanBeFinal") // `pc` and `instOffset` get updated by the generated code replacing decode().
+    private void interpretTrace64(final MemoryMappedDevice device, int inst, long pc, int instOffset, final int instEnd) {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
                 mcycle++;
@@ -430,7 +492,7 @@ final class R5CPUTemplate implements R5CPU {
 
             // Supervisor Trap Setup
             case 0x100: { // sstatus, Supervisor status register.
-                return getStatus(SSTATUS_MASK);
+                return getStatus(getSupervisorStatusMask());
             }
             // 0x102: sedeleg, Supervisor exception delegation register.
             // 0x103: sideleg, Supervisor interrupt delegation register.
@@ -485,7 +547,7 @@ final class R5CPUTemplate implements R5CPU {
                 return getStatus(MSTATUS_MASK);
             }
             case 0x301: { // misa ISA and extensions
-                return MISA;
+                return misa();
             }
             case 0x302: { // medeleg Machine exception delegation register.
                 return medeleg;
@@ -502,7 +564,10 @@ final class R5CPUTemplate implements R5CPU {
             case 0x306: { // mcounteren Machine counter enable.
                 return mcounteren;
             }
-            // 0x310: mstatush, Additional machine status register, RV32 only.
+            case 0x310: { // mstatush, Additional machine status register, RV32 only.
+                if (xlen != R5.XLEN_32) throw new R5IllegalInstructionException();
+                return getStatus(MSTATUS_MASK) >>> 32;
+            }
 
             // Debug/Trace Registers
             case 0x7A0: { // tselect
@@ -575,36 +640,33 @@ final class R5CPUTemplate implements R5CPU {
             }
             // 0xB03: mhpmcounter3, Machine performance-monitoring counter.
             // 0xB04...0xB1F: mhpmcounter4...mhpmcounter31, Machine performance-monitoring counter.
-            // 0xB80: mcycleh, Upper 32 bits of mcycle, RV32 only.
-            // 0xB82: minstreth, Upper 32 bits of minstret, RV32 only.
+            case 0xB80:   // mcycleh, Upper 32 bits of mcycle, RV32 only.
+            case 0xB82: { // minstreth, Upper 32 bits of minstret, RV32 only.
+                if (xlen != R5.XLEN_32) throw new R5IllegalInstructionException();
+                return mcycle >>> 32;
+            }
             // 0xB83: mhpmcounter3h, Upper 32 bits of mhpmcounter3, RV32 only.
             // 0xB84...0xB9F: mhpmcounter4h...mhpmcounter31h, Upper 32 bits of mhpmcounter4, RV32 only.
 
             // Counters and Timers
-            case 0xC00:  // cycle
+            case 0xC00:   // cycle
             case 0xC02: { // instret
-                // See Volume 2 p36: mcounteren/scounteren define availability to next lowest privilege level.
-                if (priv < R5.PRIVILEGE_M) {
-                    final int counteren;
-                    if (priv < R5.PRIVILEGE_S) {
-                        counteren = scounteren;
-                    } else {
-                        counteren = mcounteren;
-                    }
-
-                    // counteren[2:0] is IR, TM, CY. As such the bit index matches the masked csr value.
-                    if ((counteren & (1 << (csr & 0b11))) == 0) {
-                        throw new R5IllegalInstructionException();
-                    }
-                }
+                // counteren[2:0] is IR, TM, CY. As such the bit index matches the masked csr value.
+                checkCounterAccess(csr & 0b11);
                 return mcycle;
             }
             case 0xC01: { // time
                 return rtc.getTime();
             }
             // 0xC03 ... 0xC1F: hpmcounter3 ... hpmcounter31
-            // 0xC80: cycleh
-            // 0xC82: instreth
+            case 0xC80:   // cycleh
+            case 0xC82: { // instreth
+                if (xlen != R5.XLEN_32) throw new R5IllegalInstructionException();
+
+                // counteren[2:0] is IR, TM, CY. As such the bit index matches the masked csr value.
+                checkCounterAccess(csr & 0b11);
+                return mcycle >>> 32;
+            }
             // 0xC81: timeh
             // 0xC83 ... 0xC9F: hpmcounter3h ... hpmcounter31h
 
@@ -663,7 +725,8 @@ final class R5CPUTemplate implements R5CPU {
 
             // Supervisor Trap Setup
             case 0x100: { // sstatus, Supervisor status register.
-                setStatus((mstatus & ~SSTATUS_MASK) | (value & SSTATUS_MASK));
+                final long supervisorStatusMask = getSupervisorStatusMask();
+                setStatus((mstatus & ~supervisorStatusMask) | (value & supervisorStatusMask));
                 break;
             }
             // 0x102: sedeleg, Supervisor exception delegation register.
@@ -709,17 +772,26 @@ final class R5CPUTemplate implements R5CPU {
 
             // Supervisor Protection and Translation
             case 0x180: { // satp Supervisor address translation and protection.
-                final long validatedValue = value & ~R5.SATP_ASID_MASK; // Say no to ASID (not implemented).
+                // Say no to ASID (not implemented).
+                final long validatedValue;
+                if (xlen == R5.XLEN_32) {
+                    validatedValue = value & ~R5.SATP_ASID_MASK32;
+                } else {
+                    validatedValue = value & ~R5.SATP_ASID_MASK64;
+                }
+
                 final long change = satp ^ validatedValue;
-                if ((change & (R5.SATP_MODE_MASK | R5.SATP_PPN_MASK)) != 0) {
+                if (change != 0) {
                     if (priv == R5.PRIVILEGE_S && (mstatus & R5.STATUS_TVM_MASK) != 0) {
                         throw new R5IllegalInstructionException();
                     }
 
-                    // We only support Sv39 and Sv48. On unsupported writes spec says just don't change anything.
-                    final long mode = validatedValue & R5.SATP_MODE_MASK;
-                    if (mode != R5.SATP_MODE_SV39 && mode != R5.SATP_MODE_SV48) {
-                        break;
+                    if (xlen != R5.XLEN_32) {
+                        // We only support Sv39 and Sv48. On unsupported writes spec says just don't change anything.
+                        final long mode = validatedValue & R5.SATP_MODE_MASK64;
+                        if (mode != R5.SATP_MODE_SV39 && mode != R5.SATP_MODE_SV48) {
+                            break;
+                        }
                     }
 
                     satp = validatedValue;
@@ -774,7 +846,11 @@ final class R5CPUTemplate implements R5CPU {
                 mcounteren = (int) (value & COUNTEREN_MASK);
                 break;
             }
-            // 0x310: mstatush Additional machine status register, RV32 only.
+            case 0x310: { // mstatush Additional machine status register, RV32 only.
+                if (xlen != R5.XLEN_32) throw new R5IllegalInstructionException();
+                setStatus((value << 32) & MSTATUS_MASK);
+                break;
+            }
 
             // Debug/Trace Registers
             case 0x7A0: { // tselect
@@ -848,12 +924,37 @@ final class R5CPUTemplate implements R5CPU {
             // 0x605: htimedelta, Delta for VS/VU-mode timer.
             // 0x615: htimedeltah, Upper 32 bits of htimedelta, RV32 only.
 
+            // Sedna proprietary CSRs.
+            case 0xBC0: { // Switch to 32 bit XLEN.
+                // This CSR exists purely to allow switching the CPU to 32 bit mode from programs
+                // that were compiled for 32 bit. Since those cannot set the MXL bits of the misa
+                // CSR when the machine is currently in 64 bit mode.
+                setXLEN(R5.XLEN_32);
+                return true;
+            }
+
             default: {
                 throw new R5IllegalInstructionException();
             }
         }
 
         return false;
+    }
+
+    private void checkCounterAccess(final int bit) throws R5IllegalInstructionException {
+        // See Volume 2 p36: mcounteren/scounteren define availability to next lowest privilege level.
+        if (priv < R5.PRIVILEGE_M) {
+            final int counteren;
+            if (priv < R5.PRIVILEGE_S) {
+                counteren = scounteren;
+            } else {
+                counteren = mcounteren;
+            }
+
+            if ((counteren & (1 << bit)) == 0) {
+                throw new R5IllegalInstructionException();
+            }
+        }
     }
 
     ///////////////////////////////////////////////////////////////////
@@ -863,7 +964,7 @@ final class R5CPUTemplate implements R5CPU {
         final long status = (mstatus | (fs << R5.STATUS_FS_SHIFT)) & mask;
         final boolean dirty = ((mstatus & R5.STATUS_FS_MASK) == R5.STATUS_FS_MASK) ||
                               ((mstatus & R5.STATUS_XS_MASK) == R5.STATUS_XS_MASK);
-        return status | (dirty ? R5.STATUS_SD_MASK : 0);
+        return status | (dirty ? R5.getStatusStateDirtyMask(xlen) : 0);
     }
 
     private void setStatus(final long value) {
@@ -877,7 +978,7 @@ final class R5CPUTemplate implements R5CPU {
 
         fs = (byte) ((value & R5.STATUS_FS_MASK) >> R5.STATUS_FS_SHIFT);
 
-        final long mask = MSTATUS_MASK & ~(R5.STATUS_SD_MASK | R5.STATUS_FS_MASK |
+        final long mask = MSTATUS_MASK & ~(R5.getStatusStateDirtyMask(xlen) | R5.STATUS_FS_MASK |
                                            R5.STATUS_UXL_MASK | R5.STATUS_SXL_MASK);
         mstatus = (mstatus & ~mask) | (value & mask);
     }
@@ -888,6 +989,18 @@ final class R5CPUTemplate implements R5CPU {
         }
 
         flushTLB();
+
+        switch (level) {
+            case R5.PRIVILEGE_S:
+                xlen = R5.xlen((mstatus & R5.STATUS_SXL_MASK) >>> R5.STATUS_SXL_SHIFT);
+                break;
+            case R5.PRIVILEGE_U:
+                xlen = R5.xlen((mstatus & R5.STATUS_UXL_MASK) >>> R5.STATUS_UXL_SHIFT);
+                break;
+            default:
+                xlen = R5.xlen(mxl);
+                break;
+        }
 
         priv = level;
     }
@@ -914,8 +1027,9 @@ final class R5CPUTemplate implements R5CPU {
         // currently in S or U privilege level we'll run the S level trap handler
         // either way -- assuming that the current interrupt/exception is allowed
         // to be delegated by M level.
-        final boolean async = (exception & R5.INTERRUPT) != 0;
-        final long cause = exception & ~R5.INTERRUPT;
+        final long interruptMask = R5.interrupt(xlen);
+        final boolean async = (exception & interruptMask) != 0;
+        final long cause = exception & ~interruptMask;
         final long deleg = async ? mideleg : medeleg;
 
         // Was interrupt for current priv level enabled? There are cases we can
@@ -988,25 +1102,25 @@ final class R5CPUTemplate implements R5CPU {
             final long customInterrupts = interrupts >>> (R5.MEIP_SHIFT + 1);
             if (customInterrupts != 0) {
                 final int interrupt = Long.numberOfTrailingZeros(customInterrupts) + R5.MEIP_SHIFT + 1;
-                raiseException(interrupt | R5.INTERRUPT);
+                raiseException(interrupt | R5.interrupt(xlen));
             } else if ((pending & R5.MEIP_MASK) != 0) {
-                raiseException(R5.MEIP_SHIFT | R5.INTERRUPT);
+                raiseException(R5.MEIP_SHIFT | R5.interrupt(xlen));
             } else if ((pending & R5.MSIP_MASK) != 0) {
-                raiseException(R5.MSIP_SHIFT | R5.INTERRUPT);
+                raiseException(R5.MSIP_SHIFT | R5.interrupt(xlen));
             } else if ((pending & R5.MTIP_MASK) != 0) {
-                raiseException(R5.MTIP_SHIFT | R5.INTERRUPT);
+                raiseException(R5.MTIP_SHIFT | R5.interrupt(xlen));
             } else if ((pending & R5.SEIP_MASK) != 0) {
-                raiseException(R5.SEIP_SHIFT | R5.INTERRUPT);
+                raiseException(R5.SEIP_SHIFT | R5.interrupt(xlen));
             } else if ((pending & R5.SSIP_MASK) != 0) {
-                raiseException(R5.SSIP_SHIFT | R5.INTERRUPT);
+                raiseException(R5.SSIP_SHIFT | R5.interrupt(xlen));
             } else if ((pending & R5.STIP_MASK) != 0) {
-                raiseException(R5.STIP_SHIFT | R5.INTERRUPT);
+                raiseException(R5.STIP_SHIFT | R5.interrupt(xlen));
             } else if ((pending & R5.UEIP_MASK) != 0) {
-                raiseException(R5.UEIP_SHIFT | R5.INTERRUPT);
+                raiseException(R5.UEIP_SHIFT | R5.interrupt(xlen));
             } else if ((pending & R5.USIP_MASK) != 0) {
-                raiseException(R5.USIP_SHIFT | R5.INTERRUPT);
+                raiseException(R5.USIP_SHIFT | R5.interrupt(xlen));
             } else if ((pending & R5.UTIP_MASK) != 0) {
-                raiseException(R5.UTIP_SHIFT | R5.INTERRUPT);
+                raiseException(R5.UTIP_SHIFT | R5.interrupt(xlen));
             }
         }
     }
@@ -1166,36 +1280,56 @@ final class R5CPUTemplate implements R5CPU {
         }
 
         if (privilege == R5.PRIVILEGE_M) {
-            return virtualAddress;
+            if (xlen == R5.XLEN_32) {
+                return virtualAddress & 0xFFFFFFFFL;
+            } else {
+                return virtualAddress;
+            }
         }
 
-        final long mode = satp & R5.SATP_MODE_MASK;
-        if (mode == R5.SATP_MODE_NONE) {
-            return virtualAddress;
+        final long mode;
+        if (xlen == R5.XLEN_32) {
+            mode = satp & R5.SATP_MODE_MASK32;
+            if (mode == R5.SATP_MODE_NONE) {
+                return virtualAddress & 0xFFFFFFFFL;
+            }
+        } else {
+            mode = satp & R5.SATP_MODE_MASK64;
+            if (mode == R5.SATP_MODE_NONE) {
+                return virtualAddress;
+            }
         }
 
-        // Virtual address structure:  VPN2[38:30], VPN1[29:21], VPN0[20:12], page offset[11:0]
-        // Physical address structure: PPN2[55:30], PPN1[29:21], PPN0[20:12], page offset[11:0]
-        // Page table entry structure: PPN2[53:28], PPN1[27:19], PPN0[18:10], RSW[9:8], D, A, G, U, X, W, R, V
-
-        final int levels;
-        if (mode == R5.SATP_MODE_SV39) {
+        final int levels, pteSizeLog2;
+        final long ppnMask;
+        if (mode == R5.SATP_MODE_SV32) {
+            levels = R5.SV32_LEVELS;
+            ppnMask = R5.SATP_PPN_MASK32;
+            pteSizeLog2 = Sizes.SIZE_32_LOG2;
+        } else if (mode == R5.SATP_MODE_SV39) {
             levels = R5.SV39_LEVELS;
+            ppnMask = R5.SATP_PPN_MASK64;
+            pteSizeLog2 = Sizes.SIZE_64_LOG2;
         } else {
             assert mode == R5.SATP_MODE_SV48;
             levels = R5.SV48_LEVELS;
+            ppnMask = R5.SATP_PPN_MASK64;
+            pteSizeLog2 = Sizes.SIZE_64_LOG2;
         }
 
+        final int xpnSize = R5.PAGE_ADDRESS_SHIFT - pteSizeLog2;
+        final int xpnMask = (1 << xpnSize) - 1;
+
         // Virtual address translation, V2p75f.
-        long pteAddress = (satp & R5.SATP_PPN_MASK) << R5.PAGE_ADDRESS_SHIFT; // 1.
+        long pteAddress = (satp & ppnMask) << R5.PAGE_ADDRESS_SHIFT; // 1.
         for (int i = levels - 1; i >= 0; i--) {
-            final int vpnShift = R5.PAGE_ADDRESS_SHIFT + R5.SV39_XPN_SIZE * i;
-            final int vpn = (int) ((virtualAddress >>> vpnShift) & R5.SV39_XPN_MASK);
-            pteAddress += vpn << R5.SV39_PTE_SIZE_LOG2; // equivalent to vpn * PTE size
+            final int vpnShift = R5.PAGE_ADDRESS_SHIFT + xpnSize * i;
+            final int vpn = (int) ((virtualAddress >>> vpnShift) & xpnMask);
+            pteAddress += vpn << pteSizeLog2; // equivalent to vpn * PTE size
 
             long pte;
             try {
-                pte = physicalMemory.load(pteAddress, R5.SV39_PTE_SIZE_LOG2); // 2.
+                pte = physicalMemory.load(pteAddress, pteSizeLog2); // 2.
             } catch (final MemoryAccessException e) {
                 pte = 0;
             }
@@ -1241,7 +1375,7 @@ final class R5CPUTemplate implements R5CPU {
 
             // 6. Check misaligned superpage.
             if (i > 0) {
-                final int ppnLSB = (int) ((pte >>> R5.PTE_DATA_BITS) & R5.SV39_XPN_MASK);
+                final int ppnLSB = (int) ((pte >>> R5.PTE_DATA_BITS) & xpnMask);
                 if (ppnLSB != 0) {
                     throw getPageFaultException(accessType, virtualAddress);
                 }
@@ -1256,7 +1390,7 @@ final class R5CPUTemplate implements R5CPU {
                 }
 
                 try {
-                    physicalMemory.store(pteAddress, pte, R5.SV39_PTE_SIZE_LOG2);
+                    physicalMemory.store(pteAddress, pte, pteSizeLog2);
                 } catch (final MemoryAccessException e) {
                     throw getPageFaultException(accessType, virtualAddress);
                 }
@@ -1717,6 +1851,42 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // RV64I Base Instruction Set
 
+    @Instruction("AUIPCW")
+    private void auipcw(@Field("rd") final int rd,
+                        @Field("imm") final int imm,
+                        @ProgramCounter final long pc) {
+        if (rd != 0) {
+            x[rd] = (int) (pc + imm);
+        }
+    }
+
+    @Instruction("JALW")
+    private void jalw(@Field("rd") final int rd,
+                      @Field("imm") final int imm,
+                      @ProgramCounter final long pc,
+                      @InstructionSize final int instructionSize) {
+        if (rd != 0) {
+            x[rd] = (int) (pc + instructionSize);
+        }
+
+        this.pc = pc + imm;
+    }
+
+    @Instruction("JALRW")
+    private void jalrw(@Field("rd") final int rd,
+                       @Field("rs1") final int rs1,
+                       @Field("imm") final int imm,
+                       @ProgramCounter final long pc,
+                       @InstructionSize final int instructionSize) {
+        // Compute first in case rs1 == rd and clear lowest bit as per spec.
+        final long address = (x[rs1] + imm) & ~1;
+        if (rd != 0) {
+            x[rd] = (int) (pc + instructionSize);
+        }
+
+        this.pc = address;
+    }
+
     @Instruction("ADDIW")
     private void addiw(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
@@ -1731,7 +1901,7 @@ final class R5CPUTemplate implements R5CPU {
                        @Field("rs1") final int rs1,
                        @Field("shamt") final int shamt) {
         if (rd != 0) {
-            x[rd] = (int) x[rs1] << shamt;
+            x[rd] = (int) (x[rs1] << shamt);
         }
     }
 
@@ -1897,7 +2067,10 @@ final class R5CPUTemplate implements R5CPU {
                       @Field("rs1") final int rs1,
                       @Field("rs2") final int rs2) {
         if (rd != 0) {
-            x[rd] = BigInteger.valueOf(x[rs1]).multiply(BigInteger.valueOf(x[rs2])).shiftRight(XLEN).longValue();
+            x[rd] = BigInteger.valueOf(x[rs1])
+                    .multiply(BigInteger.valueOf(x[rs2]))
+                    .shiftRight(R5.XLEN_64)
+                    .longValue();
         }
     }
 
@@ -1908,7 +2081,8 @@ final class R5CPUTemplate implements R5CPU {
         if (rd != 0) {
             x[rd] = BigInteger.valueOf(x[rs1])
                     .multiply(BitUtils.unsignedLongToBigInteger(x[rs2]))
-                    .shiftRight(XLEN).longValue();
+                    .shiftRight(R5.XLEN_64)
+                    .longValue();
         }
     }
 
@@ -1919,7 +2093,8 @@ final class R5CPUTemplate implements R5CPU {
         if (rd != 0) {
             x[rd] = BitUtils.unsignedLongToBigInteger(x[rs1])
                     .multiply(BitUtils.unsignedLongToBigInteger(x[rs2]))
-                    .shiftRight(XLEN).longValue();
+                    .shiftRight(R5.XLEN_64)
+                    .longValue();
         }
     }
 
@@ -1988,6 +2163,33 @@ final class R5CPUTemplate implements R5CPU {
                       @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = (int) x[rs1] * (int) x[rs2];
+        }
+    }
+
+    @Instruction("MULHW")
+    private void mulhw(@Field("rd") final int rd,
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = (int) ((x[rs1] * x[rs2]) >>> 32);
+        }
+    }
+
+    @Instruction("MULHSUW")
+    private void mulhsuw(@Field("rd") final int rd,
+                         @Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = (int) ((x[rs1] * (x[rs2] & 0xFFFFFFFFL)) >>> 32);
+        }
+    }
+
+    @Instruction("MULHUW")
+    private void mulhuw(@Field("rd") final int rd,
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) {
+        if (rd != 0) {
+            x[rd] = (int) (((x[rs1] & 0xFFFFFFFFL) * (x[rs2] & 0xFFFFFFFFL)) >>> 32);
         }
     }
 

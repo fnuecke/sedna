@@ -563,7 +563,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                     .collect(Collectors.toList());
             final boolean containsReturns = definitions.stream().anyMatch(d -> d.writesPC || d.returnsBoolean);
 
-            final String methodName = "__GENERATED__instructionGroup" + (instructionGroupMethodIndex++);
+            final String methodName = decoderMethod + "$instructionGroup" + (instructionGroupMethodIndex++);
             final String methodDescriptor = "(IJ" + StringUtils.repeat('I', parameters.size()) + ")" + (containsReturns ? "I" : "V");
 
             context.methodVisitor.visitVarInsn(ALOAD, GeneratorContext.LOCAL_THIS);
