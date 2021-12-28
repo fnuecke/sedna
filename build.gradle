@@ -29,8 +29,8 @@ repositories {
     maven {
         url = uri("https://maven.pkg.github.com/fnuecke/ceres")
         credentials {
-            username = project.findProperty("gpr.user") ?: System.getenv("USERNAME")
-            password = project.findProperty("gpr.key") ?: System.getenv("TOKEN")
+            username = project.findProperty("gpr.user") ?: System.getenv("GPR_USER")
+            password = project.findProperty("gpr.key") ?: System.getenv("GPR_KEY")
         }
     }
 }

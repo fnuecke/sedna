@@ -28,3 +28,6 @@ jobs:
           restore-keys: ubuntu-latest-gradle-
       - name: Build with Gradle
         run: ./gradlew build
+        env:
+          GPR_USER: ${{ secrets.GPR_USER }}
+          GPR_KEY: ${{ secrets.GPR_KEY }}

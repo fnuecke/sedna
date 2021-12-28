@@ -28,6 +28,9 @@ jobs:
           restore-keys: ubuntu-latest-gradle-
       - name: Build with Gradle
         run: ./gradlew -Psemver='${{ github.event.release.tag_name }}' build
+        env:
+          GPR_USER: ${{ secrets.GPR_USER }}
+          GPR_KEY: ${{ secrets.GPR_KEY }}
 
       - name: Add Artifacts to Github Release
         uses: alexellis/upload-assets@0.3.0
@@ -39,5 +42,7 @@ jobs:
       - name: Publish to Github Packages
         run: gradle -Psemver='${{ github.event.release.tag_name }}' publish
         env:
+          GPR_USER: ${{ secrets.GPR_USER }}
+          GPR_KEY: ${{ secrets.GPR_KEY }}
           GITHUB_MAVEN_URL: 'https://maven.pkg.github.com/${{ github.repository }}'
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
