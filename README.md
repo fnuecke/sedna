@@ -61,3 +61,30 @@ big-endian host systems, but has not been tested.
 Sedna tests ISA conformity using the [RISC-V test suite](https://github.com/riscv/riscv-tests). The tests are run using
 a simple JUnit [test runner](src/test/java/li/cil/sedna/riscv/ISATests.java). The compiled test binaries are included in
 this repository and can be found [here](src/test/data/riscv-tests).
+
+## Maven
+
+Sedna can be included into a project via the Github Package Repository. See [the documentation][GithubPackagesGradle]
+for more information on how to set that up. In short, you'll want to add your username and a public access token into
+your `~/.gradle/gradle.properties` and use those variables in your repository declaration. Note that the public access
+token will need `read:packages` permissions.
+
+For example, using Gradle:
+
+```groovy
+repositories {
+  maven {
+    url = uri("https://maven.pkg.github.com/fnuecke/sedna")
+    credentials {
+      username = project.findProperty("gpr.user") ?: System.getenv("USERNAME")
+      password = project.findProperty("gpr.key") ?: System.getenv("TOKEN")
+    }
+  }
+}
+
+dependencies {
+  implementation 'li.cil.ceres:sedna:2.0.0'
+}
+```
+
+[GithubPackagesGradle]: https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-gradle-registry
