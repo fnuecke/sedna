@@ -13,18 +13,21 @@ import java.nio.ByteOrder;
  */
 public class ByteBufferMemory extends PhysicalMemory {
     private final ByteBuffer data;
+    private final int size;
 
     public ByteBufferMemory(final int size) {
         if ((size & 0b11) != 0)
             throw new IllegalArgumentException("size must be a multiple of four");
         data = ByteBuffer.allocateDirect(size);
         data.order(ByteOrder.LITTLE_ENDIAN);
+        this.size = size;
     }
 
-    public ByteBufferMemory(final ByteBuffer buffer) {
-        if ((buffer.capacity() & 0b11) != 0)
+    public ByteBufferMemory(final int size, final ByteBuffer buffer) {
+        if ((size & 0b11) != 0)
             throw new IllegalArgumentException("size must be a multiple of four");
         data = buffer.order(ByteOrder.LITTLE_ENDIAN);
+        this.size = size;
     }
 
     @Override
@@ -34,7 +37,7 @@ public class ByteBufferMemory extends PhysicalMemory {
 
     @Override
     public int getLength() {
-        return data.capacity();
+        return size;
     }
 
     @Override

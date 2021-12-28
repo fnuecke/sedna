@@ -45,7 +45,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
     protected static final int VIRTIO_VENDOR_ID_GENERIC = 0xFFFF;
 
     protected static final long VIRTIO_F_RING_INDIRECT_DESC = (1L << 28); // Support for VIRTQ_DESC_F_INDIRECT.
-    protected static final long VIRTIO_F_RING_EVENT_IDX = (1L << 29); // Enables 'used_event", 'avail_event'.
+    protected static final long VIRTIO_F_RING_EVENT_IDX = (1L << 29); // Enables 'used_event', 'avail_event'.
     protected static final long VIRTIO_F_VERSION_1 = (1L << 32); // Compliance with v1.1 spec.
     protected static final long VIRTIO_F_ACCESS_PLATFORM = (1L << 33); // Behind IOMMU.
     protected static final long VIRTIO_F_RING_PACKED = (1L << 34); // Support for packed layout.

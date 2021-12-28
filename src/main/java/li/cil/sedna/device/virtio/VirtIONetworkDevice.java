@@ -7,7 +7,7 @@ import li.cil.sedna.api.memory.MemoryMap;
 import javax.annotation.Nullable;
 
 public final class VirtIONetworkDevice extends AbstractVirtIODevice {
-    private static final long VIRTIO_NET_F_CSUM = 1L << 0; // Device handles packets with partial checksum. This “checksum offload” is a common feature on modern network cards.
+    private static final long VIRTIO_NET_F_CSUM = 1L << 0; // Device handles packets with partial checksum. This "checksum offload" is a common feature on modern network cards.
     private static final long VIRTIO_NET_F_GUEST_CSUM = 1L << 1; // Driver handles packets with partial checksum.
     private static final long VIRTIO_NET_F_CTRL_GUEST_OFFLOADS = 1L << 2; // Control channel offloads reconfiguration support.
     private static final long VIRTIO_NET_F_MTU = 1L << 3; // Device maximum MTU reporting is supported. If offered by the device, device advises driver about the value of its maximum MTU. If negotiated, the driver uses mtu as the maximum MTU value.

@@ -44,7 +44,7 @@ final class DeviceTreeImpl implements DeviceTree {
 
     @Override
     public int getPHandle(final Device device) {
-        return phandles.computeIntIfAbsent(device.getIdentity(), d -> phandles.size() + 1);
+        return phandles.computeIfAbsent(device.getIdentity(), d -> phandles.size() + 1);
     }
 
     @Override
@@ -113,11 +113,8 @@ final class DeviceTreeImpl implements DeviceTree {
             property.flatten(fdt);
         }
 
-        for (final DeviceTree child : children) {
-            if (child instanceof DeviceTreeImpl) {
-                final DeviceTreeImpl childBuilder = (DeviceTreeImpl) child;
-                childBuilder.flatten(fdt);
-            }
+        for (final DeviceTreeImpl child : children) {
+            child.flatten(fdt);
         }
 
         fdt.endNode();
@@ -141,13 +138,8 @@ final class DeviceTreeImpl implements DeviceTree {
             appendIndent(sb, indent + 1).append(property.toString()).append('\n');
         }
 
-        for (final DeviceTree child : children) {
-            if (child instanceof DeviceTreeImpl) {
-                final DeviceTreeImpl childBuilder = (DeviceTreeImpl) child;
-                childBuilder.toString(sb, indent + 1);
-            } else {
-                appendIndent(sb, indent + 1).append(child.toString()).append('\n');
-            }
+        for (final DeviceTreeImpl child : children) {
+            child.toString(sb, indent + 1);
         }
 
         appendIndent(sb, indent).append("}\n");

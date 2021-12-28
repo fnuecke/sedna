@@ -16,62 +16,61 @@ def getGitRef() {
     }
 }
 
-final String semver = "${version_major}.${version_minor}.${version_patch}"
-
-String build_number = System.getenv('PROMOTED_NUMBER')
-if (build_number == null)
-    build_number = System.getenv('BUILD_NUMBER')
-if (build_number == null)
-    build_number = getGitRef()
-
-version = "${semver}+${build_number}"
+version = "${semver}+${getGitRef()}"
 group = 'li.cil.sedna'
 
-sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
-compileJava {
-    sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
-
-    options.compilerArgs.addAll([
-            '-XDignore.symbol.file'
-    ])
-    options.encoding = 'UTF8'
-    options.fork = true
-    options.forkOptions.executable = 'javac'
+java.toolchain {
+    languageVersion = JavaLanguageVersion.of(17)
+    vendor = JvmVendorSpec.ADOPTOPENJDK
 }
 
 repositories {
     mavenCentral()
-    maven { url 'https://maven.cil.li/' } // Ceres
+    maven {
+        url = uri("https://maven.pkg.github.com/fnuecke/ceres")
+        credentials {
+            username = project.findProperty("gpr.user") ?: System.getenv("USERNAME")
+            password = project.findProperty("gpr.key") ?: System.getenv("TOKEN")
+        }
+    }
 }
 
 dependencies {
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
     testCompileOnly 'com.google.code.findbugs:jsr305:3.0.2'
 
-    implementation 'commons-io:commons-io:2.5'
-    implementation 'it.unimi.dsi:fastutil:8.2.1'
-    implementation 'org.apache.commons:commons-lang3:3.8.1'
-    implementation 'org.apache.logging.log4j:log4j-api:2.11.2'
-    implementation 'org.apache.logging.log4j:log4j-core:2.11.2'
-    implementation 'org.ow2.asm:asm-commons:7.2'
-    implementation 'org.ow2.asm:asm:7.2'
+    implementation 'commons-io:commons-io:2.11.0'
+    implementation 'it.unimi.dsi:fastutil:8.5.6'
+    implementation 'org.apache.commons:commons-lang3:3.12.0'
+    implementation 'org.apache.logging.log4j:log4j-api:2.15.0'
+    implementation 'org.apache.logging.log4j:log4j-core:2.15.0'
+    implementation 'org.ow2.asm:asm-commons:9.1'
+    implementation 'org.ow2.asm:asm:9.1'
 
-    implementation 'li.cil.ceres:ceres:0.0.3+'
+    implementation 'li.cil.ceres:ceres:0.0.4'
 
-    testImplementation 'org.mockito:mockito-core:2.+'
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.3.1'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.3.1'
+    testImplementation 'org.mockito:mockito-core:4.1.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
 }
 
 publishing {
     publications {
         mavenJava(MavenPublication) {
+            groupId = project.group
+            artifactId = project.name
+            version = semver
             artifact jar
         }
     }
     repositories {
         maven {
-            url System.getenv('MAVEN_PATH')
+            name = "GitHubPackages"
+            url = System.getenv("GITHUB_MAVEN_URL") ?: ""
+            credentials {
+                username = System.getenv("GITHUB_ACTOR")
+                password = System.getenv("GITHUB_TOKEN")
+            }
         }
     }
 }
