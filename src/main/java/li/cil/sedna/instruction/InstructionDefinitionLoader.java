@@ -251,10 +251,6 @@ public final class InstructionDefinitionLoader {
                 return;
             }
 
-            if (owner.startsWith("Ljava/")) { // Skip built-ins.
-                return;
-            }
-
             if (opcode != Opcodes.INVOKESTATIC) {
                 nonStaticMethodInvocations.add(new NonStaticMethodInvocation(implementation, owner, name, descriptor));
             }
@@ -334,6 +330,13 @@ public final class InstructionDefinitionLoader {
             }
 
             final String ownerClassName = Type.getObjectType(owner).getClassName();
+
+            // Skip built-in stuff.
+            if (ownerClassName.startsWith("java.")) {
+                hasResolvedInvocations = true;
+                return;
+            }
+
             try (final InputStream stream = implementation.getClassLoader().getResourceAsStream(ownerClassName.replace('.', '/') + ".class")) {
                 if (stream == null) {
                     hasResolvedInvocations = true;
@@ -351,10 +354,6 @@ public final class InstructionDefinitionLoader {
                                 @Override
                                 public void visitMethodInsn(final int opcode, final String invokedMethodOwner, final String invokedMethodName, final String invokedMethodDescriptor, final boolean isInterface) {
                                     super.visitMethodInsn(opcode, invokedMethodOwner, invokedMethodName, invokedMethodDescriptor, isInterface);
-
-                                    if (owner.startsWith("Ljava/")) { // Skip built-ins.
-                                        return;
-                                    }
 
                                     if (opcode != Opcodes.INVOKESTATIC) {
                                         final NonStaticMethodInvocation invocation = new NonStaticMethodInvocation(implementation, invokedMethodOwner, invokedMethodName, invokedMethodDescriptor);
