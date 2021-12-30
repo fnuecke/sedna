@@ -272,7 +272,7 @@ inst SLLIW  C.SLLI     | 000 0  .....  ..... 10 | rd=rs1=cr_11_7 shamt=cimmslli
 inst FLD    C.FLDSP    | 001 .  .....  ..... 10 | rd=cr_11_7 rs1=2 imm=cimmldsp
 illegal                | 010 *  00000  ***** 10   # Reserved
 inst LW     C.LWSP     | 010 .  .....  ..... 10 | rd=cr_11_7 rs1=2 imm=cimmlwsp
-inst FLWSP  C.FLWSP    | 011 .  .....  ..... 10 | rd=cr_11_7 rs1=2 imm=cimmlwsp
+inst FLW    C.FLWSP    | 011 .  .....  ..... 10 | rd=cr_11_7 rs1=2 imm=cimmlwsp
 illegal                | 100 0  00000  00000 10   # Reserved
 inst JALRW  C.JR       | 100 0  .....  00000 10 | rd=0 rs1=cr_11_7 imm=0
 nop                    | 100 0  00000  ***** 10   # Hint
@@ -283,4 +283,4 @@ nop                    | 100 1  00000  ***** 10   # Hint
 inst ADDW   C.ADD      | 100 1  .....  ..... 10 | rd=rs1=cr_11_7 rs2=cr_6_2
 inst FSD    C.FSDSP    | 101  ......   ..... 10 | rs1=2 rs2=cr_6_2 imm=cimmsdsp
 inst SW     C.SWSP     | 110  ......   ..... 10 | rs1=2 rs2=cr_6_2 imm=cimmswsp
-inst FSWSP  C.FSWSP    | 111  ......   ..... 10 | rs1=2 rs2=cr_6_2 imm=cimmswsp
+inst FSW    C.FSWSP    | 111  ......   ..... 10 | rs1=2 rs2=cr_6_2 imm=cimmswsp
