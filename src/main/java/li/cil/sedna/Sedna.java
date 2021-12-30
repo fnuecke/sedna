@@ -6,7 +6,6 @@ import li.cil.ceres.Ceres;
 import li.cil.sedna.api.device.InterruptSource;
 import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.PhysicalMemory;
-import li.cil.sedna.device.block.SPIBlockDevice;
 import li.cil.sedna.device.block.SparseBlockDevice;
 import li.cil.sedna.device.flash.FlashMemoryDevice;
 import li.cil.sedna.device.rtc.GoldfishRTC;
@@ -55,7 +54,6 @@ public final class Sedna {
         DeviceTreeRegistry.putProvider(PhysicalMemory.class, new PhysicalMemoryProvider());
         DeviceTreeRegistry.putProvider(AbstractSystemController.class, new SystemControllerProvider());
         DeviceTreeRegistry.putProvider(UART16550A.class, new UART16550AProvider());
-        DeviceTreeRegistry.putProvider(SPIBlockDevice.class, new SPIBlockDeviceProvider());
         DeviceTreeRegistry.putProvider(AbstractVirtIODevice.class, new VirtIOProvider());
         DeviceTreeRegistry.putProvider(R5CoreLocalInterrupter.class, new R5CoreLocalInterrupterProvider());
         DeviceTreeRegistry.putProvider(R5PlatformLevelInterruptController.class, new R5PlatformLevelInterruptControllerProvider());
