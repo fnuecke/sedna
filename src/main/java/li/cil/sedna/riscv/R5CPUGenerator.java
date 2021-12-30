@@ -45,7 +45,7 @@ public final class R5CPUGenerator {
 
     static {
         try {
-            GENERATED_CLASS_CTOR = GENERATED_CLASS.getConstructor(MemoryMap.class, RealTimeCounter.class);
+            GENERATED_CLASS_CTOR = GENERATED_CLASS.getDeclaredConstructor(MemoryMap.class, RealTimeCounter.class);
             GENERATED_CLASS_CTOR.setAccessible(true);
         } catch (final NoSuchMethodException e) {
             throw new AssertionError(e);
@@ -137,6 +137,7 @@ public final class R5CPUGenerator {
     private static Class<?> generateClass() {
         try {
             final ClassLoader classLoader = TEMPLATE_CLASS.getClassLoader();
+            final CPUClassLoader definerClassLoader = new CPUClassLoader();
 
             try (final InputStream stream = classLoader.getResourceAsStream(TEMPLATE_CLASS.getName().replace('.', '/') + ".class")) {
                 if (stream == null) {
@@ -164,7 +165,7 @@ public final class R5CPUGenerator {
                         final RemappedTypeClassWriter nestedTypeWriter = new RemappedTypeClassWriter(remappedTypeNames);
                         nestedTypeReader.accept(new ClassRemapper(nestedTypeWriter, remapper), ClassReader.EXPAND_FRAMES);
 
-                        CPUClassLoader.defineClass(nestedTypeWriter.toByteArray());
+                        definerClassLoader.defineClass(nestedTypeWriter.toByteArray());
                     } catch (final Throwable e) {
                         throw new AssertionError(e);
                     }
@@ -190,7 +191,7 @@ public final class R5CPUGenerator {
 
                 final byte[] bytes = writer.toByteArray();
 
-                return CPUClassLoader.defineClass(bytes);
+                return definerClassLoader.defineClass(bytes);
             }
         } catch (final Throwable e) {
             throw new AssertionError(e);
@@ -198,10 +199,12 @@ public final class R5CPUGenerator {
     }
 
     private static class CPUClassLoader extends ClassLoader {
-        private static final CPUClassLoader INSTANCE = new CPUClassLoader();
+        public CPUClassLoader() {
+            super(CPUClassLoader.class.getClassLoader());
+        }
 
-        public static Class<?> defineClass(final byte[] bytecode) {
-            return INSTANCE.defineClass(null, bytecode, 0, bytecode.length);
+        public Class<?> defineClass(final byte[] bytecode) {
+            return defineClass(null, bytecode, 0, bytecode.length);
         }
     }
 }
