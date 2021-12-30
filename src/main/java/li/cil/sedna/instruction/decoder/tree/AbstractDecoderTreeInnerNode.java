@@ -58,7 +58,7 @@ public abstract class AbstractDecoderTreeInnerNode extends AbstractDecoderTreeNo
             final DecoderTreeNodeArguments childArguments = child.getArguments();
             totalLeafCount += childArguments.totalLeafCount;
             childArguments.arguments.forEach((argument, entry) ->
-                    childEntries.computeIfAbsent(argument, arg -> new ArrayList<>()).add(entry));
+                childEntries.computeIfAbsent(argument, arg -> new ArrayList<>()).add(entry));
         }
 
         final HashMap<FieldInstructionArgument, DecoderTreeNodeArguments.Entry> entries = new HashMap<>();

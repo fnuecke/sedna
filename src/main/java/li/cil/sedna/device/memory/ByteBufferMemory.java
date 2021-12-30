@@ -45,18 +45,13 @@ public class ByteBufferMemory extends PhysicalMemory {
         if (offset < 0 || offset > getLength() - (1 << sizeLog2)) {
             throw new MemoryAccessException();
         }
-        switch (sizeLog2) {
-            case Sizes.SIZE_8_LOG2:
-                return data.get(offset);
-            case Sizes.SIZE_16_LOG2:
-                return data.getShort(offset);
-            case Sizes.SIZE_32_LOG2:
-                return data.getInt(offset);
-            case Sizes.SIZE_64_LOG2:
-                return data.getLong(offset);
-            default:
-                throw new IllegalArgumentException();
-        }
+        return switch (sizeLog2) {
+            case Sizes.SIZE_8_LOG2 -> data.get(offset);
+            case Sizes.SIZE_16_LOG2 -> data.getShort(offset);
+            case Sizes.SIZE_32_LOG2 -> data.getInt(offset);
+            case Sizes.SIZE_64_LOG2 -> data.getLong(offset);
+            default -> throw new IllegalArgumentException();
+        };
     }
 
     @Override
@@ -65,20 +60,11 @@ public class ByteBufferMemory extends PhysicalMemory {
             throw new MemoryAccessException();
         }
         switch (sizeLog2) {
-            case Sizes.SIZE_8_LOG2:
-                data.put(offset, (byte) value);
-                break;
-            case Sizes.SIZE_16_LOG2:
-                data.putShort(offset, (short) value);
-                break;
-            case Sizes.SIZE_32_LOG2:
-                data.putInt(offset, (int) value);
-                break;
-            case Sizes.SIZE_64_LOG2:
-                data.putLong(offset, value);
-                break;
-            default:
-                throw new IllegalArgumentException();
+            case Sizes.SIZE_8_LOG2 -> data.put(offset, (byte) value);
+            case Sizes.SIZE_16_LOG2 -> data.putShort(offset, (short) value);
+            case Sizes.SIZE_32_LOG2 -> data.putInt(offset, (int) value);
+            case Sizes.SIZE_64_LOG2 -> data.putLong(offset, value);
+            default -> throw new IllegalArgumentException();
         }
     }
 

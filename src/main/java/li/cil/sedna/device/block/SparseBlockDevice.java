@@ -4,6 +4,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectArrayMap;
 import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.device.BlockDevice;
 
+import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -112,7 +113,7 @@ public final class SparseBlockDevice implements BlockDevice {
         }
 
         @Override
-        public int read(final byte[] b, final int off, final int len) throws IOException {
+        public int read(@Nonnull final byte[] b, final int off, final int len) throws IOException {
             if (offset >= getCapacity()) {
                 return -1;
             }
@@ -170,7 +171,7 @@ public final class SparseBlockDevice implements BlockDevice {
         }
 
         @Override
-        public void write(final byte[] b, final int off, final int len) throws IOException {
+        public void write(@Nonnull final byte[] b, final int off, final int len) throws IOException {
             if (offset >= getCapacity()) {
                 throw new IOException();
             }

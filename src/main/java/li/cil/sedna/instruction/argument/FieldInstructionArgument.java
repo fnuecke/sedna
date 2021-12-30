@@ -38,7 +38,7 @@ public final class FieldInstructionArgument implements InstructionArgument {
         if (o == null || getClass() != o.getClass()) return false;
         final FieldInstructionArgument that = (FieldInstructionArgument) o;
         return mappings.equals(that.mappings) &&
-               postprocessor == that.postprocessor;
+            postprocessor == that.postprocessor;
     }
 
     @Override

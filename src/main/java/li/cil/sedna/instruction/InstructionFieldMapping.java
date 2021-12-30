@@ -32,9 +32,9 @@ public final class InstructionFieldMapping implements Comparable<InstructionFiel
         if (o == null || getClass() != o.getClass()) return false;
         final InstructionFieldMapping that = (InstructionFieldMapping) o;
         return srcMSB == that.srcMSB &&
-               srcLSB == that.srcLSB &&
-               dstLSB == that.dstLSB &&
-               signExtend == that.signExtend;
+            srcLSB == that.srcLSB &&
+            dstLSB == that.dstLSB &&
+            signExtend == that.signExtend;
     }
 
     @Override

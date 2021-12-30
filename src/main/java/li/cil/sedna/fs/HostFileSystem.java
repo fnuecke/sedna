@@ -83,9 +83,9 @@ public final class HostFileSystem implements FileSystem {
         final java.nio.file.Path hostPath = toHost(path);
         if (Files.isDirectory(hostPath)) {
             final List<DirectoryEntry> entries = Files.list(hostPath)
-                    .map(java.nio.file.Path::toFile)
-                    .map(DirectoryEntry::create)
-                    .collect(Collectors.toList());
+                .map(java.nio.file.Path::toFile)
+                .map(DirectoryEntry::create)
+                .collect(Collectors.toList());
             return new FileHandle() {
                 @Override
                 public int read(final long offset, final ByteBuffer buffer) throws IOException {

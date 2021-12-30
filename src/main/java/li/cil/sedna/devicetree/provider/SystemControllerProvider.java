@@ -6,8 +6,8 @@ import li.cil.sedna.api.devicetree.DeviceNames;
 import li.cil.sedna.api.devicetree.DevicePropertyNames;
 import li.cil.sedna.api.devicetree.DeviceTree;
 import li.cil.sedna.api.devicetree.DeviceTreeProvider;
-import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MappedMemoryRange;
+import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.device.syscon.AbstractSystemController;
 
 import java.util.Optional;
@@ -28,19 +28,19 @@ public final class SystemControllerProvider implements DeviceTreeProvider {
     public void visit(final DeviceTree node, final MemoryMap memoryMap, final Device device) {
         final int handle = node.getPHandle(device);
         node
-                .addProp(DevicePropertyNames.COMPATIBLE, "syscon")
-                .addProp(DevicePropertyNames.PHANDLE, handle);
+            .addProp(DevicePropertyNames.COMPATIBLE, "syscon")
+            .addProp(DevicePropertyNames.PHANDLE, handle);
 
         final DeviceTree soc = node.find("/soc");
         soc.putChild("reboot", reboot -> reboot
-                .addProp(DevicePropertyNames.COMPATIBLE, "syscon-reboot")
-                .addProp("regmap", handle)
-                .addProp("offset", 0)
-                .addProp("value", AbstractSystemController.SYSCON_RESET));
+            .addProp(DevicePropertyNames.COMPATIBLE, "syscon-reboot")
+            .addProp("regmap", handle)
+            .addProp("offset", 0)
+            .addProp("value", AbstractSystemController.SYSCON_RESET));
         soc.putChild("poweroff", poweroff -> poweroff
-                .addProp(DevicePropertyNames.COMPATIBLE, "syscon-poweroff")
-                .addProp("regmap", handle)
-                .addProp("offset", 0)
-                .addProp("value", AbstractSystemController.SYSCON_POWEROFF));
+            .addProp(DevicePropertyNames.COMPATIBLE, "syscon-poweroff")
+            .addProp("regmap", handle)
+            .addProp("offset", 0)
+            .addProp("value", AbstractSystemController.SYSCON_POWEROFF));
     }
 }

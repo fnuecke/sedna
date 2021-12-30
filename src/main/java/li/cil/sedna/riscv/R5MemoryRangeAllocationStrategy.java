@@ -56,7 +56,7 @@ public final class R5MemoryRangeAllocationStrategy implements MemoryRangeAllocat
             return OptionalLong.empty();
         }
 
-        // Always align to 64 bit. Otherwise device I/O may require load/stores of
+        // Always align to 64 bit. Otherwise, device I/O may require load/stores of
         // individual byte values, which most device implementations do not support.
         final int alignment = (int) (start % Sizes.SIZE_64_BYTES);
         if (alignment != 0) {

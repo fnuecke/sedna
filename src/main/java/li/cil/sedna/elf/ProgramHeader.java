@@ -55,15 +55,15 @@ public final class ProgramHeader {
     public String toString() {
         final ProgramHeaderType type = getType();
         return "ProgramHeader{" +
-               "type = " + (type != null ? type : ("0x" + Integer.toHexString(this.type))) +
-               ((type != ProgramHeaderType.PT_NULL) ? (
-                       ", offset=0x" + Long.toHexString(offset) +
-                       ", virtualAddress=0x" + Long.toHexString(virtualAddress) +
-                       ", physicalAddress=0x" + Long.toHexString(physicalAddress) +
-                       ", sizeInFile=0x" + Long.toHexString(sizeInFile) +
-                       ", sizeInMemory=0x" + Long.toHexString(sizeInMemory) +
-                       (alignment > 1 ? (", alignment=0x" + Long.toHexString(alignment)) : "")
-               ) : "") +
-               '}';
+            "type = " + (type != null ? type : ("0x" + Integer.toHexString(this.type))) +
+            ((type != ProgramHeaderType.PT_NULL) ? (
+                ", offset=0x" + Long.toHexString(offset) +
+                    ", virtualAddress=0x" + Long.toHexString(virtualAddress) +
+                    ", physicalAddress=0x" + Long.toHexString(physicalAddress) +
+                    ", sizeInFile=0x" + Long.toHexString(sizeInFile) +
+                    ", sizeInMemory=0x" + Long.toHexString(sizeInMemory) +
+                    (alignment > 1 ? (", alignment=0x" + Long.toHexString(alignment)) : "")
+            ) : "") +
+            '}';
     }
 }

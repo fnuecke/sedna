@@ -105,15 +105,13 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
         context.methodVisitor.visitVarInsn(ALOAD, GeneratorContext.LOCAL_THIS);
         final StringBuilder methodDescriptor = new StringBuilder("(");
         for (final InstructionArgument argument : definition.parameters) {
-            if (argument instanceof ConstantInstructionArgument) {
-                final ConstantInstructionArgument constantArgument = (ConstantInstructionArgument) argument;
+            if (argument instanceof final ConstantInstructionArgument constantArgument) {
                 context.emitFastLdc(constantArgument.value);
                 methodDescriptor.append('I');
             } else if (argument instanceof ProgramCounterInstructionArgument) {
                 context.methodVisitor.visitVarInsn(LLOAD, context.localPc);
                 methodDescriptor.append('J');
-            } else if (argument instanceof FieldInstructionArgument) {
-                final FieldInstructionArgument fieldArgument = (FieldInstructionArgument) argument;
+            } else if (argument instanceof final FieldInstructionArgument fieldArgument) {
                 if (context.localVariables.containsKey(fieldArgument)) {
                     final int localIndex = context.localVariables.getInt(fieldArgument);
                     context.methodVisitor.visitVarInsn(ILOAD, localIndex);
@@ -134,29 +132,28 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
         }
 
         context.methodVisitor.visitMethodInsn(INVOKESPECIAL, hostClassInternalName,
-                definition.methodName, methodDescriptor.toString(), false);
+            definition.methodName, methodDescriptor.toString(), false);
 
         if (definition.returnsBoolean) {
             final Label updateOffsetAndContinueLabel = new Label();
             context.methodVisitor.visitJumpInsn(IFEQ, updateOffsetAndContinueLabel);
             switch (context.type) {
-                case TOP_LEVEL:
+                case TOP_LEVEL -> {
                     if (!definition.writesPC) {
                         context.emitIncrementPC(declaration.size);
                         context.emitSavePC();
                     }
                     context.methodVisitor.visitInsn(RETURN);
-                    break;
-                case CONDITIONAL_METHOD:
+                }
+                case CONDITIONAL_METHOD -> {
                     if (!definition.writesPC) {
                         context.methodVisitor.visitInsn(ICONST_0 + GeneratorContext.RETURN_EXIT_INC_PC);
                     } else {
                         context.methodVisitor.visitInsn(ICONST_0 + GeneratorContext.RETURN_EXIT);
                     }
                     context.methodVisitor.visitInsn(IRETURN);
-                    break;
-                default:
-                    throw new IllegalStateException();
+                }
+                default -> throw new IllegalStateException();
             }
 
             context.methodVisitor.visitLabel(updateOffsetAndContinueLabel);
@@ -164,16 +161,12 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
             context.emitContinue();
         } else if (definition.writesPC) {
             switch (context.type) {
-                case TOP_LEVEL:
-                    context.emitJumpHandler();
-
-                    break;
-                case CONDITIONAL_METHOD:
+                case TOP_LEVEL -> context.emitJumpHandler();
+                case CONDITIONAL_METHOD -> {
                     context.methodVisitor.visitInsn(ICONST_0 + GeneratorContext.RETURN_JUMP);
                     context.methodVisitor.visitInsn(IRETURN);
-                    break;
-                default:
-                    throw new IllegalStateException();
+                }
+                default -> throw new IllegalStateException();
             }
         } else {
             context.emitIncrementPC(declaration.size);
@@ -253,8 +246,8 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
         private GeneratorContext(final ClassVisitor classVisitor,
                                  final MethodVisitor methodVisitor) {
             this(classVisitor, methodVisitor, ContextType.TOP_LEVEL, 0,
-                    LOCAL_INST, LOCAL_PC, LOCAL_FIRST_FIELD,
-                    new Label(), new Label(), new Object2IntArrayMap<>());
+                LOCAL_INST, LOCAL_PC, LOCAL_FIRST_FIELD,
+                new Label(), new Label(), new Object2IntArrayMap<>());
         }
 
         // Constructor for nested context.
@@ -264,10 +257,10 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                                  final int processedMask,
                                  final Object2IntArrayMap<FieldInstructionArgument> localVariables) {
             this(classVisitor, methodVisitor, type, processedMask,
-                    LOCAL_GEN_INST, // inst is always first arg
-                    LOCAL_GEN_PC, // pc is always second arg
-                    LOCAL_GEN_FIRST_FIELD + localVariables.size(), // this + inst + pc + nargs
-                    new Label(), new Label(), localVariables);
+                LOCAL_GEN_INST, // inst is always first arg
+                LOCAL_GEN_PC, // pc is always second arg
+                LOCAL_GEN_FIRST_FIELD + localVariables.size(), // this + inst + pc + nargs
+                new Label(), new Label(), localVariables);
         }
 
         private GeneratorContext(final ClassVisitor classVisitor,
@@ -294,8 +287,8 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
 
         public GeneratorContext withProcessed(final int mask) {
             return new GeneratorContext(classVisitor, methodVisitor, type,
-                    processedMask | mask, localInst, localPc, localFirstField,
-                    continueLabel, illegalInstructionLabel, localVariables);
+                processedMask | mask, localInst, localPc, localFirstField,
+                continueLabel, illegalInstructionLabel, localVariables);
         }
 
         private void emitFastLdc(final int value) {
@@ -308,18 +301,13 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
 
         public void emitContinue() {
             switch (type) {
-                case TOP_LEVEL:
-                    methodVisitor.visitJumpInsn(GOTO, continueLabel);
-                    break;
-                case VOID_METHOD:
-                    methodVisitor.visitInsn(RETURN);
-                    break;
-                case CONDITIONAL_METHOD:
+                case TOP_LEVEL -> methodVisitor.visitJumpInsn(GOTO, continueLabel);
+                case VOID_METHOD -> methodVisitor.visitInsn(RETURN);
+                case CONDITIONAL_METHOD -> {
                     methodVisitor.visitInsn(ICONST_0 + GeneratorContext.RETURN_CONTINUE);
                     methodVisitor.visitInsn(IRETURN);
-                    break;
-                default:
-                    throw new IllegalStateException();
+                }
+                default -> throw new IllegalStateException();
             }
         }
 
@@ -363,7 +351,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                 if (mapping.signExtend) {
                     emitFastLdc(mapping.dstLSB + (mapping.srcMSB - mapping.srcLSB) + 1);
                     methodVisitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(BitUtils.class),
-                            "extendSign", "(II)I", false);
+                        "extendSign", "(II)I", false);
                 }
                 methodVisitor.visitInsn(IOR);
             }
@@ -391,8 +379,8 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
 
             // if (pc >= this.pc) return;
             methodVisitor.visitMethodInsn(INVOKESTATIC,
-                    Type.getInternalName(Long.class), "compareUnsigned",
-                    "(JJ)I", false); // [compare(pc, this.pc)]
+                Type.getInternalName(Long.class), "compareUnsigned",
+                "(JJ)I", false); // [compare(pc, this.pc)]
 
             final Label forwardJumpLabel = new Label();
             methodVisitor.visitJumpInsn(IFLT, forwardJumpLabel); // []
@@ -461,7 +449,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
             context.methodVisitor.visitTypeInsn(NEW, illegalInstructionInternalName);
             context.methodVisitor.visitInsn(DUP);
             context.methodVisitor.visitMethodInsn(INVOKESPECIAL, illegalInstructionInternalName,
-                    "<init>", "()V", false);
+                "<init>", "()V", false);
             context.methodVisitor.visitInsn(ATHROW);
 
             context.methodVisitor.visitLabel(context.continueLabel);
@@ -501,24 +489,20 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                 childContext.methodVisitor.visitTypeInsn(NEW, illegalInstructionInternalName);
                 childContext.methodVisitor.visitInsn(DUP);
                 childContext.methodVisitor.visitMethodInsn(INVOKESPECIAL, illegalInstructionInternalName,
-                        "<init>", "()V", false);
+                    "<init>", "()V", false);
                 childContext.methodVisitor.visitInsn(ATHROW);
 
                 switch (childContext.type) {
-                    case VOID_METHOD: {
+                    case VOID_METHOD -> {
                         childContext.methodVisitor.visitLabel(childContext.continueLabel);
                         childContext.methodVisitor.visitInsn(RETURN);
-                        break;
                     }
-                    case CONDITIONAL_METHOD: {
+                    case CONDITIONAL_METHOD -> {
                         childContext.methodVisitor.visitLabel(childContext.continueLabel);
                         childContext.methodVisitor.visitInsn(ICONST_0 + GeneratorContext.RETURN_CONTINUE);
                         childContext.methodVisitor.visitInsn(IRETURN);
-                        break;
                     }
-                    default: {
-                        throw new IllegalStateException();
-                    }
+                    default -> throw new IllegalStateException();
                 }
 
                 childContext.methodVisitor.visitMaxs(-1, -1);
@@ -531,13 +515,13 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
         }
 
         private GeneratorContext generateMethodInvocation(final AbstractDecoderTreeNode node) {
-            final List<InstructionDeclaration> instructions = node.getInstructions().collect(Collectors.toList());
+            final List<InstructionDeclaration> instructions = node.getInstructions().toList();
             if (instructions.size() == 1) {
                 return context;
             }
 
             final OptionalInt commonInstructionSize = computeCommonInstructionSize(node);
-            if (!commonInstructionSize.isPresent()) {
+            if (commonInstructionSize.isEmpty()) {
                 return context;
             }
 
@@ -558,9 +542,9 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
             // As such, the generated method must have a return type. We use three int values to indicate
             // the different states: 0 = advance PC and continue, 1 = exit, 2 = advance PC and exit.
             final List<InstructionDefinition> definitions = instructions.stream()
-                    .map(definitionProvider)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+                .map(definitionProvider)
+                .filter(Objects::nonNull)
+                .toList();
             final boolean containsReturns = definitions.stream().anyMatch(d -> d.writesPC || d.returnsBoolean);
 
             final String methodName = decoderMethod + "$instructionGroup" + (instructionGroupMethodIndex++);
@@ -574,7 +558,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                 context.methodVisitor.visitVarInsn(ILOAD, localIndex);
             }
             context.methodVisitor.visitMethodInsn(INVOKESPECIAL, hostClassInternalName,
-                    methodName, methodDescriptor, false);
+                methodName, methodDescriptor, false);
 
             if (containsReturns) {
                 final Label[] conditionalLabels = new Label[4];
@@ -583,7 +567,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                 }
 
                 switch (context.type) {
-                    case TOP_LEVEL: {
+                    case TOP_LEVEL -> {
                         context.methodVisitor.visitTableSwitchInsn(0, conditionalLabels.length - 1, context.illegalInstructionLabel, conditionalLabels);
 
                         context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_CONTINUE]);
@@ -600,16 +584,11 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
 
                         context.methodVisitor.visitLabel(conditionalLabels[GeneratorContext.RETURN_JUMP]);
                         context.emitJumpHandler();
-
-                        break;
                     }
-                    case CONDITIONAL_METHOD: {
+                    case CONDITIONAL_METHOD ->
                         // We can't do any changes to PC either, so keep bubbling up.
                         context.methodVisitor.visitInsn(IRETURN);
-                        break;
-                    }
-                    default:
-                        throw new IllegalStateException();
+                    default -> throw new IllegalStateException();
                 }
             } else {
                 context.emitIncrementPC(commonInstructionSize.getAsInt());
@@ -617,28 +596,28 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
             }
 
             final String[] exceptions = definitions.stream()
-                    .map(d -> d.thrownExceptions)
-                    .filter(Objects::nonNull)
-                    .flatMap(Arrays::stream)
-                    .distinct()
-                    .toArray(String[]::new);
+                .map(d -> d.thrownExceptions)
+                .filter(Objects::nonNull)
+                .flatMap(Arrays::stream)
+                .distinct()
+                .toArray(String[]::new);
 
             final MethodVisitor childVisitor = context.classVisitor.visitMethod(ACC_PRIVATE,
-                    methodName, methodDescriptor, null, exceptions);
+                methodName, methodDescriptor, null, exceptions);
             childVisitor.visitCode();
 
             childContext = new GeneratorContext(
-                    context.classVisitor,
-                    childVisitor,
-                    containsReturns ? ContextType.CONDITIONAL_METHOD : ContextType.VOID_METHOD,
-                    context.processedMask,
-                    localsInMethod);
+                context.classVisitor,
+                childVisitor,
+                containsReturns ? ContextType.CONDITIONAL_METHOD : ContextType.VOID_METHOD,
+                context.processedMask,
+                localsInMethod);
 
             return childContext;
         }
 
         private OptionalInt computeCommonInstructionSize(final AbstractDecoderTreeNode node) {
-            final List<Integer> sizes = node.getInstructions().map(i -> i.size).distinct().collect(Collectors.toList());
+            final List<Integer> sizes = node.getInstructions().map(i -> i.size).distinct().toList();
             return sizes.size() == 1 ? OptionalInt.of(sizes.get(0)) : OptionalInt.empty();
         }
     }
@@ -689,7 +668,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
 
             if (maskFields.isEmpty()) {
                 throw new IllegalStateException(String.format("All cases in a switch node have the same patterns: [%s]",
-                        maskFieldsWithEqualPatterns.stream().map(f -> Integer.toBinaryString(patterns[0] & f.asMask())).collect(Collectors.joining(", "))));
+                    maskFieldsWithEqualPatterns.stream().map(f -> Integer.toBinaryString(patterns[0] & f.asMask())).collect(Collectors.joining(", "))));
             }
 
             if (!maskFieldsWithEqualPatterns.isEmpty()) {
@@ -961,22 +940,14 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
         }
     }
 
-    private static final class PatternAndLabel implements Comparable<PatternAndLabel> {
-        public final int pattern;
-        public final Label label;
-
-        private PatternAndLabel(final int pattern, final Label label) {
-            this.pattern = pattern;
-            this.label = label;
-        }
-
+    private record PatternAndLabel(int pattern, Label label) implements Comparable<PatternAndLabel> {
         @Override
         public int compareTo(final PatternAndLabel o) {
             return Integer.compare(pattern, o.pattern);
         }
     }
 
-    private static final class MaskField {
+    private record MaskField(int srcMSB, int srcLSB) {
         public static ArrayList<MaskField> create(int mask) {
             final ArrayList<MaskField> maskFields = new ArrayList<>();
             int offset = 0;
@@ -992,14 +963,6 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                 offset += msb + 1;
             }
             return maskFields;
-        }
-
-        public final int srcMSB;
-        public final int srcLSB;
-
-        private MaskField(final int srcMSB, final int srcLSB) {
-            this.srcMSB = srcMSB;
-            this.srcLSB = srcLSB;
         }
 
         public int asMask() {

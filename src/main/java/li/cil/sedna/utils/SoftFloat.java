@@ -73,12 +73,12 @@ public final class SoftFloat {
 
     public static boolean isNaN(final int a) {
         return ((a >>> MANTISSA_SIZE) & EXPONENT_MASK) == EXPONENT_MASK
-               && (a & MANTISSA_MASK) != 0;
+            && (a & MANTISSA_MASK) != 0;
     }
 
     public static boolean isInfinity(final int a) {
         return ((a >>> MANTISSA_SIZE) & EXPONENT_MASK) == EXPONENT_MASK
-               && (a & MANTISSA_MASK) == 0;
+            && (a & MANTISSA_MASK) == 0;
     }
 
     public int sign(final int a) {
@@ -123,7 +123,7 @@ public final class SoftFloat {
                 }
                 return nan();
             } else if (exponentB == EXPONENT_MASK  // -inf + inf. b cannot be NaN if a is not NaN because we sorted the
-                       && signA != signB) {        // two up top, and NaN > Infinity when excluding the sign bit.
+                && signA != signB) {        // two up top, and NaN > Infinity when excluding the sign bit.
                 flags.raise(FLAG_INVALID);
                 return nan();
             } else { // Infinity
@@ -250,7 +250,7 @@ public final class SoftFloat {
                 if ((exponentA == EXPONENT_MASK && (exponentB == 0 && mantissaB == 0)) || // inf * 0 + c
                     (exponentB == EXPONENT_MASK && (exponentA == 0 && mantissaA == 0)) || // 0 * inf + c
                     (exponentA == EXPONENT_MASK || exponentB == EXPONENT_MASK) && // a = inf || b = inf
-                    (exponentC == EXPONENT_MASK && sign != signC)) { // c = inf && sign(c) != sign(a*b)
+                        (exponentC == EXPONENT_MASK && sign != signC)) { // c = inf && sign(c) != sign(a*b)
                     flags.raise(FLAG_INVALID);
                     return nan();
                 } else if (exponentC == EXPONENT_MASK) {
@@ -574,7 +574,7 @@ public final class SoftFloat {
 
         if (signA != signB) {
             return (signA != 0) // a negative, b positive
-                   || (((a | b) << 1) == 0); // a = b = 0 with -0 = 0
+                || (((a | b) << 1) == 0); // a = b = 0 with -0 = 0
         } else {
             if (signA != 0) {
                 return a >= b;
@@ -595,7 +595,7 @@ public final class SoftFloat {
 
         if (signA != signB) {
             return (signA != 0) // a negative, b positive
-                   && (((a | b) << 1) != 0); // a != 0 || b != 0
+                && (((a | b) << 1) != 0); // a != 0 || b != 0
         } else {
             if (signA != 0) {
                 return a > b;
@@ -742,27 +742,16 @@ public final class SoftFloat {
 
             final int addend;
             switch (rm) {
-                case RM_RNE:
-                case RM_RMM: {
-                    addend = 1 << (RND_SIZE - 1);
-                    break;
-                }
-                case RM_RTZ: {
-                    addend = 0;
-                    break;
-                }
-                case RM_RDN:
-                case RM_RUP: {
+                case RM_RNE, RM_RMM -> addend = 1 << (RND_SIZE - 1);
+                case RM_RTZ -> addend = 0;
+                case RM_RDN, RM_RUP -> {
                     if (sign == 0 ? (rm == RM_RDN) : (rm == RM_RUP)) {
                         addend = (1 << RND_SIZE) - 1;
                     } else {
                         addend = 0;
                     }
-                    break;
                 }
-                default: {
-                    throw new IllegalArgumentException();
-                }
+                default -> throw new IllegalArgumentException();
             }
 
             final int rnd_bits = mantissa & ((1 << RND_SIZE) - 1);
@@ -876,8 +865,8 @@ public final class SoftFloat {
             mantissa = mantissa1 | (mantissa0 != 0 ? 1 : 0);
         } else if (shift < SIZE) {
             mantissa = (mantissa1 << shift)
-                       | (mantissa0 >>> (SIZE - shift))
-                       | ((mantissa0 << shift) != 0 ? 1 : 0);
+                | (mantissa0 >>> (SIZE - shift))
+                | ((mantissa0 << shift) != 0 ? 1 : 0);
         } else {
             mantissa = mantissa0 << (shift - SIZE);
         }
@@ -888,26 +877,16 @@ public final class SoftFloat {
     private static int round(final int sign, int exponent, int mantissa, final int rm, final Flags flags) {
         final int addend;
         switch (rm) {
-            case RM_RNE:
-            case RM_RMM: {
-                addend = 1 << (RND_SIZE - 1);
-                break;
-            }
-            case RM_RTZ: {
-                addend = 0;
-                break;
-            }
-            case RM_RDN:
-            case RM_RUP: {
+            case RM_RNE, RM_RMM -> addend = 1 << (RND_SIZE - 1);
+            case RM_RTZ -> addend = 0;
+            case RM_RDN, RM_RUP -> {
                 if (sign == 0 ? (rm == RM_RDN) : (rm == RM_RUP)) {
                     addend = (1 << RND_SIZE) - 1;
                 } else {
                     addend = 0;
                 }
-                break;
             }
-            default:
-                throw new IllegalArgumentException();
+            default -> throw new IllegalArgumentException();
         }
 
         final int rnd_bits;

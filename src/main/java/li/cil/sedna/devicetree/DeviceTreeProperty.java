@@ -9,8 +9,8 @@ public final class DeviceTreeProperty {
         this.values = values;
         for (final Object value : values) {
             if (!(value instanceof String ||
-                  value instanceof Integer ||
-                  value instanceof Long)) {
+                value instanceof Integer ||
+                value instanceof Long)) {
                 throw new IllegalArgumentException();
             }
         }
@@ -87,11 +87,11 @@ public final class DeviceTreeProperty {
 
     private static boolean isValidCharacterForPropertyName(final int ch) {
         return (ch >= '0' && ch <= '9') ||
-               (ch >= 'a' && ch <= 'z') ||
-               (ch >= 'A' && ch <= 'Z') ||
-               ch == ',' || ch == '.' ||
-               ch == '_' || ch == '+' ||
-               ch == '-' || ch == '?' ||
-               ch == '#';
+            (ch >= 'a' && ch <= 'z') ||
+            (ch >= 'A' && ch <= 'Z') ||
+            ch == ',' || ch == '.' ||
+            ch == '_' || ch == '+' ||
+            ch == '-' || ch == '?' ||
+            ch == '#';
     }
 }

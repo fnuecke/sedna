@@ -20,161 +20,161 @@ public final class R5Disassembler {
     private static final int INST_WIDTH = 12;
 
     private static final String[] REGISTER_NAME = {
-            "zero", "ra", "sp", "gp", "tp",
-            "t0", "t1", "t2",
-            "s0", "s1",
-            "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7",
-            "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11",
-            "t3", "t4", "t5", "t6",
+        "zero", "ra", "sp", "gp", "tp",
+        "t0", "t1", "t2",
+        "s0", "s1",
+        "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7",
+        "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11",
+        "t3", "t4", "t5", "t6",
     };
 
     private static final int REG_RA = ArrayUtils.indexOf(REGISTER_NAME, "ra");
 
     private static final Int2ObjectArrayMap<String> CSR_NAME = new Int2ObjectArrayMap<>(Stream.of(new Object[][]{
-            {0x000, "ustatus"},
-            {0x004, "uie"},
-            {0x005, "utvec"},
+        {0x000, "ustatus"},
+        {0x004, "uie"},
+        {0x005, "utvec"},
 
-            {0x040, "uscratch"},
-            {0x041, "uepc"},
-            {0x042, "ucause"},
-            {0x043, "utval"},
-            {0x044, "uip"},
+        {0x040, "uscratch"},
+        {0x041, "uepc"},
+        {0x042, "ucause"},
+        {0x043, "utval"},
+        {0x044, "uip"},
 
-            {0x001, "fflags"},
-            {0x002, "frm"},
-            {0x003, "fcsr"},
+        {0x001, "fflags"},
+        {0x002, "frm"},
+        {0x003, "fcsr"},
 
-            {0xC00, "cycle"},
-            {0xC01, "time"},
-            {0xC02, "instret"},
+        {0xC00, "cycle"},
+        {0xC01, "time"},
+        {0xC02, "instret"},
 
-            {0xC80, "cycleh"},
-            {0xC81, "timeh"},
-            {0xC82, "instreth"},
+        {0xC80, "cycleh"},
+        {0xC81, "timeh"},
+        {0xC82, "instreth"},
 
-            {0x100, "sstatus"},
-            {0x102, "sedeleg"},
-            {0x103, "sideleg"},
-            {0x104, "sie"},
-            {0x105, "stvec"},
-            {0x106, "scountern"},
+        {0x100, "sstatus"},
+        {0x102, "sedeleg"},
+        {0x103, "sideleg"},
+        {0x104, "sie"},
+        {0x105, "stvec"},
+        {0x106, "scountern"},
 
-            {0x140, "sscratch"},
-            {0x141, "sepc"},
-            {0x142, "scause"},
-            {0x143, "stval"},
-            {0x144, "sip"},
+        {0x140, "sscratch"},
+        {0x141, "sepc"},
+        {0x142, "scause"},
+        {0x143, "stval"},
+        {0x144, "sip"},
 
-            {0x180, "satp"},
+        {0x180, "satp"},
 
-            {0x600, "hstatus"},
-            {0x602, "hedeleg"},
-            {0x603, "hideleg"},
-            {0x604, "hie"},
-            {0x606, "hcounteren"},
-            {0x607, "hgeie"},
+        {0x600, "hstatus"},
+        {0x602, "hedeleg"},
+        {0x603, "hideleg"},
+        {0x604, "hie"},
+        {0x606, "hcounteren"},
+        {0x607, "hgeie"},
 
-            {0x643, "htval"},
-            {0x644, "hip"},
-            {0x645, "hvip"},
-            {0x64A, "htinst"},
-            {0xE12, "hgeip"},
+        {0x643, "htval"},
+        {0x644, "hip"},
+        {0x645, "hvip"},
+        {0x64A, "htinst"},
+        {0xE12, "hgeip"},
 
-            {0x680, "hgatp"},
+        {0x680, "hgatp"},
 
-            {0x605, "htimedelta"},
-            {0x615, "htimedeltah"},
+        {0x605, "htimedelta"},
+        {0x615, "htimedeltah"},
 
-            {0x200, "vsstatus"},
-            {0x204, "vsie"},
-            {0x205, "vstvec"},
-            {0x240, "vsscratch"},
-            {0x241, "vsepc"},
-            {0x242, "vscause"},
-            {0x243, "vstval"},
-            {0x244, "vsip"},
-            {0x280, "vsatp"},
+        {0x200, "vsstatus"},
+        {0x204, "vsie"},
+        {0x205, "vstvec"},
+        {0x240, "vsscratch"},
+        {0x241, "vsepc"},
+        {0x242, "vscause"},
+        {0x243, "vstval"},
+        {0x244, "vsip"},
+        {0x280, "vsatp"},
 
-            {0xF11, "mvendorid"},
-            {0xF12, "marchid"},
-            {0xF13, "mimpid"},
-            {0xF14, "mhartid"},
+        {0xF11, "mvendorid"},
+        {0xF12, "marchid"},
+        {0xF13, "mimpid"},
+        {0xF14, "mhartid"},
 
-            {0x300, "mstatus"},
-            {0x301, "misa"},
-            {0x302, "medeleg"},
-            {0x303, "mideleg"},
-            {0x304, "mie"},
-            {0x305, "mtvec"},
-            {0x306, "mcounteren"},
-            {0x310, "mstatush"},
+        {0x300, "mstatus"},
+        {0x301, "misa"},
+        {0x302, "medeleg"},
+        {0x303, "mideleg"},
+        {0x304, "mie"},
+        {0x305, "mtvec"},
+        {0x306, "mcounteren"},
+        {0x310, "mstatush"},
 
-            {0x340, "mscratch"},
-            {0x341, "mepc"},
-            {0x342, "mcause"},
-            {0x343, "mtval"},
-            {0x344, "mip"},
-            {0x34A, "mtinst"},
-            {0x34B, "mtval2"},
+        {0x340, "mscratch"},
+        {0x341, "mepc"},
+        {0x342, "mcause"},
+        {0x343, "mtval"},
+        {0x344, "mip"},
+        {0x34A, "mtinst"},
+        {0x34B, "mtval2"},
 
-            {0xB00, "mcycle"},
-            {0xB02, "minstret"},
-            {0xB80, "mcycleh"},
-            {0xB82, "minstreth"},
+        {0xB00, "mcycle"},
+        {0xB02, "minstret"},
+        {0xB80, "mcycleh"},
+        {0xB82, "minstreth"},
 
-            {0x320, "mcounterhibit"},
+        {0x320, "mcounterhibit"},
 
-            {0x7A0, "tselect"},
-            {0x7A1, "tdata1"},
-            {0x7A2, "tdata2"},
-            {0x7A3, "tdata3"},
+        {0x7A0, "tselect"},
+        {0x7A1, "tdata1"},
+        {0x7A2, "tdata2"},
+        {0x7A3, "tdata3"},
 
-            {0x7B0, "dcsr"},
-            {0x7B1, "dpc"},
-            {0x7B2, "dscratch0"},
-            {0x7B3, "dscratch1"},
+        {0x7B0, "dcsr"},
+        {0x7B1, "dpc"},
+        {0x7B2, "dscratch0"},
+        {0x7B3, "dscratch1"},
     }).collect(Collectors.toMap(kvp -> (Integer) kvp[0], kvp -> (String) kvp[1])));
 
     private static final Object2IntArrayMap<String> ARGUMENT_INDEX = new Object2IntArrayMap<>(Stream.of(new Object[][]{
-            {"rd", 0},
-            {"rs1", 1},
-            {"rs2", 2},
-            {"rs3", 3},
-            {"shamt", 5},
-            {"csr", 5},
-            {"imm", 6},
-            {"rm", 7},
+        {"rd", 0},
+        {"rs1", 1},
+        {"rs2", 2},
+        {"rs3", 3},
+        {"shamt", 5},
+        {"csr", 5},
+        {"imm", 6},
+        {"rm", 7},
     }).collect(Collectors.toMap(kvp -> (String) kvp[0], kvp -> (Integer) kvp[1])));
 
     private static final String[] REGISTER_ARGUMENTS = {"rd", "rs1", "rs2", "rs3"};
 
     private static final FormatPattern[] PATTERNS = {
-            new FormatPattern("JAL", "J", "%imm").withFilter("rd", 0),
-            new FormatPattern("JALR", "RET").withFilter("rd", 0).withFilter("rs1", REG_RA).withFilter("imm", 0),
-            new FormatPattern("JALR", "JR", "%rs1").withFilter("rd", 0).withFilter("imm", 0),
-            new FormatPattern("JALR", "JR", "%imm(%rs1)").withFilter("rd", 0),
-            new FormatPattern("JALR", "JALR", "%rs1").withFilter("rd", REG_RA).withFilter("imm", 0),
+        new FormatPattern("JAL", "J", "%imm").withFilter("rd", 0),
+        new FormatPattern("JALR", "RET").withFilter("rd", 0).withFilter("rs1", REG_RA).withFilter("imm", 0),
+        new FormatPattern("JALR", "JR", "%rs1").withFilter("rd", 0).withFilter("imm", 0),
+        new FormatPattern("JALR", "JR", "%imm(%rs1)").withFilter("rd", 0),
+        new FormatPattern("JALR", "JALR", "%rs1").withFilter("rd", REG_RA).withFilter("imm", 0),
 
-            new FormatPattern("ADD", "MV", "%rd, %rs1").withFilter("rs2", 0),
-            new FormatPattern("ADD", "MV", "%rd, %rs2").withFilter("rs1", 0),
-            new FormatPattern("ADDI", "LI", "%rd, %imm").withFilter("rs1", 0),
-            new FormatPattern("ADDI", "MV", "%rd, %rs1").withFilter("imm", 0),
-            new FormatPattern("ADDIW", "SEXT.W", "%rd, %rs1").withFilter("imm", 0),
-            new FormatPattern("XOR", "NOT", "%rd, %rs1").withFilter("rs2", -1),
+        new FormatPattern("ADD", "MV", "%rd, %rs1").withFilter("rs2", 0),
+        new FormatPattern("ADD", "MV", "%rd, %rs2").withFilter("rs1", 0),
+        new FormatPattern("ADDI", "LI", "%rd, %imm").withFilter("rs1", 0),
+        new FormatPattern("ADDI", "MV", "%rd, %rs1").withFilter("imm", 0),
+        new FormatPattern("ADDIW", "SEXT.W", "%rd, %rs1").withFilter("imm", 0),
+        new FormatPattern("XOR", "NOT", "%rd, %rs1").withFilter("rs2", -1),
 
-            new FormatPattern("BGE", "BGEZ", "%rs1, %imm").withFilter("rs2", 0),
-            new FormatPattern("BNE", "BNEZ", "%rs1, %imm").withFilter("rs2", 0),
-            new FormatPattern("BEQ", "BEQZ", "%rs1, %imm").withFilter("rs2", 0),
+        new FormatPattern("BGE", "BGEZ", "%rs1, %imm").withFilter("rs2", 0),
+        new FormatPattern("BNE", "BNEZ", "%rs1, %imm").withFilter("rs2", 0),
+        new FormatPattern("BEQ", "BEQZ", "%rs1, %imm").withFilter("rs2", 0),
 
-            new FormatPattern("LD", "LD", "%rd, %imm(%rs1)"),
-            new FormatPattern("SD", "SD", "%rs2, %imm(%rs1)"),
-            new FormatPattern("LW", "LW", "%rd, %imm(%rs1)"),
-            new FormatPattern("SW", "SW", "%rs2, %imm(%rs1)"),
-            new FormatPattern("LH", "LH", "%rd, %imm(%rs1)"),
-            new FormatPattern("SH", "SH", "%rs2, %imm(%rs1)"),
-            new FormatPattern("LB", "LB", "%rd, %imm(%rs1)"),
-            new FormatPattern("SB", "SB", "%rs2, %imm(%rs1)"),
+        new FormatPattern("LD", "LD", "%rd, %imm(%rs1)"),
+        new FormatPattern("SD", "SD", "%rs2, %imm(%rs1)"),
+        new FormatPattern("LW", "LW", "%rd, %imm(%rs1)"),
+        new FormatPattern("SW", "SW", "%rs2, %imm(%rs1)"),
+        new FormatPattern("LH", "LH", "%rd, %imm(%rs1)"),
+        new FormatPattern("SH", "SH", "%rs2, %imm(%rs1)"),
+        new FormatPattern("LB", "LB", "%rd, %imm(%rs1)"),
+        new FormatPattern("SB", "SB", "%rs2, %imm(%rs1)"),
     };
 
     public static String disassemble(final int instruction) {
@@ -183,24 +183,26 @@ public final class R5Disassembler {
         final InstructionDeclaration declaration = R5Instructions.getDecoderTree().query(instruction);
         if (declaration == null) {
             sb
-                    .append(StringUtils.leftPad(Integer.toHexString(instruction), 8, '0'))
-                    .append("    ")
-                    .append(ILLEGAL_INSTRUCTION);
+                .append(StringUtils.leftPad(Integer.toHexString(instruction), 8, '0'))
+                .append("    ")
+                .append(ILLEGAL_INSTRUCTION);
             return sb.toString();
         }
 
         final int instructionMask = (int) ((1L << (declaration.size * 8)) - 1);
         sb
-                .append(StringUtils.leftPad(StringUtils.leftPad(Integer.toHexString(instruction & instructionMask), declaration.size, '0'), 8))
-                .append("    ");
+            .append(StringUtils.leftPad(StringUtils.leftPad(Integer.toHexString(instruction & instructionMask), declaration.size, '0'), 8))
+            .append("    ");
 
         switch (declaration.type) {
-            case NOP:
+            case NOP -> {
                 sb.append(HINT);
                 return sb.toString();
-            case ILLEGAL:
+            }
+            case ILLEGAL -> {
                 sb.append(ILLEGAL_INSTRUCTION);
                 return sb.toString();
+            }
         }
 
         for (final FormatPattern pattern : PATTERNS) {
@@ -213,8 +215,8 @@ public final class R5Disassembler {
         sb.append(StringUtils.rightPad(declaration.name, INST_WIDTH));
 
         final String[] argumentNames = declaration.arguments.keySet()
-                .stream().sorted(Comparator.comparingInt(R5Disassembler::argIndex))
-                .toArray(String[]::new);
+            .stream().sorted(Comparator.comparingInt(R5Disassembler::argIndex))
+            .toArray(String[]::new);
         boolean isFirst = true;
         for (final String argName : argumentNames) {
             if (!isFirst) {

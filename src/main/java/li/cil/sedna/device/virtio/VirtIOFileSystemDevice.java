@@ -173,11 +173,11 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
 
     public VirtIOFileSystemDevice(final MemoryMap memoryMap, final String tag, final FileSystem fileSystem) {
         super(memoryMap, VirtIODeviceSpec
-                .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_9P_TRANSPORT)
-                .features(VIRTIO_9P_F_MOUNT_TAG)
-                .queueCount(1)
-                .configSpaceSize(2 + Math.min(tag.length(), 0xFFFF))
-                .build());
+            .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_9P_TRANSPORT)
+            .features(VIRTIO_9P_F_MOUNT_TAG)
+            .queueCount(1)
+            .configSpaceSize(2 + Math.min(tag.length(), 0xFFFF))
+            .build());
         this.tag = tag;
         this.fileSystem = fileSystem;
     }
@@ -270,72 +270,32 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
 
         try {
             switch (id) {
-                case P9_MSG_TVERSION: {
-                    version(chain, request, id, tag, reply);
-                    break;
-                }
-
-                case P9_MSG_TFLUSH: {
-                    flush(chain, id, tag);
-                    break;
-                }
-
-                case P9_MSG_TWALK: {
-                    walk(chain, request, reply, id, tag);
-                    break;
-                }
-
-                case P9_MSG_TREAD: {
-                    read(chain, request, id, tag, reply);
-                    break;
-                }
-
-                case P9_MSG_TWRITE: {
-                    write(chain, request, id, tag, reply);
-                    break;
-                }
-
-                case P9_MSG_TCLUNK: {
-                    clunk(chain, request, id, tag);
-                    break;
-                }
+                case P9_MSG_TVERSION -> version(chain, request, id, tag, reply);
+                case P9_MSG_TFLUSH -> flush(chain, id, tag);
+                case P9_MSG_TWALK -> walk(chain, request, reply, id, tag);
+                case P9_MSG_TREAD -> read(chain, request, id, tag, reply);
+                case P9_MSG_TWRITE -> write(chain, request, id, tag, reply);
+                case P9_MSG_TCLUNK -> clunk(chain, request, id, tag);
 
                 // P9_MSG_TREMOVE
 
-                case P9_MSG_TATTACH: {
-                    attach(chain, request, id, tag, reply);
-                    break;
-                }
+                case P9_MSG_TATTACH -> attach(chain, request, id, tag, reply);
+                case P9_MSG_TSTATFS -> statfs(chain, reply, id, tag);
+                case P9_MSG_TLOPEN -> open(chain, request, id, tag, reply);
+                case P9_MSG_TLCREATE -> create(chain, request, id, tag, reply);
 
-                case P9_MSG_TSTATFS: {
-                    statfs(chain, reply, id, tag);
-                    break;
-                }
-
-                case P9_MSG_TLOPEN: {
-                    open(chain, request, id, tag, reply);
-                    break;
-                }
-
-                case P9_MSG_TLCREATE: {
-                    create(chain, request, id, tag, reply);
-                    break;
-                }
 
                 // P9_MSG_TSYMLINK
                 // P9_MSG_TMKNOD
                 // P9_MSG_TRENAME
                 // P9_MSG_TREADLINK
 
-                case P9_MSG_TGETATTR: {
-                    getattr(chain, request, id, tag, reply);
-                    break;
-                }
+                case P9_MSG_TGETATTR -> getattr(chain, request, id, tag, reply);
 
                 // P9_MSG_TSETATTR
                 // P9_MSG_TXATTRWALK
 
-                case P9_MSG_TREADDIR: {
+                case P9_MSG_TREADDIR -> {
                     // size[4] Treaddir tag[2] fid[4] offset[8] count[4]
                     // size[4] Rreaddir tag[2] count[4] data[count]
                     final int fid = request.getInt();
@@ -351,26 +311,19 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
                     for (int i = (int) offset; i < entries.size(); i++) {
                         final DirectoryEntry entry = entries.get(i);
                         final int length = 13 // qid[13]
-                                           + 8 // offset[8]
-                                           + 1 // type[1]
-                                           + 2 // nname[2]
-                                           + entry.name.length(); // name[nname]
+                            + 8 // offset[8]
+                            + 1 // type[1]
+                            + 2 // nname[2]
+                            + entry.name.length(); // name[nname]
                         if (reply.position() - dataStart + length > count) {
                             break;
                         }
 
-                        final byte d_type;
-                        switch (entry.type) {
-                            case FILE:
-                                d_type = DT_REG;
-                                break;
-                            case DIRECTORY:
-                                d_type = DT_DIR;
-                                break;
-                            default:
-                                d_type = DT_UNKNOWN;
-                                break;
-                        }
+                        final byte d_type = switch (entry.type) {
+                            case FILE -> DT_REG;
+                            case DIRECTORY -> DT_DIR;
+                            default -> DT_UNKNOWN;
+                        };
 
                         // qid[13] offset[8] type[1] name[s]
                         putQID(reply, getQID(path.resolve(entry.name)));
@@ -381,36 +334,18 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
                     reply.putInt(0, reply.position() - dataStart);
 
                     putReply(chain, id, tag, reply);
-                    break;
                 }
+                case P9_MSG_TFSYNC -> fsync(chain, request, id, tag);
 
-                case P9_MSG_TFSYNC: {
-                    fsync(chain, request, id, tag);
-                    break;
-                }
 
                 // P9_MSG_TLOCK
                 // P9_MSG_TGETLOCK
                 // P9_MSG_TLINK
 
-                case P9_MSG_TMKDIR: {
-                    mkdir(chain, request, id, tag, reply);
-                    break;
-                }
-
-                case P9_MSG_TRENAMEAT: {
-                    renameat(chain, request, id, tag);
-                    break;
-                }
-
-                case P9_MSG_TUNLINKAT: {
-                    unlinkat(chain, request, id, tag);
-                    break;
-                }
-
-                default: {
-                    throw new UnsupportedOperationException();
-                }
+                case P9_MSG_TMKDIR -> mkdir(chain, request, id, tag, reply);
+                case P9_MSG_TRENAMEAT -> renameat(chain, request, id, tag);
+                case P9_MSG_TUNLINKAT -> unlinkat(chain, request, id, tag);
+                default -> throw new UnsupportedOperationException();
             }
         } catch (final MemoryAccessException e) {
             throw e;

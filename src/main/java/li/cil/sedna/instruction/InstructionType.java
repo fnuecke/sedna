@@ -6,7 +6,6 @@ public enum InstructionType {
     NOP("nop"),
     ILLEGAL("illegal"),
     REGULAR("inst"),
-
     ;
 
     public static final HashMap<String, InstructionType> BY_KEYWORD = initializeMap();

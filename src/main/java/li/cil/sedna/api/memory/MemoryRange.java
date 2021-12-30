@@ -82,7 +82,7 @@ public class MemoryRange {
         if (o == null || getClass() != o.getClass()) return false;
         final MemoryRange that = (MemoryRange) o;
         return start == that.start &&
-               end == that.end;
+            end == that.end;
     }
 
     @Override

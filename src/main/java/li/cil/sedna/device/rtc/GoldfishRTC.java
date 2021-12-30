@@ -47,17 +47,17 @@ public final class GoldfishRTC implements InterruptSource, MemoryMappedDevice {
     @Override
     public int getSupportedSizes() {
         return (1 << Sizes.SIZE_32_LOG2) |
-               (1 << Sizes.SIZE_64_LOG2);
+            (1 << Sizes.SIZE_64_LOG2);
     }
 
     @Override
     public long load(final int offset, final int sizeLog2) {
         switch (offset) {
-            case TIME_LOW: {
+            case TIME_LOW -> {
                 time = rtc.getTime() / rtc.getFrequency() * 1_000_000_000;
                 return time;
             }
-            case TIME_HIGH: {
+            case TIME_HIGH -> {
                 return (int) (time >>> 32);
             }
         }

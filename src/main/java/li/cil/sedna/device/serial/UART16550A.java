@@ -254,7 +254,7 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
         assert sizeLog2 == Sizes.SIZE_8_LOG2;
         switch (offset) {
             // case UART_DLL_OFFSET:
-            case UART_RBR_OFFSET: {
+            case UART_RBR_OFFSET -> {
                 if ((lcr & UART_LCR_DLAB) != 0) { // UART_DLL
                     return (byte) dl;
                 } else { // UART_RBR
@@ -284,15 +284,14 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
             }
 
             // case UART_DLM_OFFSET:
-            case UART_IER_OFFSET: {
+            case UART_IER_OFFSET -> {
                 if ((lcr & UART_LCR_DLAB) != 0) { // UART_DLM
                     return (byte) (dl >>> 8);
                 } else { // UART_IER
                     return ier;
                 }
             }
-
-            case UART_IIR_OFFSET: {
+            case UART_IIR_OFFSET -> {
                 synchronized (lock) {
                     final byte result = iir;
                     if ((iir & UART_IIR_ID_MASK) == UART_IIR_THRI) {
@@ -302,16 +301,13 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
                     return result;
                 }
             }
-
-            case UART_LCR_OFFSET: {
+            case UART_LCR_OFFSET -> {
                 return lcr;
             }
-
-            case UART_MCR_OFFSET: {
+            case UART_MCR_OFFSET -> {
                 return mcr;
             }
-
-            case UART_LSR_OFFSET: {
+            case UART_LSR_OFFSET -> {
                 synchronized (lock) {
                     final byte result = lsr;
                     if ((lsr & (UART_LSR_BI | UART_LSR_OE)) != 0) {
@@ -321,13 +317,12 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
                     return result;
                 }
             }
-
-            case UART_MSR_OFFSET: {
+            case UART_MSR_OFFSET -> {
                 if ((mcr & UART_MCR_LBM) != 0) {
                     // Loopback mode -> output = input
                     return (byte) ((mcr & 0b1100) << 4 | // OUT [3:2] -> [7:6]
-                                   (mcr & 0b0010) << 3 | // RTS [1] -> [4]
-                                   (mcr & 0b0001) << 5); // DTR [0] -> [5]
+                        (mcr & 0b0010) << 3 | // RTS [1] -> [4]
+                        (mcr & 0b0001) << 5); // DTR [0] -> [5]
                 } else {
                     synchronized (lock) {
                         final byte result = msr;
@@ -339,8 +334,7 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
                     }
                 }
             }
-
-            case UART_SCR_OFFSET: {
+            case UART_SCR_OFFSET -> {
                 return scr;
             }
         }
@@ -353,7 +347,7 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
         assert sizeLog2 == Sizes.SIZE_8_LOG2;
         switch (offset) {
             // case UART_DLL_OFFSET:
-            case UART_THR_OFFSET: {
+            case UART_THR_OFFSET -> {
                 if ((lcr & UART_LCR_DLAB) != 0) { // UART_DLL
                     dl = (short) ((dl & 0xFF00) | (value & 0x00FF));
                 } else { // UART_RBR
@@ -372,11 +366,10 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
                         updateInterrupts();
                     }
                 }
-                break;
             }
 
             // case UART_DLM_OFFSET:
-            case UART_IER_OFFSET: {
+            case UART_IER_OFFSET -> {
                 if ((lcr & UART_LCR_DLAB) != 0) { // UART_DLM
                     dl = (short) ((value << 8) | (dl & 0x00FF));
                 } else { // UART_IER
@@ -393,10 +386,8 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
                         }
                     }
                 }
-                break;
             }
-
-            case UART_FCR_OFFSET: {
+            case UART_FCR_OFFSET -> {
                 synchronized (lock) {
                     final int changes = fcr ^ (byte) value;
                     final boolean forceClear = (changes & UART_FCR_FE) != 0;
@@ -421,22 +412,10 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
                     if ((fcr & UART_FCR_FE) != 0) {
                         iir |= UART_IIR_FIFO_ENABLED;
                         switch (fcr & UART_FCR_ITL_MASK) {
-                            case UART_FCR_ITL1: {
-                                triggerLevel = 1;
-                                break;
-                            }
-                            case UART_FCR_ITL2: {
-                                triggerLevel = 4;
-                                break;
-                            }
-                            case UART_FCR_ITL3: {
-                                triggerLevel = 8;
-                                break;
-                            }
-                            case UART_FCR_ITL4: {
-                                triggerLevel = 14;
-                                break;
-                            }
+                            case UART_FCR_ITL1 -> triggerLevel = 1;
+                            case UART_FCR_ITL2 -> triggerLevel = 4;
+                            case UART_FCR_ITL3 -> triggerLevel = 8;
+                            case UART_FCR_ITL4 -> triggerLevel = 14;
                         }
                     } else {
                         iir &= ~UART_IIR_FIFO_ENABLED;
@@ -444,23 +423,10 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
 
                     updateInterrupts();
                 }
-                break;
             }
-
-            case UART_LCR_OFFSET: {
-                lcr = (byte) value;
-                break;
-            }
-
-            case UART_MCR_OFFSET: {
-                mcr = (byte) (value & 0b11111);
-                break;
-            }
-
-            case UART_SCR_OFFSET: {
-                scr = (byte) value;
-                break;
-            }
+            case UART_LCR_OFFSET -> lcr = (byte) value;
+            case UART_MCR_OFFSET -> mcr = (byte) (value & 0b11111);
+            case UART_SCR_OFFSET -> scr = (byte) value;
         }
     }
 
@@ -476,7 +442,7 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
         } else if ((ier & UART_IER_RDI) != 0 && timeoutInterruptPending) {
             niir = UART_IIR_CTI;
         } else if ((ier & UART_IER_RDI) != 0 && (lsr & UART_LSR_DR) != 0 &&
-                   ((fcr & UART_FCR_FE) == 0 || receiveFifo.size() > triggerLevel)) {
+            ((fcr & UART_FCR_FE) == 0 || receiveFifo.size() > triggerLevel)) {
             niir = UART_IIR_RDI;
         } else if ((ier & UART_IER_THRI) != 0 && transmitInterruptPending) {
             niir = UART_IIR_THRI;

@@ -18,9 +18,9 @@ public final class BitUtils {
         // so we can't be clever and shift by a negative amount; need to branch here.
         // NB: This method is optimized for bytecode size to make sure it gets inlined.
         return (destBit >= srcBitFrom
-                ? value << (destBit - srcBitFrom)
-                : value >>> (srcBitFrom - destBit))
-               & ((1 << (srcBitUntil - srcBitFrom + 1)) - 1) << destBit;
+            ? value << (destBit - srcBitFrom)
+            : value >>> (srcBitFrom - destBit))
+            & ((1 << (srcBitUntil - srcBitFrom + 1)) - 1) << destBit;
     }
 
     /**
@@ -54,6 +54,6 @@ public final class BitUtils {
         final int lower = (int) value;
 
         return BigInteger.valueOf(Integer.toUnsignedLong(upper)).shiftLeft(32).
-                or(BigInteger.valueOf(Integer.toUnsignedLong(lower)));
+            or(BigInteger.valueOf(Integer.toUnsignedLong(lower)));
     }
 }

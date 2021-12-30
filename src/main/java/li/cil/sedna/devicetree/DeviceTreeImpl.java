@@ -176,10 +176,10 @@ final class DeviceTreeImpl implements DeviceTree {
 
     private static boolean isValidCharacterForNodeName(final int ch) {
         return (ch >= '0' && ch <= '9') ||
-               (ch >= 'a' && ch <= 'z') ||
-               (ch >= 'A' && ch <= 'Z') ||
-               ch == ',' || ch == '.' ||
-               ch == '_' || ch == '+' ||
-               ch == '-';
+            (ch >= 'a' && ch <= 'z') ||
+            (ch >= 'A' && ch <= 'Z') ||
+            ch == ',' || ch == '.' ||
+            ch == '_' || ch == '+' ||
+            ch == '-';
     }
 }

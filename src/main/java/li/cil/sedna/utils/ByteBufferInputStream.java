@@ -1,5 +1,6 @@
 package li.cil.sedna.utils;
 
+import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -20,7 +21,7 @@ public final class ByteBufferInputStream extends InputStream {
     }
 
     @Override
-    public int read(final byte[] b, final int off, int len) {
+    public int read(@Nonnull final byte[] b, final int off, int len) {
         len = Math.min(len, buffer.remaining());
         if (len == 0) {
             return -1;

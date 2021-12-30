@@ -6,8 +6,8 @@ import li.cil.sedna.api.devicetree.DeviceNames;
 import li.cil.sedna.api.devicetree.DevicePropertyNames;
 import li.cil.sedna.api.devicetree.DeviceTree;
 import li.cil.sedna.api.devicetree.DeviceTreeProvider;
-import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MappedMemoryRange;
+import li.cil.sedna.api.memory.MemoryMap;
 
 import java.util.Optional;
 
@@ -26,7 +26,7 @@ public final class FlashMemoryProvider implements DeviceTreeProvider {
     @Override
     public void visit(final DeviceTree node, final MemoryMap memoryMap, final Device device) {
         node
-                .addProp(DevicePropertyNames.COMPATIBLE, "cfi-flash")
-                .addProp("bank-width", 4);
+            .addProp(DevicePropertyNames.COMPATIBLE, "cfi-flash")
+            .addProp("bank-width", 4);
     }
 }

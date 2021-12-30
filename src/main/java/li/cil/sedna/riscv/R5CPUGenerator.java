@@ -172,19 +172,19 @@ public final class R5CPUGenerator {
 
                 final RemappedTypeClassWriter writer = new RemappedTypeClassWriter(remappedTypeNames);
                 final DecoderGenerator generator64 = new DecoderGenerator(
-                        new ClassRemapper(writer, remapper),
-                        R5Instructions.RV64.getDecoderTree(),
-                        R5Instructions.RV64::getDefinition,
-                        R5IllegalInstructionException.class,
-                        "interpretTrace64",
-                        "decode");
+                    new ClassRemapper(writer, remapper),
+                    R5Instructions.RV64.getDecoderTree(),
+                    R5Instructions.RV64::getDefinition,
+                    R5IllegalInstructionException.class,
+                    "interpretTrace64",
+                    "decode");
                 final DecoderGenerator generator32 = new DecoderGenerator(
-                        generator64,
-                        R5Instructions.RV32.getDecoderTree(),
-                        R5Instructions.RV32::getDefinition,
-                        R5IllegalInstructionException.class,
-                        "interpretTrace32",
-                        "decode");
+                    generator64,
+                    R5Instructions.RV32.getDecoderTree(),
+                    R5Instructions.RV32::getDefinition,
+                    R5IllegalInstructionException.class,
+                    "interpretTrace32",
+                    "decode");
 
                 reader.accept(generator32, ClassReader.EXPAND_FRAMES);
 

@@ -20,7 +20,7 @@ public final class UnsafeMemory extends PhysicalMemory {
         if ((size & 0b11) != 0)
             throw new IllegalArgumentException("size must be a multiple of four");
 
-        // Extra padding after original size so we don't have to do size specific
+        // Extra padding after original size, so we don't have to do size specific
         // bounds checks -- if trying to read something out of bounds it'll just
         // result in bogus, but that's fine.
         final ByteBuffer buffer = ByteBuffer.allocateDirect(size + Long.BYTES).order(ByteOrder.LITTLE_ENDIAN);
@@ -64,18 +64,13 @@ public final class UnsafeMemory extends PhysicalMemory {
         if (offset < 0 || offset > getLength() - (1 << sizeLog2)) {
             throw new MemoryAccessException();
         }
-        switch (sizeLog2) {
-            case Sizes.SIZE_8_LOG2:
-                return UNSAFE.getByte(address + offset);
-            case Sizes.SIZE_16_LOG2:
-                return UNSAFE.getShort(address + offset);
-            case Sizes.SIZE_32_LOG2:
-                return UNSAFE.getInt(address + offset);
-            case Sizes.SIZE_64_LOG2:
-                return UNSAFE.getLong(address + offset);
-            default:
-                throw new IllegalArgumentException();
-        }
+        return switch (sizeLog2) {
+            case Sizes.SIZE_8_LOG2 -> UNSAFE.getByte(address + offset);
+            case Sizes.SIZE_16_LOG2 -> UNSAFE.getShort(address + offset);
+            case Sizes.SIZE_32_LOG2 -> UNSAFE.getInt(address + offset);
+            case Sizes.SIZE_64_LOG2 -> UNSAFE.getLong(address + offset);
+            default -> throw new IllegalArgumentException();
+        };
     }
 
     @Override
@@ -84,20 +79,11 @@ public final class UnsafeMemory extends PhysicalMemory {
             throw new MemoryAccessException();
         }
         switch (sizeLog2) {
-            case Sizes.SIZE_8_LOG2:
-                UNSAFE.putByte(address + offset, (byte) value);
-                break;
-            case Sizes.SIZE_16_LOG2:
-                UNSAFE.putShort(address + offset, (short) value);
-                break;
-            case Sizes.SIZE_32_LOG2:
-                UNSAFE.putInt(address + offset, (int) value);
-                break;
-            case Sizes.SIZE_64_LOG2:
-                UNSAFE.putLong(address + offset, value);
-                break;
-            default:
-                throw new IllegalArgumentException();
+            case Sizes.SIZE_8_LOG2 -> UNSAFE.putByte(address + offset, (byte) value);
+            case Sizes.SIZE_16_LOG2 -> UNSAFE.putShort(address + offset, (short) value);
+            case Sizes.SIZE_32_LOG2 -> UNSAFE.putInt(address + offset, (int) value);
+            case Sizes.SIZE_64_LOG2 -> UNSAFE.putLong(address + offset, value);
+            default -> throw new IllegalArgumentException();
         }
     }
 

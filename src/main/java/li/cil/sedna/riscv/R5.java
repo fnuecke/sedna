@@ -1,6 +1,5 @@
 package li.cil.sedna.riscv;
 
-import li.cil.sedna.api.Sizes;
 import li.cil.sedna.utils.BitUtils;
 
 @SuppressWarnings({"unused", "RedundantSuppression", "PointlessBitwiseExpression"})
@@ -209,29 +208,21 @@ public final class R5 {
      * @return the MXL for the specified XLEN.
      */
     public static long mxl(final int xlen) {
-        switch (xlen) {
-            case 32:
-                return 0b01;
-            case 64:
-                return 0b10;
-            case 128:
-                return 0b11;
-            default:
-                throw new IllegalArgumentException();
-        }
+        return switch (xlen) {
+            case 32 -> 0b01;
+            case 64 -> 0b10;
+            case 128 -> 0b11;
+            default -> throw new IllegalArgumentException();
+        };
     }
 
     public static int xlen(final long mxl) {
-        switch ((int) mxl) {
-            case 0b01:
-                return 32;
-            case 0b10:
-                return 64;
-            case 0b11:
-                return 128;
-            default:
-                return 0;
-        }
+        return switch ((int) mxl) {
+            case 0b01 -> 32;
+            case 0b10 -> 64;
+            case 0b11 -> 128;
+            default -> 0;
+        };
     }
 
     public static int mxlShift(final int xlen) {

@@ -83,8 +83,8 @@ public final class DecoderTree {
 
                             if (!ambiguousCaseHandledByMoreSpecificDeclaration) {
                                 throw new IllegalArgumentException(String.format("Instructions [%s] (line %d) and [%s] (line %d) have ambiguous bit pattern.",
-                                        moreSpecific.displayName, moreSpecific.lineNumber,
-                                        lessSpecific.displayName, lessSpecific.lineNumber));
+                                    moreSpecific.displayName, moreSpecific.lineNumber,
+                                    lessSpecific.displayName, lessSpecific.lineNumber));
                             }
                         }
                     }
@@ -117,8 +117,7 @@ public final class DecoderTree {
     }
 
     private static AbstractDecoderTreeNode postProcess(final AbstractDecoderTreeNode node) {
-        if (node instanceof DecoderTreeSwitchNode) {
-            final DecoderTreeSwitchNode switchNode = (DecoderTreeSwitchNode) node;
+        if (node instanceof final DecoderTreeSwitchNode switchNode) {
             if (switchNode.children.length < 3) {
                 return new DecoderTreeBranchNode(switchNode.children);
             } else {
@@ -126,8 +125,7 @@ public final class DecoderTree {
                     switchNode.children[i] = postProcess(switchNode.children[i]);
                 }
             }
-        } else if (node instanceof DecoderTreeBranchNode) {
-            final DecoderTreeBranchNode branchNode = (DecoderTreeBranchNode) node;
+        } else if (node instanceof final DecoderTreeBranchNode branchNode) {
             for (int i = 0; i < branchNode.children.length; i++) {
                 branchNode.children[i] = postProcess(branchNode.children[i]);
             }

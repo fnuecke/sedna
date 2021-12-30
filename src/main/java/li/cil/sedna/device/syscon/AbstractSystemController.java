@@ -20,15 +20,8 @@ public abstract class AbstractSystemController implements MemoryMappedDevice {
     public void store(final int offset, final long value, final int sizeLog2) {
         if (offset == 0) {
             switch ((int) (value & 0xFFFF)) {
-                case SYSCON_RESET: {
-                    handleReset();
-                    break;
-                }
-
-                case SYSCON_POWEROFF: {
-                    handlePowerOff();
-                    break;
-                }
+                case SYSCON_RESET -> handleReset();
+                case SYSCON_POWEROFF -> handlePowerOff();
             }
         }
     }

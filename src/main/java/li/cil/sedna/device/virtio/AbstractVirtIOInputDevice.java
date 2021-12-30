@@ -44,9 +44,9 @@ public abstract class AbstractVirtIOInputDevice extends AbstractVirtIODevice {
 
     protected AbstractVirtIOInputDevice(final MemoryMap memoryMap) {
         super(memoryMap, VirtIODeviceSpec.builder(VirtIODeviceType.VIRTIO_DEVICE_ID_INPUT_DEVICE)
-                .configSpaceSize(256)
-                .queueCount(2)
-                .build());
+            .configSpaceSize(256)
+            .queueCount(2)
+            .build());
     }
 
     /**

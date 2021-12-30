@@ -76,18 +76,18 @@ public final class SectionHeader {
         final SectionHeaderType type = getType();
         final Collection<SectionHeaderFlags> flags = getFlags();
         return "SectionHeader{" +
-               "name=" + (name != null ? name : nameOffset) +
-               ", type=" + (type != null ? type : ("0x" + Integer.toHexString(this.type))) +
-               ((type != SectionHeaderType.SHT_NULL) ? (
-                       (!flags.isEmpty() ? (", flags =" + flags.stream().map(Enum::toString).collect(Collectors.joining(" | "))) : "") +
-                       ", virtualAddress=0x" + Long.toHexString(virtualAddress) +
-                       ", offset=0x" + Long.toHexString(offset) +
-                       ", size=0x" + Long.toHexString(size) +
-                       (link > 0 ? (", link=" + link) : "") +
-                       (info > 0 ? (", info=" + info) : "") +
-                       (alignment > 1 ? (", alignment=0x" + Long.toHexString(alignment)) : "") +
-                       (entrySize > 0 ? (", entrySize=0x" + Long.toHexString(entrySize)) : "")
-               ) : "") +
-               '}';
+            "name=" + (name != null ? name : nameOffset) +
+            ", type=" + (type != null ? type : ("0x" + Integer.toHexString(this.type))) +
+            ((type != SectionHeaderType.SHT_NULL) ? (
+                (!flags.isEmpty() ? (", flags =" + flags.stream().map(Enum::toString).collect(Collectors.joining(" | "))) : "") +
+                    ", virtualAddress=0x" + Long.toHexString(virtualAddress) +
+                    ", offset=0x" + Long.toHexString(offset) +
+                    ", size=0x" + Long.toHexString(size) +
+                    (link > 0 ? (", link=" + link) : "") +
+                    (info > 0 ? (", info=" + info) : "") +
+                    (alignment > 1 ? (", alignment=0x" + Long.toHexString(alignment)) : "") +
+                    (entrySize > 0 ? (", entrySize=0x" + Long.toHexString(entrySize)) : "")
+            ) : "") +
+            '}';
     }
 }

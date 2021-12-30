@@ -60,14 +60,10 @@ public final class ELFParser {
     }
 
     private static short read16(final ELF elf) {
-        switch (elf.endianness) {
-            case LITTLE_ENDIAN:
-                return (short) (readi(elf) | (readi(elf) << 8));
-            case BIG_ENDIAN:
-                return (short) ((readi(elf) << 8) | readi(elf));
-            default:
-                throw new IllegalArgumentException();
-        }
+        return switch (elf.endianness) {
+            case LITTLE_ENDIAN -> (short) (readi(elf) | (readi(elf) << 8));
+            case BIG_ENDIAN -> (short) ((readi(elf) << 8) | readi(elf));
+        };
     }
 
     private static int read16i(final ELF elf) {
@@ -75,14 +71,10 @@ public final class ELFParser {
     }
 
     private static int read32(final ELF elf) {
-        switch (elf.endianness) {
-            case LITTLE_ENDIAN:
-                return read16i(elf) | (read16i(elf) << 16);
-            case BIG_ENDIAN:
-                return (read16i(elf) << 16) | read16i(elf);
-            default:
-                throw new IllegalArgumentException();
-        }
+        return switch (elf.endianness) {
+            case LITTLE_ENDIAN -> read16i(elf) | (read16i(elf) << 16);
+            case BIG_ENDIAN -> (read16i(elf) << 16) | read16i(elf);
+        };
     }
 
     private static long read32l(final ELF elf) {
@@ -90,25 +82,17 @@ public final class ELFParser {
     }
 
     private static long read64(final ELF elf) {
-        switch (elf.endianness) {
-            case LITTLE_ENDIAN:
-                return read32l(elf) | (read32l(elf) << 32);
-            case BIG_ENDIAN:
-                return (read32l(elf) << 32) | read32l(elf);
-            default:
-                throw new IllegalArgumentException();
-        }
+        return switch (elf.endianness) {
+            case LITTLE_ENDIAN -> read32l(elf) | (read32l(elf) << 32);
+            case BIG_ENDIAN -> (read32l(elf) << 32) | read32l(elf);
+        };
     }
 
     private static long readWord(final ELF elf) {
-        switch (elf.format) {
-            case x32:
-                return read32l(elf);
-            case x64:
-                return read64(elf);
-            default:
-                throw new IllegalArgumentException();
-        }
+        return switch (elf.format) {
+            case x32 -> read32l(elf);
+            case x64 -> read64(elf);
+        };
     }
 
     private static void skip(final ELF elf, final long count) {
@@ -127,26 +111,16 @@ public final class ELFParser {
 
         // e_ident[EI_CLASS]
         switch (read(elf)) {
-            case 1:
-                elf.format = Format.x32;
-                break;
-            case 2:
-                elf.format = Format.x64;
-                break;
-            default:
-                throw new IllegalArgumentException("invalid bit format");
+            case 1 -> elf.format = Format.x32;
+            case 2 -> elf.format = Format.x64;
+            default -> throw new IllegalArgumentException("invalid bit format");
         }
 
         // e_ident[EI_DATA]
         switch (read(elf)) {
-            case 1:
-                elf.endianness = Endianness.LITTLE_ENDIAN;
-                break;
-            case 2:
-                elf.endianness = Endianness.BIG_ENDIAN;
-                break;
-            default:
-                throw new IllegalArgumentException("invalid endianness");
+            case 1 -> elf.endianness = Endianness.LITTLE_ENDIAN;
+            case 2 -> elf.endianness = Endianness.BIG_ENDIAN;
+            default -> throw new IllegalArgumentException("invalid endianness");
         }
 
         // e_ident[EI_VERSION]
@@ -190,17 +164,10 @@ public final class ELFParser {
 
         // e_ehsize
         elf.headerSize = read16i(elf);
-        final int minHeaderSize;
-        switch (elf.format) {
-            case x32:
-                minHeaderSize = 0x34;
-                break;
-            case x64:
-                minHeaderSize = 0x40;
-                break;
-            default:
-                throw new AssertionError();
-        }
+        final int minHeaderSize = switch (elf.format) {
+            case x32 -> 0x34;
+            case x64 -> 0x40;
+        };
 
         if (elf.headerSize < minHeaderSize) {
             throw new IllegalArgumentException("invalid header size");
@@ -231,10 +198,10 @@ public final class ELFParser {
         elf.sectionHeaderTableEntryCount = read16i(elf);
 
         if (elf.programHeaderTableOffset < elf.sectionHeaderTableOffset &&
-            elf.programHeaderTableOffset + elf.programHeaderTableEntrySize * elf.programHeaderTableEntryCount > elf.sectionHeaderTableOffset) {
+            elf.programHeaderTableOffset + (long) elf.programHeaderTableEntrySize * elf.programHeaderTableEntryCount > elf.sectionHeaderTableOffset) {
             throw new IllegalArgumentException("program header table intersects section header table");
         } else if (elf.sectionHeaderTableOffset < elf.programHeaderTableOffset &&
-                   elf.sectionHeaderTableOffset + elf.sectionHeaderTableEntrySize * elf.sectionHeaderTableEntryCount > elf.programHeaderTableOffset) {
+            elf.sectionHeaderTableOffset + (long) elf.sectionHeaderTableEntrySize * elf.sectionHeaderTableEntryCount > elf.programHeaderTableOffset) {
             throw new IllegalArgumentException("section header table intersects program header table");
         }
 
@@ -256,17 +223,10 @@ public final class ELFParser {
     private static List<ProgramHeader> readProgramHeaderTable(final ELF elf) {
         elf.data.position((int) elf.programHeaderTableOffset);
 
-        final int minEntrySize;
-        switch (elf.format) {
-            case x32:
-                minEntrySize = 0x20;
-                break;
-            case x64:
-                minEntrySize = 0x38;
-                break;
-            default:
-                throw new IllegalArgumentException();
-        }
+        final int minEntrySize = switch (elf.format) {
+            case x32 -> 0x20;
+            case x64 -> 0x38;
+        };
 
         if (elf.programHeaderTableEntrySize < minEntrySize) {
             throw new IllegalArgumentException("invalid program header size");
@@ -328,17 +288,10 @@ public final class ELFParser {
     private static List<SectionHeader> readSectionHeaderTable(final ELF elf) {
         elf.data.position((int) elf.sectionHeaderTableOffset);
 
-        final int minEntrySize;
-        switch (elf.format) {
-            case x32:
-                minEntrySize = 0x28;
-                break;
-            case x64:
-                minEntrySize = 0x40;
-                break;
-            default:
-                throw new IllegalArgumentException();
-        }
+        final int minEntrySize = switch (elf.format) {
+            case x32 -> 0x28;
+            case x64 -> 0x40;
+        };
 
         if (elf.sectionHeaderTableEntrySize < minEntrySize) {
             throw new IllegalArgumentException("invalid section header size");

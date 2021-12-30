@@ -1,9 +1,9 @@
 package li.cil.sedna.api.device;
 
 import li.cil.sedna.api.Sizes;
+import li.cil.sedna.api.memory.MappedMemoryRange;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.api.memory.MappedMemoryRange;
 
 /**
  * {@link MemoryMappedDevice}s can be registered with a {@link MemoryMap}
@@ -31,9 +31,9 @@ public interface MemoryMappedDevice extends Device {
      */
     default int getSupportedSizes() {
         return (1 << Sizes.SIZE_8_LOG2) |
-               (1 << Sizes.SIZE_16_LOG2) |
-               (1 << Sizes.SIZE_32_LOG2) |
-               (1 << Sizes.SIZE_64_LOG2);
+            (1 << Sizes.SIZE_16_LOG2) |
+            (1 << Sizes.SIZE_32_LOG2) |
+            (1 << Sizes.SIZE_64_LOG2);
     }
 
     /**

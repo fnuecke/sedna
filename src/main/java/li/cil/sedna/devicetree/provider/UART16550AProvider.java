@@ -17,7 +17,7 @@ public final class UART16550AProvider implements DeviceTreeProvider {
     @Override
     public void visit(final DeviceTree node, final MemoryMap memoryMap, final Device device) {
         node
-                .addProp(DevicePropertyNames.COMPATIBLE, "ns16550a")
-                .addProp("clock-frequency", 3686400);
+            .addProp(DevicePropertyNames.COMPATIBLE, "ns16550a")
+            .addProp("clock-frequency", 3686400);
     }
 }

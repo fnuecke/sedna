@@ -5,8 +5,8 @@ import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.devicetree.DevicePropertyNames;
 import li.cil.sedna.api.devicetree.DeviceTree;
 import li.cil.sedna.api.devicetree.DeviceTreeProvider;
-import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MappedMemoryRange;
+import li.cil.sedna.api.memory.MemoryMap;
 
 import java.util.Optional;
 

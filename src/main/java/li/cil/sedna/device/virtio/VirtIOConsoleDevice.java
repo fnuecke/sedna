@@ -42,11 +42,11 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
 
     public VirtIOConsoleDevice(final MemoryMap memoryMap) {
         super(memoryMap, VirtIODeviceSpec
-                .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_CONSOLE)
-                .features(VIRTIO_CONSOLE_F_SIZE)
-                .queueCount(2)
-                .configSpaceSize(4)
-                .build());
+            .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_CONSOLE)
+            .features(VIRTIO_CONSOLE_F_SIZE)
+            .queueCount(2)
+            .configSpaceSize(4)
+            .build());
     }
 
     @Override

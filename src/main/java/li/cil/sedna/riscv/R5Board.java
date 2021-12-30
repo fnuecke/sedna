@@ -239,14 +239,14 @@ public final class R5Board implements Board {
                         continue;
                     }
 
-                    if (!fdtAddress.isPresent() || Long.compareUnsigned(address, fdtAddress.getAsLong()) > 0) {
+                    if (fdtAddress.isEmpty() || Long.compareUnsigned(address, fdtAddress.getAsLong()) > 0) {
                         fdtAddress = OptionalLong.of(address);
                     }
                 }
             }
         }
 
-        if (!fdtAddress.isPresent()) {
+        if (fdtAddress.isEmpty()) {
             throw new IllegalStateException("No memory device present that can fit device tree.");
         }
 
@@ -289,53 +289,53 @@ public final class R5Board implements Board {
     private DeviceTree buildDeviceTree() {
         final DeviceTree root = DeviceTreeRegistry.create(memoryMap);
         root
-                .addProp(DevicePropertyNames.NUM_ADDRESS_CELLS, 2)
-                .addProp(DevicePropertyNames.NUM_SIZE_CELLS, 2)
-                .addProp(DevicePropertyNames.COMPATIBLE, "riscv-sedna", "riscv-virtio")
-                .addProp(DevicePropertyNames.MODEL, "riscv-virtio,sedna");
+            .addProp(DevicePropertyNames.NUM_ADDRESS_CELLS, 2)
+            .addProp(DevicePropertyNames.NUM_SIZE_CELLS, 2)
+            .addProp(DevicePropertyNames.COMPATIBLE, "riscv-sedna", "riscv-virtio")
+            .addProp(DevicePropertyNames.MODEL, "riscv-virtio,sedna");
 
         root.putChild(DeviceNames.CPUS, cpus -> cpus
-                .addProp(DevicePropertyNames.NUM_ADDRESS_CELLS, 1)
-                .addProp(DevicePropertyNames.NUM_SIZE_CELLS, 0)
-                .addProp(DevicePropertyNames.TIMEBASE_FREQUENCY, rtc.getFrequency())
+            .addProp(DevicePropertyNames.NUM_ADDRESS_CELLS, 1)
+            .addProp(DevicePropertyNames.NUM_SIZE_CELLS, 0)
+            .addProp(DevicePropertyNames.TIMEBASE_FREQUENCY, rtc.getFrequency())
 
-                .putChild("cpu-map", cpuMap -> cpuMap
-                        .putChild("cluster0", cluster -> cluster
-                                .addProp("core0", root.getPHandle(cpu))))
+            .putChild("cpu-map", cpuMap -> cpuMap
+                .putChild("cluster0", cluster -> cluster
+                    .addProp("core0", root.getPHandle(cpu))))
 
-                .putChild(DeviceNames.CPU, 0, cpuNode -> cpuNode
-                        .addProp(DevicePropertyNames.DEVICE_TYPE, DeviceNames.CPU)
-                        .addProp(DevicePropertyNames.REG, 0)
-                        .addProp(DevicePropertyNames.STATUS, "okay")
-                        .addProp(DevicePropertyNames.COMPATIBLE, "riscv")
-                        .addProp("riscv,isa", getISAString(cpu))
+            .putChild(DeviceNames.CPU, 0, cpuNode -> cpuNode
+                .addProp(DevicePropertyNames.DEVICE_TYPE, DeviceNames.CPU)
+                .addProp(DevicePropertyNames.REG, 0)
+                .addProp(DevicePropertyNames.STATUS, "okay")
+                .addProp(DevicePropertyNames.COMPATIBLE, "riscv")
+                .addProp("riscv,isa", getISAString(cpu))
 
-                        .addProp(DevicePropertyNames.MMU_TYPE, "riscv,sv48")
-                        .addProp(DevicePropertyNames.CLOCK_FREQUENCY, cpu.getFrequency())
+                .addProp(DevicePropertyNames.MMU_TYPE, "riscv,sv48")
+                .addProp(DevicePropertyNames.CLOCK_FREQUENCY, cpu.getFrequency())
 
-                        .putChild(DeviceNames.INTERRUPT_CONTROLLER, ic -> ic
-                                .addProp(DevicePropertyNames.NUM_INTERRUPT_CELLS, 1)
-                                .addProp(DevicePropertyNames.INTERRUPT_CONTROLLER)
-                                .addProp(DevicePropertyNames.COMPATIBLE, "riscv,cpu-intc")
-                                .addProp(DevicePropertyNames.PHANDLE, ic.getPHandle(cpu)))));
+                .putChild(DeviceNames.INTERRUPT_CONTROLLER, ic -> ic
+                    .addProp(DevicePropertyNames.NUM_INTERRUPT_CELLS, 1)
+                    .addProp(DevicePropertyNames.INTERRUPT_CONTROLLER)
+                    .addProp(DevicePropertyNames.COMPATIBLE, "riscv,cpu-intc")
+                    .addProp(DevicePropertyNames.PHANDLE, ic.getPHandle(cpu)))));
 
         root.putChild("soc", soc -> soc
-                .addProp(DevicePropertyNames.NUM_ADDRESS_CELLS, 2)
-                .addProp(DevicePropertyNames.NUM_SIZE_CELLS, 2)
-                .addProp(DevicePropertyNames.COMPATIBLE, "simple-bus")
-                .addProp(DevicePropertyNames.RANGES));
+            .addProp(DevicePropertyNames.NUM_ADDRESS_CELLS, 2)
+            .addProp(DevicePropertyNames.NUM_SIZE_CELLS, 2)
+            .addProp(DevicePropertyNames.COMPATIBLE, "simple-bus")
+            .addProp(DevicePropertyNames.RANGES));
 
         for (final MemoryMappedDevice device : devices) {
             final DeviceTree node = DeviceTreeRegistry.visit(root, memoryMap, device);
             if (node != null && device == standardOutputDevice) {
                 root.putChild("chosen", chosen -> chosen
-                        .addProp("stdout-path", node.getPath()));
+                    .addProp("stdout-path", node.getPath()));
             }
         }
 
         if (bootargs != null) {
             root.putChild("chosen", chosen -> chosen
-                    .addProp("bootargs", bootargs));
+                .addProp("bootargs", bootargs));
         }
 
         return root;

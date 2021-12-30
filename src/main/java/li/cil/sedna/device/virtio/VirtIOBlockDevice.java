@@ -98,7 +98,7 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     private static final int BYTES_PER_THOUSAND_CYCLES = 32;
 
     private static final ThreadLocal<ByteBuffer> REQUEST_HEADER_BUFFER = ThreadLocal.withInitial(() ->
-            ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN));
+        ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN));
     private static final ThreadLocal<byte[]> COPY_BUFFER = ThreadLocal.withInitial(() -> new byte[64 * 1024]);
 
     private BlockDevice block;
@@ -111,13 +111,13 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
 
     public VirtIOBlockDevice(final MemoryMap memoryMap, final BlockDevice block) {
         super(memoryMap, VirtIODeviceSpec.builder(VirtIODeviceType.VIRTIO_DEVICE_ID_BLOCK_DEVICE)
-                .configSpaceSize(56)
-                .queueCount(1)
-                .features((block.isReadonly() ? VIRTIO_BLK_F_RO : 0) |
+            .configSpaceSize(56)
+            .queueCount(1)
+            .features((block.isReadonly() ? VIRTIO_BLK_F_RO : 0) |
 //                          VIRTIO_BLK_F_SIZE_MAX |
 //                          VIRTIO_BLK_F_SEG_MAX |
-                          VIRTIO_BLK_F_FLUSH)
-                .build());
+                VIRTIO_BLK_F_FLUSH)
+            .build());
         this.block = block;
     }
 
@@ -205,16 +205,16 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
         //     u8 unused1[3];
         // };
         switch (offset) {
-            case VIRTIO_BLK_CFG_CAPACITY_OFFSET: {
+            case VIRTIO_BLK_CFG_CAPACITY_OFFSET -> {
                 return (int) (capacityToSectorCount(block.getCapacity()) & 0xFFFFFFFFL);
             }
-            case VIRTIO_BLK_CFG_CAPACITYH_OFFSET: {
+            case VIRTIO_BLK_CFG_CAPACITYH_OFFSET -> {
                 return (int) (capacityToSectorCount(block.getCapacity()) >>> 32);
             }
-            case VIRTIO_BLK_CFG_SIZE_MAX_OFFSET: {
+            case VIRTIO_BLK_CFG_SIZE_MAX_OFFSET -> {
                 return MAX_SEGMENT_SIZE;
             }
-            case VIRTIO_BLK_CFG_SEG_MAX_OFFSET: {
+            case VIRTIO_BLK_CFG_SEG_MAX_OFFSET -> {
                 return MAX_SEGMENT_COUNT;
             }
         }
@@ -398,6 +398,6 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     }
 
     private static ByteBuffer getRequestHeaderBuffer() {
-        return (ByteBuffer) REQUEST_HEADER_BUFFER.get().clear();
+        return REQUEST_HEADER_BUFFER.get().clear();
     }
 }

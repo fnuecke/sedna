@@ -106,13 +106,13 @@ public final class DeviceTreeRegistry {
         }
 
         final Optional<String> name = provider.getName(device);
-        if (!name.isPresent()) {
+        if (name.isEmpty()) {
             LOGGER.warn("Failed obtaining name for device [{}].", device);
             return null;
         }
 
         final Optional<DeviceTree> node = provider.createNode(root, memoryMap, device, name.get());
-        if (!node.isPresent()) {
+        if (node.isEmpty()) {
             LOGGER.warn("Failed obtaining node for device [{}].", device);
             return null;
         }
