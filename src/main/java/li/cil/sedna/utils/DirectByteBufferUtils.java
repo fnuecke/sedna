@@ -1,17 +1,15 @@
 package li.cil.sedna.utils;
 
-import java.lang.reflect.Method;
+import sun.misc.Unsafe;
+
 import java.nio.ByteBuffer;
 
 public final class DirectByteBufferUtils {
+    private static final Unsafe UNSAFE = UnsafeGetter.get();
+
     public static void release(final ByteBuffer buffer) {
         try {
-            final Method getCleaner = buffer.getClass().getMethod("cleaner");
-            getCleaner.setAccessible(true);
-            final Object cleaner = getCleaner.invoke(buffer);
-            final Method clean = cleaner.getClass().getMethod("clean");
-            clean.setAccessible(true);
-            clean.invoke(cleaner);
+            UNSAFE.invokeCleaner(buffer);
         } catch (final Throwable ignored) {
         }
     }
