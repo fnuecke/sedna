@@ -222,6 +222,11 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @Override
+    public void invalidateCaches() {
+        flushTLB();
+    }
+
+    @Override
     public long getTime() {
         return mcycle;
     }

@@ -135,6 +135,8 @@ public final class R5Board implements Board {
             steppableDevices.add((Steppable) device);
         }
 
+        cpu.invalidateCaches();
+
         return true;
     }
 
@@ -160,6 +162,8 @@ public final class R5Board implements Board {
         if (standardOutputDevice == device) {
             standardOutputDevice = null;
         }
+
+        cpu.invalidateCaches();
     }
 
     @Override
