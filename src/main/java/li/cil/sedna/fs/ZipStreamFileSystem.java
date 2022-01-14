@@ -100,7 +100,7 @@ public final class ZipStreamFileSystem implements FileSystem {
     @Override
     public boolean isDirectory(final Path path) {
         final ZipNode node = getNode(path);
-        return node == null || node.isDirectory();
+        return node != null && node.isDirectory();
     }
 
     @Override
