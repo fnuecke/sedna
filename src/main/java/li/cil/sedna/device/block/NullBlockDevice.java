@@ -7,11 +7,22 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public final class NullBlockDevice implements BlockDevice {
-    public static final NullBlockDevice INSTANCE = new NullBlockDevice();
+    private static final NullBlockDevice READONLY_INSTANCE = new NullBlockDevice(true);
+    private static final NullBlockDevice WRITABLE_INSTANCE = new NullBlockDevice(false);
+
+    public static NullBlockDevice get(final boolean readonly) {
+        return readonly ? READONLY_INSTANCE : WRITABLE_INSTANCE;
+    }
+
+    private final boolean readonly;
+
+    public NullBlockDevice(final boolean readonly) {
+        this.readonly = readonly;
+    }
 
     @Override
     public boolean isReadonly() {
-        return true;
+        return readonly;
     }
 
     @Override

@@ -105,8 +105,8 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     private int remainingByteProcessingQuota;
     @Serialized private boolean hasPendingRequest;
 
-    public VirtIOBlockDevice(final MemoryMap memoryMap) {
-        this(memoryMap, NullBlockDevice.INSTANCE);
+    public VirtIOBlockDevice(final MemoryMap memoryMap, boolean readonly) {
+        this(memoryMap, NullBlockDevice.get(readonly));
     }
 
     public VirtIOBlockDevice(final MemoryMap memoryMap, final BlockDevice block) {
