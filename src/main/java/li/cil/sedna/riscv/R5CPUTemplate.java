@@ -7,6 +7,7 @@ import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.memory.MappedMemoryRange;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
+import li.cil.sedna.gdbstub.GDBStub;
 import li.cil.sedna.instruction.InstructionDefinition.Field;
 import li.cil.sedna.instruction.InstructionDefinition.Instruction;
 import li.cil.sedna.instruction.InstructionDefinition.InstructionSize;
@@ -19,7 +20,7 @@ import li.cil.sedna.utils.SoftFloat;
 
 import javax.annotation.Nullable;
 import java.math.BigInteger;
-import java.util.Arrays;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -128,6 +129,7 @@ final class R5CPUTemplate implements R5CPU {
     // halting the system.
     private final transient RealTimeCounter rtc;
     private transient int cycleFrequency = 50_000_000;
+    private final transient Debug debug = new Debug();
 
     public R5CPUTemplate(final MemoryMap physicalMemory, @Nullable final RealTimeCounter rtc) {
         // This cast is necessary so that stack frame computation in ASM does not throw
@@ -239,6 +241,11 @@ final class R5CPUTemplate implements R5CPU {
     @Override
     public void setFrequency(final int value) {
         cycleFrequency = value;
+    }
+
+    @Override
+    public R5CPUDebug debug() {
+        return debug;
     }
 
     @Override
@@ -383,6 +390,7 @@ final class R5CPUTemplate implements R5CPU {
     private void interpretTrace64(final MemoryMappedDevice device, int inst, long pc, int instOffset, final int instEnd) {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
+                //System.out.printf("%x", pc);
                 mcycle++;
 
                 ///////////////////////////////////////////////////////////////////
@@ -970,6 +978,7 @@ final class R5CPUTemplate implements R5CPU {
     // Exceptions
 
     private void raiseException(final long exception, final long value) {
+        if (debug.exceptionHandler(exception, value)) return;
         // Exceptions take cycle.
         mcycle++;
 
@@ -1161,7 +1170,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     private TLBEntry fetchPageSlow(final long address) throws R5MemoryAccessException {
-        final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.FETCH);
+        final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.FETCH, false);
         final MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
         if (range == null || !range.device.supportsFetch()) {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_FETCH);
@@ -1176,7 +1185,7 @@ final class R5CPUTemplate implements R5CPU {
         if (alignment != 0) {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_MISALIGNED_LOAD);
         } else {
-            final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.LOAD);
+            final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.LOAD, false);
             final MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
             if (range == null) {
                 throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_LOAD);
@@ -1201,7 +1210,7 @@ final class R5CPUTemplate implements R5CPU {
         if (alignment != 0) {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_MISALIGNED_STORE);
         } else {
-            final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.STORE);
+            final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.STORE, false);
             final MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
             if (range == null) {
                 throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_STORE);
@@ -1222,7 +1231,7 @@ final class R5CPUTemplate implements R5CPU {
         }
     }
 
-    private long getPhysicalAddress(final long virtualAddress, final MemoryAccessType accessType) throws R5MemoryAccessException {
+    private long getPhysicalAddress(final long virtualAddress, final MemoryAccessType accessType, final boolean bypassPermissions) throws R5MemoryAccessException {
         final int privilege;
         if ((mstatus & R5.STATUS_MPRV_MASK) != 0 && accessType != MemoryAccessType.FETCH) {
             privilege = (int) ((mstatus & R5.STATUS_MPP_MASK) >>> R5.STATUS_MPP_SHIFT);
@@ -1298,27 +1307,27 @@ final class R5CPUTemplate implements R5CPU {
             }
 
             // 5. Leaf node, do access permission checks.
-
-            // Check privilege. Can only be in S or U mode here, M was handled above. V2p61.
-            final boolean userModeFlag = (pte & R5.PTE_U_MASK) != 0;
-            if (privilege == R5.PRIVILEGE_S) {
-                if (userModeFlag &&
-                    (accessType == MemoryAccessType.FETCH || (mstatus & R5.STATUS_SUM_MASK) == 0))
+            if (!bypassPermissions) {
+                // Check privilege. Can only be in S or U mode here, M was handled above. V2p61.
+                final boolean userModeFlag = (pte & R5.PTE_U_MASK) != 0;
+                if (privilege == R5.PRIVILEGE_S) {
+                    if (userModeFlag &&
+                        (accessType == MemoryAccessType.FETCH || (mstatus & R5.STATUS_SUM_MASK) == 0))
+                        throw getPageFaultException(accessType, virtualAddress);
+                } else if (!userModeFlag) {
                     throw getPageFaultException(accessType, virtualAddress);
-            } else if (!userModeFlag) {
-                throw getPageFaultException(accessType, virtualAddress);
-            }
+                }
 
-            // MXR allows read on execute-only pages.
-            if ((mstatus & R5.STATUS_MXR_MASK) != 0) {
-                xwr |= R5.PTE_R_MASK;
-            }
+                // MXR allows read on execute-only pages.
+                if ((mstatus & R5.STATUS_MXR_MASK) != 0) {
+                    xwr |= R5.PTE_R_MASK;
+                }
 
-            // Check access flags.
-            if ((xwr & accessType.mask) == 0) {
-                throw getPageFaultException(accessType, virtualAddress);
+                // Check access flags.
+                if ((xwr & accessType.mask) == 0) {
+                    throw getPageFaultException(accessType, virtualAddress);
+                }
             }
-
             // 6. Check misaligned superpage.
             if (i > 0) {
                 final int ppnLSB = (int) ((pte >>> R5.PTE_DATA_BITS) & xpnMask);
@@ -1364,14 +1373,17 @@ final class R5CPUTemplate implements R5CPU {
 
     private static TLBEntry updateTLB(final TLBEntry[] tlb, final long address, final long physicalAddress, final MappedMemoryRange range) {
         final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
+        return updateTLBEntry(tlb[index], address, physicalAddress, range);
+    }
+
+    private static TLBEntry updateTLBEntry(final TLBEntry tlb, final long address, final long physicalAddress, final MappedMemoryRange range) {
         final long hash = address & ~R5.PAGE_ADDRESS_MASK;
 
-        final TLBEntry entry = tlb[index];
-        entry.hash = hash;
-        entry.toOffset = physicalAddress - address - range.start;
-        entry.device = range.device;
+        tlb.hash = hash;
+        tlb.toOffset = physicalAddress - address - range.start;
+        tlb.device = range.device;
 
-        return entry;
+        return tlb;
     }
 
     private void flushTLB() {
@@ -3243,5 +3255,201 @@ final class R5CPUTemplate implements R5CPU {
         public long hash = -1;
         public long toOffset;
         public MemoryMappedDevice device;
+    }
+
+    private final class Debug implements R5CPUDebug {
+        private GDBStub stub;
+
+        @Override
+        public void setGdbstub(GDBStub stub) {
+            this.stub = stub;
+        }
+
+        @Override
+        public long getPc() {
+            return pc;
+        }
+
+        @Override
+        public void setPc(long pc) {
+            R5CPUTemplate.this.pc = pc;
+        }
+
+        @Override
+        public long[] getX() {
+            return x;
+        }
+
+        @Override
+        public byte[] loadDebug(long address, int size) throws R5MemoryAccessException {
+            byte[] mem = new byte[size];
+            if (size == 0) return mem;
+            TLBEntry entry = getPageDebug(address, MemoryAccessType.LOAD);
+            int i = 0;
+            while (true) {
+                try {
+                    mem[i] = (byte) entry.device.load((int) (address + i + entry.toOffset), 0);
+                } catch (MemoryAccessException e) {
+                    // Partial reads are okay
+                    return Arrays.copyOf(mem, i);
+                }
+                i++;
+                if (i == size) break;
+                if (((address + i) & R5.PAGE_ADDRESS_MASK) == 0) {
+                    entry = getPageDebug(address + i, MemoryAccessType.LOAD);
+                }
+            }
+            return mem;
+        }
+
+        @Override
+        public int storeDebug(long address, byte[] data) throws R5MemoryAccessException {
+            TLBEntry entry = getPageDebug(address, MemoryAccessType.STORE);
+            int i = 0;
+            while (true) {
+                try {
+                    entry.device.store((int) (address + i + entry.toOffset), data[i], 0);
+                } catch (MemoryAccessException e) {
+                    return i;
+                }
+                i++;
+                if (i == data.length) break;
+                if (((address + i) & R5.PAGE_ADDRESS_MASK) == 0) {
+                    entry = getPageDebug(address + i, MemoryAccessType.STORE);
+                }
+            }
+            return i;
+        }
+
+        /**
+         * Used by the GDB stub for debugging. We have special requirements compared to normal memory access.
+         * 1. Need to bypass access protection, particularly the R/W bits
+         * 2. Would like to avoid modifying CPU state as much as possible, including TLB entries.
+         */
+        private TLBEntry getPageDebug(final long address, final MemoryAccessType accessType) throws R5MemoryAccessException {
+            final TLBEntry[] tlb = switch (accessType) {
+                case LOAD -> loadTLB;
+                case STORE -> storeTLB;
+                case FETCH -> fetchTLB;
+            };
+            final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
+            final long hash = address & ~R5.PAGE_ADDRESS_MASK;
+            final TLBEntry entry = tlb[index];
+            if (entry.hash == hash) {
+                return entry;
+            } else {
+                final long physicalAddress = getPhysicalAddress(address, accessType, true);
+                final MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
+                if (range == null) {
+                    throw getPageFaultException(accessType, address);
+                }
+                // We return a fake TLB entry to avoid modifying the TLB
+                return updateTLBEntry(new TLBEntry(), address, physicalAddress, range);
+            }
+        }
+
+        private long virtToPhys(long virtualAddress) throws R5MemoryAccessException {
+            return getPhysicalAddress(virtualAddress, MemoryAccessType.LOAD, true);
+        }
+
+        private record Breakpoint(long physicalAddr, int replacedInst){}
+        private final HashMap<Long, List<Breakpoint>> breakpoints = new HashMap<>();
+
+        private Breakpoint injectBreakpoint(long virtualAddress, long physicalAddress) throws MemoryAccessException, R5MemoryAccessException {
+            MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
+
+            int inst = (int) (range.device.load((int) (physicalAddress - range.address()), Sizes.SIZE_16_LOG2) & 0xFFFF);
+            final short C_EBREAK = (short) 0x9002; //compressed EBREAK instruction
+            range.device.store((int) (physicalAddress - range.address()), C_EBREAK, Sizes.SIZE_16_LOG2);
+            if((inst & 0b11) == 0b11) { // 32bit instruction
+                // If instruction split between two pages
+                if((virtualAddress & R5.PAGE_ADDRESS_MASK) == ((1 << R5.PAGE_ADDRESS_SHIFT) - 2)) {
+                    range = physicalMemory.getMemoryRange(virtToPhys(virtualAddress + 2));
+                }
+                inst |= range.device.load((int) (physicalAddress - range.address()), Sizes.SIZE_16_LOG2) << 16;
+            }
+            return new Breakpoint(physicalAddress, inst);
+        }
+
+        /*
+         * TODO the GDB RSP documentation says:
+         *  "The packet indicates a software breakpoint instruction was executed, irrespective of whether it was GDB
+         *   that planted the breakpoint or the breakpoint is hardcoded in the program"
+         * which suggests that we should send all breakpoint traps through...
+         */
+        @Override
+        public void addBreakpoint(long virtualAddress) throws R5MemoryAccessException, MemoryAccessException {
+            long physicalAddress = virtToPhys(virtualAddress);
+            List<Breakpoint> breakpointsAtVA = breakpoints.get(virtualAddress);
+            if (breakpointsAtVA == null) {
+                Breakpoint bp = injectBreakpoint(virtualAddress, physicalAddress);
+                breakpointsAtVA = new ArrayList<>(1);
+                breakpointsAtVA.add(bp);
+                breakpoints.put(virtualAddress, breakpointsAtVA);
+            } else {
+                for (Breakpoint bp : breakpointsAtVA) {
+                    if(bp.physicalAddr == physicalAddress) {
+                        return;
+                    }
+                }
+                Breakpoint bp = injectBreakpoint(virtualAddress, physicalAddress);
+                breakpointsAtVA.add(bp);
+            }
+        }
+
+        @Override
+        public void removeBreakpoint(long virtualAddress) throws R5MemoryAccessException, MemoryAccessException {
+            List<Breakpoint> breakpointsAtVA = breakpoints.get(virtualAddress);
+            if(breakpointsAtVA == null) return;
+            long physicalAddress = virtToPhys(virtualAddress);
+            Breakpoint found = null;
+            for (Breakpoint bp : breakpointsAtVA) {
+                if(bp.physicalAddr == physicalAddress) {
+                    found = bp;
+                    break;
+                }
+            }
+            if(found == null) return;
+            MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
+            range.device.store((int) (physicalAddress - range.address()), found.replacedInst & 0xFFFF, Sizes.SIZE_16_LOG2);
+            breakpointsAtVA.remove(found);
+            if(breakpointsAtVA.isEmpty()) {
+                breakpoints.remove(virtualAddress);
+            }
+        }
+
+        private boolean exceptionHandler(final long exception, final long value) {
+            if (exception == R5.EXCEPTION_BREAKPOINT) {
+                long virtualAddr = pc;
+                List<Breakpoint> breakpointsAtVA = this.breakpoints.get(virtualAddr);
+                if (breakpointsAtVA != null) {
+                    long physicalAddr;
+                    try {
+                        physicalAddr = virtToPhys(virtualAddr);
+                    } catch (R5MemoryAccessException e) {
+                        //This is impossible
+                        throw new RuntimeException(e);
+                    }
+                    for (Breakpoint bp : breakpointsAtVA) {
+                        if(bp.physicalAddr == physicalAddr) {
+                            handleBreakpoint(virtualAddr, bp.replacedInst);
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+        private void handleBreakpoint(long virtualAddr, int replacedInst) {
+            stub.breakpointHit(virtualAddr);
+            if(pc == virtualAddr) {
+                //We need to run the replaced instruction
+                if (xlen == R5.XLEN_32) {
+                    interpretTrace32(null, replacedInst, virtualAddr, 0, 0);
+                } else {
+                    interpretTrace64(null, replacedInst, virtualAddr, 0, 0);
+                }
+            }
+        }
     }
 }

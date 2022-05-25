@@ -26,4 +26,6 @@ public interface R5CPU extends Steppable, Resettable, RealTimeCounter, Interrupt
     void invalidateCaches();
 
     void setFrequency(int value);
+
+    R5CPUDebug debug();
 }

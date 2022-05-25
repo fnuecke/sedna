@@ -15,6 +15,7 @@ import li.cil.sedna.api.memory.MemoryRangeAllocationStrategy;
 import li.cil.sedna.device.flash.FlashMemoryDevice;
 import li.cil.sedna.devicetree.DeviceTreeRegistry;
 import li.cil.sedna.devicetree.FlattenedDeviceTree;
+import li.cil.sedna.gdbstub.GDBStub;
 import li.cil.sedna.memory.SimpleMemoryMap;
 import li.cil.sedna.riscv.device.R5CoreLocalInterrupter;
 import li.cil.sedna.riscv.device.R5PlatformLevelInterruptController;
@@ -23,6 +24,7 @@ import li.cil.sedna.riscv.exception.R5SystemPowerOffException;
 import li.cil.sedna.riscv.exception.R5SystemResetException;
 
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,6 +47,8 @@ public final class R5Board implements Board {
     private final List<MemoryMappedDevice> devices = new ArrayList<>();
     private final List<Steppable> steppableDevices = new ArrayList<>();
     private MemoryMappedDevice standardOutputDevice;
+    private GDBStub gdbstub;
+    private boolean waitForGdb = false;
 
     @Serialized private final R5CPU cpu;
     @Serialized private final R5CoreLocalInterrupter clint;
@@ -192,10 +196,28 @@ public final class R5Board implements Board {
         standardOutputDevice = device;
     }
 
+    public void enableGdb(int port, boolean waitForGdb) {
+        GDBStub gdbstub;
+        try {
+            gdbstub = GDBStub.defaultGDBStub(cpu.debug(), port);
+            cpu.debug().setGdbstub(gdbstub);
+        } catch (IOException e) {
+            e.printStackTrace();
+            gdbstub = null;
+        }
+        this.gdbstub = gdbstub;
+        this.waitForGdb = waitForGdb;
+    }
+
     @Override
     public void step(final int cycles) {
         if (!isRunning()) {
             return;
+        }
+
+        if(gdbstub != null && (gdbstub.messagesAvailable() || waitForGdb)) {
+            waitForGdb = false;
+            gdbstub.gdbloop(GDBStub.StopReason.MESSAGE);
         }
 
         try {
