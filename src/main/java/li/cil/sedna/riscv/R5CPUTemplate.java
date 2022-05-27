@@ -1299,11 +1299,6 @@ final class R5CPUTemplate implements R5CPU {
 
             // 5. Leaf node, do access permission checks.
 
-            // Check reserved/invalid configurations.
-            if ((xwr & R5.PTE_R_MASK) == 0 && (xwr & R5.PTE_W_MASK) != 0) {
-                throw getPageFaultException(accessType, virtualAddress);
-            }
-
             // Check privilege. Can only be in S or U mode here, M was handled above. V2p61.
             final boolean userModeFlag = (pte & R5.PTE_U_MASK) != 0;
             if (privilege == R5.PRIVILEGE_S) {
