@@ -326,7 +326,7 @@ final class R5CPUTemplate implements R5CPU {
                     inst = (short) device.load(instOffset, Sizes.SIZE_16_LOG2) & 0xFFFF;
                     if ((inst & 0b11) == 0b11) { // 32bit instruction.
                         final TLBEntry highCache = fetchPage(pc + 2);
-                        final MemoryMappedDevice highDevice = cache.device;
+                        final MemoryMappedDevice highDevice = highCache.device;
                         inst |= highDevice.load((int) (pc + 2 + highCache.toOffset), Sizes.SIZE_16_LOG2) << 16;
                     }
                 }
