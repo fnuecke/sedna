@@ -19,4 +19,8 @@ public interface R5CPUDebug {
     void addBreakpoint(long virtualAddress) throws R5MemoryAccessException, MemoryAccessException;
 
     void removeBreakpoint(long virtualAddress) throws R5MemoryAccessException, MemoryAccessException;
+
+    void activateBreakpoints();
+
+    void deactivateBreakpoints();
 }

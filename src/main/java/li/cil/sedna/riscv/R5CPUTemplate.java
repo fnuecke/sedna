@@ -3352,24 +3352,15 @@ final class R5CPUTemplate implements R5CPU {
             return getPhysicalAddress(virtualAddress, MemoryAccessType.LOAD, true);
         }
 
-        private record Breakpoint(long physicalAddr, int replacedInst){}
-        private final HashMap<Long, List<Breakpoint>> breakpoints = new HashMap<>();
+        private static final class Breakpoint{
+            private final long physicalAddress;
+            private int inst;
 
-        private Breakpoint injectBreakpoint(long virtualAddress, long physicalAddress) throws MemoryAccessException, R5MemoryAccessException {
-            MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
-
-            int inst = (int) (range.device.load((int) (physicalAddress - range.address()), Sizes.SIZE_16_LOG2) & 0xFFFF);
-            final short C_EBREAK = (short) 0x9002; //compressed EBREAK instruction
-            range.device.store((int) (physicalAddress - range.address()), C_EBREAK, Sizes.SIZE_16_LOG2);
-            if((inst & 0b11) == 0b11) { // 32bit instruction
-                // If instruction split between two pages
-                if((virtualAddress & R5.PAGE_ADDRESS_MASK) == ((1 << R5.PAGE_ADDRESS_SHIFT) - 2)) {
-                    range = physicalMemory.getMemoryRange(virtToPhys(virtualAddress + 2));
-                }
-                inst |= range.device.load((int) (physicalAddress - range.address()), Sizes.SIZE_16_LOG2) << 16;
+            private Breakpoint(long physicalAddress) {
+                this.physicalAddress = physicalAddress;
             }
-            return new Breakpoint(physicalAddress, inst);
         }
+        private final HashMap<Long, List<Breakpoint>> breakpoints = new HashMap<>();
 
         /*
          * TODO the GDB RSP documentation says:
@@ -3382,18 +3373,17 @@ final class R5CPUTemplate implements R5CPU {
             long physicalAddress = virtToPhys(virtualAddress);
             List<Breakpoint> breakpointsAtVA = breakpoints.get(virtualAddress);
             if (breakpointsAtVA == null) {
-                Breakpoint bp = injectBreakpoint(virtualAddress, physicalAddress);
+                Breakpoint bp = new Breakpoint(physicalAddress);
                 breakpointsAtVA = new ArrayList<>(1);
                 breakpointsAtVA.add(bp);
                 breakpoints.put(virtualAddress, breakpointsAtVA);
             } else {
                 for (Breakpoint bp : breakpointsAtVA) {
-                    if(bp.physicalAddr == physicalAddress) {
+                    if(bp.physicalAddress == physicalAddress) {
                         return;
                     }
                 }
-                Breakpoint bp = injectBreakpoint(virtualAddress, physicalAddress);
-                breakpointsAtVA.add(bp);
+                breakpointsAtVA.add(new Breakpoint(physicalAddress));
             }
         }
 
@@ -3404,17 +3394,71 @@ final class R5CPUTemplate implements R5CPU {
             long physicalAddress = virtToPhys(virtualAddress);
             Breakpoint found = null;
             for (Breakpoint bp : breakpointsAtVA) {
-                if(bp.physicalAddr == physicalAddress) {
+                if(bp.physicalAddress == physicalAddress) {
                     found = bp;
                     break;
                 }
             }
             if(found == null) return;
-            MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
-            range.device.store((int) (physicalAddress - range.address()), found.replacedInst & 0xFFFF, Sizes.SIZE_16_LOG2);
             breakpointsAtVA.remove(found);
             if(breakpointsAtVA.isEmpty()) {
                 breakpoints.remove(virtualAddress);
+            }
+        }
+
+        private void activateBreakpoint(long virtualAddress, Breakpoint bp) throws MemoryAccessException, R5MemoryAccessException {
+            MappedMemoryRange range = physicalMemory.getMemoryRange(bp.physicalAddress);
+
+            bp.inst = (int) (range.device.load((int) (bp.physicalAddress - range.address()), Sizes.SIZE_16_LOG2) & 0xFFFF);
+            final short C_EBREAK = (short) 0x9002; //compressed EBREAK instruction
+            range.device.store((int) (bp.physicalAddress - range.address()), C_EBREAK, Sizes.SIZE_16_LOG2);
+            if((bp.inst & 0b11) == 0b11) { // 32bit instruction
+                // If instruction split between two pages
+                if((virtualAddress & R5.PAGE_ADDRESS_MASK) == ((1 << R5.PAGE_ADDRESS_SHIFT) - 2)) {
+                    range = physicalMemory.getMemoryRange(virtToPhys(virtualAddress + 2));
+                }
+                bp.inst |= range.device.load((int) (bp.physicalAddress - range.address() + 2), Sizes.SIZE_16_LOG2) << 16;
+            }
+        }
+
+        private void deactivateBreakpoint(Breakpoint bp) throws MemoryAccessException {
+            MappedMemoryRange range = physicalMemory.getMemoryRange(bp.physicalAddress);
+            range.device.store((int) (bp.physicalAddress - range.address()), bp.inst & 0xFFFF, Sizes.SIZE_16_LOG2);
+        }
+
+        @Override
+        public void activateBreakpoints() {
+            var entryIter = breakpoints.entrySet().iterator();
+            while(entryIter.hasNext()) {
+                var entry = entryIter.next();
+                var iterBp = entry.getValue().iterator();
+                while (iterBp.hasNext()) {
+                    var bp = iterBp.next();
+                    try {
+                        activateBreakpoint(entry.getKey(), bp);
+                    } catch (MemoryAccessException | R5MemoryAccessException e) {
+                        //Pretty unlikely, let's remove the bad breakpoint
+                        iterBp.remove();
+                        if(entry.getValue().isEmpty()) {
+                            entryIter.remove();
+                        }
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void deactivateBreakpoints() {
+            for(var entry : breakpoints.entrySet()) {
+                for (var bp : entry.getValue()) {
+                    try {
+                        deactivateBreakpoint(bp);
+                    } catch (MemoryAccessException e) {
+                        //This really shouldn't happen unless the underlying device ceases to exist...
+                        //For now lets try to continue
+                        e.printStackTrace();
+                    }
+                }
             }
         }
 
@@ -3431,8 +3475,8 @@ final class R5CPUTemplate implements R5CPU {
                         throw new RuntimeException(e);
                     }
                     for (Breakpoint bp : breakpointsAtVA) {
-                        if(bp.physicalAddr == physicalAddr) {
-                            handleBreakpoint(virtualAddr, bp.replacedInst);
+                        if(bp.physicalAddress == physicalAddr) {
+                            handleBreakpoint(virtualAddr, bp.inst);
                             return true;
                         }
                     }

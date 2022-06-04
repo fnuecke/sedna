@@ -109,9 +109,11 @@ public class GDBStub {
 
                 if (actualChecksum != expectedChecksum) {
                     gdbOut.write('-');
+                    gdbOut.flush();
                     continue;
                 }
                 gdbOut.write('+');
+                gdbOut.flush();
                 buffer.flip();
                 return true;
             } catch (IOException e) {
@@ -265,6 +267,7 @@ public class GDBStub {
     }
 
     public void gdbloop(StopReason reason) {
+        cpu.deactivateBreakpoints();
         final ByteBuffer packetBuffer = ByteBuffer.allocate(8192);
         gdbloop:
         while (true) {
@@ -365,5 +368,6 @@ public class GDBStub {
                 }
             }
         }
+        cpu.activateBreakpoints();
     }
 }
