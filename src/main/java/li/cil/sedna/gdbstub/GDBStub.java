@@ -230,7 +230,7 @@ public class GDBStub {
             try {
                 cpu.addBreakpoint(addr);
                 w.write("OK");
-            } catch (R5MemoryAccessException | MemoryAccessException e) {
+            } catch (R5MemoryAccessException e) {
                 w.write("E14");
             }
         }
@@ -242,12 +242,8 @@ public class GDBStub {
         long addr = HexUtils.toLong(charbuf);
         try (var s = new PacketOutputStream(gdbOut);
              var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
-            try {
-                cpu.removeBreakpoint(addr);
-                w.write("OK");
-            } catch (R5MemoryAccessException | MemoryAccessException e) {
-                w.write("E14");
-            }
+            cpu.removeBreakpoint(addr);
+            w.write("OK");
         }
     }
 

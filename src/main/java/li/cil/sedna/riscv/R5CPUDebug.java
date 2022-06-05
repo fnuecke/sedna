@@ -16,9 +16,9 @@ public interface R5CPUDebug {
 
     int storeDebug(final long address, final byte[] data) throws R5MemoryAccessException;
 
-    void addBreakpoint(long virtualAddress) throws R5MemoryAccessException, MemoryAccessException;
+    void addBreakpoint(long virtualAddress) throws R5MemoryAccessException;
 
-    void removeBreakpoint(long virtualAddress) throws R5MemoryAccessException, MemoryAccessException;
+    void removeBreakpoint(long virtualAddress);
 
     void activateBreakpoints();
 

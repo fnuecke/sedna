@@ -3352,112 +3352,105 @@ final class R5CPUTemplate implements R5CPU {
             return getPhysicalAddress(virtualAddress, MemoryAccessType.LOAD, true);
         }
 
-        private static final class Breakpoint{
-            private final long physicalAddress;
-            private int inst;
+        private static final class Breakpoint {
+            public int refcount = 0;
+            public short inst = 0;
+            // We don't want to trigger recursively. For example if the replaced instruction was already an EBREAK
+            public boolean triggered = false;
 
-            private Breakpoint(long physicalAddress) {
-                this.physicalAddress = physicalAddress;
+            private int decRef() {
+                return --refcount;
+            }
+
+            private int incRef() {
+                return ++refcount;
             }
         }
-        private final HashMap<Long, List<Breakpoint>> breakpoints = new HashMap<>();
 
-        /*
-         * TODO the GDB RSP documentation says:
-         *  "The packet indicates a software breakpoint instruction was executed, irrespective of whether it was GDB
-         *   that planted the breakpoint or the breakpoint is hardcoded in the program"
-         * which suggests that we should send all breakpoint traps through...
+        /**
+         * Software breakpoints, i.e. breakpoints that work by patching code, present a problem. We don't know what
+         * Virtual Address Space (VAS) we are in, as that is ultimately decided by the OS running underneath. And so it
+         * is difficult to decide whether a breakpoint trap is one of ours, set by GDB, or isn't and must be passed on
+         * to the code running on the CPU. If we make a mistake here, either the underlying OS will see an invalid trap,
+         * and possibly crash, or it will miss an expected trap, and again have invalid behavior.
+         *
+         * Even worse, it could be both! That is,
          */
+
+        /**
+         * While quite rare, it is possible for the second half of a 32 bit instruction that crosses a page boundary be
+         * different (backed by a different physical page) between two different virtual address spaces. This is
+         * detectable in some scenarios, for example when the virtual addresses are different we can detect
+         */
+        // Map physical address to breakpoint info
+        private final HashMap<Long, Breakpoint> breakpoints = new HashMap<>();
+        private final HashMap<Long, Long> breakpointsAtVA = new HashMap<>();
+
         @Override
-        public void addBreakpoint(long virtualAddress) throws R5MemoryAccessException, MemoryAccessException {
+        public void addBreakpoint(long virtualAddress) throws R5MemoryAccessException {
+            if (breakpointsAtVA.containsKey(virtualAddress)) return;
             long physicalAddress = virtToPhys(virtualAddress);
-            List<Breakpoint> breakpointsAtVA = breakpoints.get(virtualAddress);
-            if (breakpointsAtVA == null) {
-                Breakpoint bp = new Breakpoint(physicalAddress);
-                breakpointsAtVA = new ArrayList<>(1);
-                breakpointsAtVA.add(bp);
-                breakpoints.put(virtualAddress, breakpointsAtVA);
-            } else {
-                for (Breakpoint bp : breakpointsAtVA) {
-                    if(bp.physicalAddress == physicalAddress) {
-                        return;
-                    }
-                }
-                breakpointsAtVA.add(new Breakpoint(physicalAddress));
+            breakpointsAtVA.put(virtualAddress, physicalAddress);
+            Breakpoint bp = breakpoints.get(physicalAddress);
+            if(bp == null) {
+                bp = new Breakpoint();
+                breakpoints.put(physicalAddress, bp);
             }
+            bp.incRef();
         }
 
         @Override
-        public void removeBreakpoint(long virtualAddress) throws R5MemoryAccessException, MemoryAccessException {
-            List<Breakpoint> breakpointsAtVA = breakpoints.get(virtualAddress);
-            if(breakpointsAtVA == null) return;
-            long physicalAddress = virtToPhys(virtualAddress);
-            Breakpoint found = null;
-            for (Breakpoint bp : breakpointsAtVA) {
-                if(bp.physicalAddress == physicalAddress) {
-                    found = bp;
-                    break;
-                }
+        public void removeBreakpoint(long virtualAddress) {
+            Long physicalAddress = breakpointsAtVA.remove(virtualAddress);
+            if (physicalAddress == null) {
+                System.out.printf("Warning: attempted to remove nonexistent breakpoint %x%n", virtualAddress);
+                return;
             }
-            if(found == null) return;
-            breakpointsAtVA.remove(found);
-            if(breakpointsAtVA.isEmpty()) {
-                breakpoints.remove(virtualAddress);
+            Breakpoint bp = breakpoints.get(physicalAddress);
+            //This shouldn't happen but I'd rather not crash
+            if (bp == null) return;
+            if (bp.decRef() <= 0) {
+                breakpoints.remove(physicalAddress);
             }
         }
 
-        private void activateBreakpoint(long virtualAddress, Breakpoint bp) throws MemoryAccessException, R5MemoryAccessException {
-            MappedMemoryRange range = physicalMemory.getMemoryRange(bp.physicalAddress);
+        private void activateBreakpoint(long physicalAddress, Breakpoint bp) throws MemoryAccessException, R5MemoryAccessException {
+            MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
 
-            bp.inst = (int) (range.device.load((int) (bp.physicalAddress - range.address()), Sizes.SIZE_16_LOG2) & 0xFFFF);
+            bp.inst = (short) (range.device.load((int) (physicalAddress - range.address()), Sizes.SIZE_16_LOG2) & 0xFFFF);
             final short C_EBREAK = (short) 0x9002; //compressed EBREAK instruction
-            range.device.store((int) (bp.physicalAddress - range.address()), C_EBREAK, Sizes.SIZE_16_LOG2);
-            if((bp.inst & 0b11) == 0b11) { // 32bit instruction
-                // If instruction split between two pages
-                if((virtualAddress & R5.PAGE_ADDRESS_MASK) == ((1 << R5.PAGE_ADDRESS_SHIFT) - 2)) {
-                    range = physicalMemory.getMemoryRange(virtToPhys(virtualAddress + 2));
-                }
-                bp.inst |= range.device.load((int) (bp.physicalAddress - range.address() + 2), Sizes.SIZE_16_LOG2) << 16;
-            }
+            range.device.store((int) (physicalAddress - range.address()), C_EBREAK, Sizes.SIZE_16_LOG2);
         }
 
-        private void deactivateBreakpoint(Breakpoint bp) throws MemoryAccessException {
-            MappedMemoryRange range = physicalMemory.getMemoryRange(bp.physicalAddress);
-            range.device.store((int) (bp.physicalAddress - range.address()), bp.inst & 0xFFFF, Sizes.SIZE_16_LOG2);
+        private void deactivateBreakpoint(long physicalAddress, Breakpoint bp) throws MemoryAccessException {
+            MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
+            range.device.store((int) (physicalAddress - range.address()), bp.inst & 0xFFFF, Sizes.SIZE_16_LOG2);
         }
 
         @Override
         public void activateBreakpoints() {
             var entryIter = breakpoints.entrySet().iterator();
-            while(entryIter.hasNext()) {
+            while (entryIter.hasNext()) {
                 var entry = entryIter.next();
-                var iterBp = entry.getValue().iterator();
-                while (iterBp.hasNext()) {
-                    var bp = iterBp.next();
-                    try {
-                        activateBreakpoint(entry.getKey(), bp);
-                    } catch (MemoryAccessException | R5MemoryAccessException e) {
-                        //Pretty unlikely, let's remove the bad breakpoint
-                        iterBp.remove();
-                        if(entry.getValue().isEmpty()) {
-                            entryIter.remove();
-                        }
-                    }
+                try {
+                    activateBreakpoint(entry.getKey(), entry.getValue());
+                } catch (MemoryAccessException | R5MemoryAccessException e) {
+                    //Pretty unlikely, let's remove the bad breakpoint
+                    entryIter.remove();
+                    breakpointsAtVA.entrySet().removeIf(vaE -> vaE.getValue() == entry.getKey());
                 }
             }
         }
 
         @Override
         public void deactivateBreakpoints() {
-            for(var entry : breakpoints.entrySet()) {
-                for (var bp : entry.getValue()) {
-                    try {
-                        deactivateBreakpoint(bp);
-                    } catch (MemoryAccessException e) {
-                        //This really shouldn't happen unless the underlying device ceases to exist...
-                        //For now lets try to continue
-                        e.printStackTrace();
-                    }
+            for (var entry : breakpoints.entrySet()) {
+                try {
+                    deactivateBreakpoint(entry.getKey(), entry.getValue());
+                } catch (MemoryAccessException e) {
+                    //This really shouldn't happen unless the underlying device ceases to exist...
+                    //For now lets try to continue
+                    e.printStackTrace();
                 }
             }
         }
@@ -3465,33 +3458,69 @@ final class R5CPUTemplate implements R5CPU {
         private boolean exceptionHandler(final long exception, final long value) {
             if (exception == R5.EXCEPTION_BREAKPOINT) {
                 long virtualAddr = pc;
-                List<Breakpoint> breakpointsAtVA = this.breakpoints.get(virtualAddr);
-                if (breakpointsAtVA != null) {
-                    long physicalAddr;
-                    try {
-                        physicalAddr = virtToPhys(virtualAddr);
-                    } catch (R5MemoryAccessException e) {
-                        //This is impossible
-                        throw new RuntimeException(e);
+                // If a breakpoint exists at the physical address, we MUST handle it to run the correct instruction.
+                long physicalAddr;
+                try {
+                    physicalAddr = virtToPhys(virtualAddr);
+                } catch (R5MemoryAccessException e) {
+                    //This is impossible
+                    throw new RuntimeException(e);
+                }
+                Breakpoint bp = this.breakpoints.get(physicalAddr);
+                if (bp != null) {
+                    // If the replaced instruction is an EBREAK, we'll recursively trigger. This stops that.
+                    if (bp.triggered) {
+                        bp.triggered = false;
+                        return false;
                     }
-                    for (Breakpoint bp : breakpointsAtVA) {
-                        if(bp.physicalAddress == physicalAddr) {
-                            handleBreakpoint(virtualAddr, bp.inst);
-                            return true;
-                        }
-                    }
+                    bp.triggered = true;
+                    handleBreakpoint(virtualAddr, bp.inst);
+                    return true;
+                } else {
+                    /*
+                     * From the GDB RSP documentation:
+                     *  "The packet indicates a software breakpoint instruction was executed, irrespective of whether it
+                     *  was GDB that planted the breakpoint or the breakpoint is hardcoded in the program" which
+                     *  suggests that we should send all breakpoint traps through...
+                     * However, I don't think we can safely do that. We are in raiseException(), if GDB messes with any
+                     * state things could get weird. Worth a revisit, maybe.
+                     */
+                    return false;
                 }
             }
             return false;
         }
-        private void handleBreakpoint(long virtualAddr, int replacedInst) {
-            stub.breakpointHit(virtualAddr);
-            if(pc == virtualAddr) {
+
+        private void handleBreakpoint(long virtualAddress, short replacedInst) {
+            //TODO only report to the stub if the virtual address is in breakpointsAtVA?
+            stub.breakpointHit(virtualAddress);
+            if (pc == virtualAddress) {
                 //We need to run the replaced instruction
+                int fullInst = replacedInst;
+                if ((replacedInst & 0b11) == 0b11) { // 32bit instruction
+                    // If instruction split between two pages
+                    try {
+                        long physicalAddress = virtToPhys(virtualAddress + 2);
+                        // This is an ugly hack. If there are adjacent breakpoints we need to get the replaced value,
+                        // rather than the value in memory
+                        Breakpoint bp;
+                        if((bp = breakpoints.get(physicalAddress)) != null) {
+                            fullInst |= ((int)bp.inst) << 16;
+                        } else {
+                            MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
+                            fullInst |= range.device.load((int) (physicalAddress - range.address()), Sizes.SIZE_16_LOG2) << 16;
+                        }
+                    } catch (R5MemoryAccessException | MemoryAccessException e) {
+                        // This could conceivably happen if the next page is unmapped. Unlikely, but people love writing
+                        // buggy code.
+                        raiseException(R5.EXCEPTION_FAULT_FETCH, virtualAddress);
+                        return;
+                    }
+                }
                 if (xlen == R5.XLEN_32) {
-                    interpretTrace32(null, replacedInst, virtualAddr, 0, 0);
+                    interpretTrace32(null, fullInst, virtualAddress, 0, 0);
                 } else {
-                    interpretTrace64(null, replacedInst, virtualAddr, 0, 0);
+                    interpretTrace64(null, fullInst, virtualAddress, 0, 0);
                 }
             }
         }
