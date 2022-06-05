@@ -3,6 +3,8 @@ package li.cil.sedna.gdbstub;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.riscv.R5CPUDebug;
 import li.cil.sedna.riscv.exception.R5MemoryAccessException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -25,6 +27,8 @@ public class GDBStub {
         MESSAGE,
         BREAKPOINT
     }
+
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private GDBState state = GDBState.DISCONNECTED;
     private InputStream gdbIn;
@@ -90,7 +94,6 @@ public class GDBStub {
 
                     if (c == '$') break;
                     if (c == -1) return false;
-                    System.out.print((char) c);
                 }
                 while (true) {
                     int c = gdbIn.read();
@@ -117,7 +120,6 @@ public class GDBStub {
                 buffer.flip();
                 return true;
             } catch (IOException e) {
-                e.printStackTrace();
                 return false;
             }
         }
@@ -125,6 +127,7 @@ public class GDBStub {
 
     private void disconnect() {
         try {
+            LOGGER.info("GDB disconnected");
             this.state = GDBState.DISCONNECTED;
             this.sock.close();
         } catch (IOException ignored) {
@@ -144,7 +147,7 @@ public class GDBStub {
     }
 
     private void unknownCommand(ByteBuffer packet) throws IOException {
-        System.out.printf("Unknown command: %s%n", StandardCharsets.US_ASCII.decode(packet.position(0)));
+        LOGGER.debug("Unknown command: {}\n", StandardCharsets.US_ASCII.decode(packet.position(0)));
         // Send an empty packet
         try (var ignored = new PacketOutputStream(gdbOut)) {
         }
@@ -286,8 +289,6 @@ public class GDBStub {
                         w.write("S05");
                         state = GDBState.WAITING_FOR_COMMAND;
                     } catch (IOException e) {
-                        System.out.println("Disconnected");
-                        e.printStackTrace();
                         disconnect();
                     }
                 }
@@ -299,7 +300,7 @@ public class GDBStub {
                             break;
                         }
                         if (packetBuffer.limit() == 0) continue;
-                        System.out.printf("Packet: %s%n", asciiBytesToEscaped(packetBuffer.slice()));
+                        LOGGER.debug("Packet: {}\n", asciiBytesToEscaped(packetBuffer.slice()));
 
                         byte command = packetBuffer.get();
                         switch (command) {

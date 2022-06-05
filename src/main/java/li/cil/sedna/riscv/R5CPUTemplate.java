@@ -17,6 +17,8 @@ import li.cil.sedna.riscv.exception.R5MemoryAccessException;
 import li.cil.sedna.utils.BitUtils;
 import li.cil.sedna.utils.SoftDouble;
 import li.cil.sedna.utils.SoftFloat;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import javax.annotation.Nullable;
 import java.math.BigInteger;
@@ -390,7 +392,6 @@ final class R5CPUTemplate implements R5CPU {
     private void interpretTrace64(final MemoryMappedDevice device, int inst, long pc, int instOffset, final int instEnd) {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
-                //System.out.printf("%x", pc);
                 mcycle++;
 
                 ///////////////////////////////////////////////////////////////////
@@ -3258,6 +3259,7 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     private final class Debug implements R5CPUDebug {
+        private static final Logger LOGGER = LogManager.getLogger();
         private GDBStub stub;
 
         @Override
@@ -3368,22 +3370,21 @@ final class R5CPUTemplate implements R5CPU {
         }
 
         /**
-         * Software breakpoints, i.e. breakpoints that work by patching code, present a problem. We don't know what
-         * Virtual Address Space (VAS) we are in, as that is ultimately decided by the OS running underneath. And so it
-         * is difficult to decide whether a breakpoint trap is one of ours, set by GDB, or isn't and must be passed on
-         * to the code running on the CPU. If we make a mistake here, either the underlying OS will see an invalid trap,
-         * and possibly crash, or it will miss an expected trap, and again have invalid behavior.
+         * This is a "software" breakpoint implementation that works by patching memory. If code is ever physically
+         * copied/moved this could result in the underlying OS seeing unexpected breakpoint traps and probably lead to
+         * a crash. Additionally, any code attempting to read memory would see the breakpoints.
+         * This is unavoidable with a "software" breakpoint implementation.
          *
-         * Even worse, it could be both! That is,
+         * A "hardware" implementation that works by checking the breakpoint list every time the program counter
+         * changes was considered, but would slow down the hot path in the interpreter loop considerably. It may be
+         * possible to create an implementation that doesn't modify memory and has minimal impact on the performance
+         * of interpret(). If so, we probably should migrate towards that for correctness in the edge cases mentioned
+         * above.
          */
 
-        /**
-         * While quite rare, it is possible for the second half of a 32 bit instruction that crosses a page boundary be
-         * different (backed by a different physical page) between two different virtual address spaces. This is
-         * detectable in some scenarios, for example when the virtual addresses are different we can detect
-         */
         // Map physical address to breakpoint info
         private final HashMap<Long, Breakpoint> breakpoints = new HashMap<>();
+        //Maps breakpoint virtual address to physical address
         private final HashMap<Long, Long> breakpointsAtVA = new HashMap<>();
 
         @Override
@@ -3403,11 +3404,10 @@ final class R5CPUTemplate implements R5CPU {
         public void removeBreakpoint(long virtualAddress) {
             Long physicalAddress = breakpointsAtVA.remove(virtualAddress);
             if (physicalAddress == null) {
-                System.out.printf("Warning: attempted to remove nonexistent breakpoint %x%n", virtualAddress);
+                LOGGER.warn("Attempted to remove nonexistent breakpoint {}\n", virtualAddress);
                 return;
             }
             Breakpoint bp = breakpoints.get(physicalAddress);
-            //This shouldn't happen but I'd rather not crash
             if (bp == null) return;
             if (bp.decRef() <= 0) {
                 breakpoints.remove(physicalAddress);
