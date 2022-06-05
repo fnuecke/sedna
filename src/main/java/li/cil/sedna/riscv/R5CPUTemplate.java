@@ -3498,21 +3498,17 @@ final class R5CPUTemplate implements R5CPU {
                 //We need to run the replaced instruction
                 int fullInst = replacedInst;
                 if ((replacedInst & 0b11) == 0b11) { // 32bit instruction
-                    // If instruction split between two pages
+                    // We can't store this in the breakpoint, because if instruction split between two pages, the second
+                    // half of the instruction may be different in different Virtual Address Spaces. Unlikely but
+                    // possible.
                     try {
                         long physicalAddress = virtToPhys(virtualAddress + 2);
-                        // This is an ugly hack. If there are adjacent breakpoints we need to get the replaced value,
-                        // rather than the value in memory
-                        Breakpoint bp;
-                        if((bp = breakpoints.get(physicalAddress)) != null) {
-                            fullInst |= ((int)bp.inst) << 16;
-                        } else {
-                            MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
-                            fullInst |= range.device.load((int) (physicalAddress - range.address()), Sizes.SIZE_16_LOG2) << 16;
-                        }
+                        MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
+                        if(range == null) throw new R5MemoryAccessException(virtualAddress, R5.EXCEPTION_FAULT_FETCH);
+                        fullInst |= range.device.load((int) (physicalAddress - range.address()), Sizes.SIZE_16_LOG2) << 16;
                     } catch (R5MemoryAccessException | MemoryAccessException e) {
-                        // This could conceivably happen if the next page is unmapped. Unlikely, but people love writing
-                        // buggy code.
+                        // This could conceivably happen if the next page is unmapped or mapped to an invalid physical
+                        // address. Unlikely, but people love writing buggy code.
                         raiseException(R5.EXCEPTION_FAULT_FETCH, virtualAddress);
                         return;
                     }
