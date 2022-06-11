@@ -782,13 +782,13 @@ final class R5CPUTemplate implements R5CPU {
                     // "Changing satp.MODE from Bare to other modes and vice versa also takes effect immediately,
                     // without the need to execute an SFENCE.VMA instruction."
                     if (xlen == R5.XLEN_32) {
-                        if ((satp & R5.SATP_MODE_MASK32) == R5.SATP_MODE_NONE ||
-                            (validatedValue & R5.SATP_MODE_MASK32) == R5.SATP_MODE_NONE) {
+                        if (((satp & R5.SATP_MODE_MASK32) == R5.SATP_MODE_NONE) !=
+                            ((validatedValue & R5.SATP_MODE_MASK32) == R5.SATP_MODE_NONE)) {
                             flushTLB();
                         }
                     } else {
-                        if ((satp & R5.SATP_MODE_MASK64) == R5.SATP_MODE_NONE ||
-                            (validatedValue & R5.SATP_MODE_MASK64) == R5.SATP_MODE_NONE) {
+                        if (((satp & R5.SATP_MODE_MASK64) == R5.SATP_MODE_NONE) !=
+                            ((validatedValue & R5.SATP_MODE_MASK64) == R5.SATP_MODE_NONE)) {
                             flushTLB();
                         }
                     }
