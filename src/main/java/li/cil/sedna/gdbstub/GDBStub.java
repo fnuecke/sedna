@@ -230,12 +230,8 @@ public class GDBStub {
         long addr = HexUtils.toLong(charbuf);
         try (var s = new PacketOutputStream(gdbOut);
              var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
-            try {
-                cpu.addBreakpoint(addr);
-                w.write("OK");
-            } catch (R5MemoryAccessException e) {
-                w.write("E14");
-            }
+            cpu.addBreakpoint(addr);
+            w.write("OK");
         }
     }
 
@@ -266,7 +262,6 @@ public class GDBStub {
     }
 
     public void gdbloop(StopReason reason) {
-        cpu.deactivateBreakpoints();
         final ByteBuffer packetBuffer = ByteBuffer.allocate(8192);
         gdbloop:
         while (true) {
@@ -365,6 +360,5 @@ public class GDBStub {
                 }
             }
         }
-        cpu.activateBreakpoints();
     }
 }
