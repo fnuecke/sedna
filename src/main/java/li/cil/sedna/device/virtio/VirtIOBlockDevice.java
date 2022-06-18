@@ -93,13 +93,13 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
 
     private static final int VIRTQ_REQUEST = 0;
 
-    private static final int MAX_SEGMENT_SIZE = 32 * 512;
-    private static final int MAX_SEGMENT_COUNT = 64;
+    private static final int MAX_SEGMENT_SIZE = 32 * VIRTIO_BLK_SECTOR_SIZE;
+    private static final int MAX_SEGMENT_COUNT = 16;
     private static final int BYTES_PER_THOUSAND_CYCLES = 32;
 
     private static final ThreadLocal<ByteBuffer> REQUEST_HEADER_BUFFER = ThreadLocal.withInitial(() ->
         ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN));
-    private static final ThreadLocal<byte[]> COPY_BUFFER = ThreadLocal.withInitial(() -> new byte[64 * 1024]);
+    private static final ThreadLocal<byte[]> COPY_BUFFER = ThreadLocal.withInitial(() -> new byte[MAX_SEGMENT_SIZE * MAX_SEGMENT_COUNT]);
 
     private BlockDevice block;
     private int remainingByteProcessingQuota;
