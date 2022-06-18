@@ -1217,6 +1217,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                     }
                 }
 
+                assert src.limit() == limit;
                 assert src.position() == src.limit();
             }
 
