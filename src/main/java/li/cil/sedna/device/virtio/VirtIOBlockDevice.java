@@ -114,8 +114,8 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
             .configSpaceSize(56)
             .queueCount(1)
             .features((block.isReadonly() ? VIRTIO_BLK_F_RO : 0) |
-//                          VIRTIO_BLK_F_SIZE_MAX |
-//                          VIRTIO_BLK_F_SEG_MAX |
+                VIRTIO_BLK_F_SIZE_MAX |
+                VIRTIO_BLK_F_SEG_MAX |
                 VIRTIO_BLK_F_FLUSH)
             .build());
         this.block = block;
@@ -288,7 +288,7 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
                 }
 
                 // Ensure driver respects virtio_blk_config.size_max and virtio_blk_config.seg_max.
-                if (chain.writableBytes() > MAX_SEGMENT_COUNT * MAX_SEGMENT_SIZE) {
+                if (chain.writableBytes() > MAX_SEGMENT_COUNT * MAX_SEGMENT_SIZE + 1) {
                     chain.skip(chain.writableBytes() - 1);
                     chain.put((byte) VIRTIO_BLK_S_IOERR);
                     break;
