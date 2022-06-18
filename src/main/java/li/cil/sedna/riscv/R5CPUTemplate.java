@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * RISC-V RV64GC implementation.
  * <p>
- * Based on ISA specifications found at https://github.com/riscv/riscv-isa-manual/releases
+ * Based on <a href="https://github.com/riscv/riscv-isa-manual/releases">the ISA specifications</a>.
  * <ul>
  * <li>Volume I: User-Level ISA 20191214-draft (October 18, 2020)</li>
  * <li>Volume II: Privileged Architecture v1.12-draft (October 18, 2020)</li>
@@ -1219,54 +1219,42 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     private long loadSlow(final long address, final int sizeLog2) throws R5MemoryAccessException {
-        final int size = 1 << sizeLog2;
-        final int alignment = (int) (address & (size - 1));
-        if (alignment != 0) {
-            throw new R5MemoryAccessException(address, R5.EXCEPTION_MISALIGNED_LOAD);
-        } else {
-            final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.LOAD, false);
-            final MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
-            if (range == null) {
-                throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_LOAD);
-            }
+        final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.LOAD, false);
+        final MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
+        if (range == null) {
+            throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_LOAD);
+        }
 
-            try {
-                if (range.device.supportsFetch()) {
-                    final TLBEntry entry = updateTLB(loadTLB, address, physicalAddress, range);
-                    return entry.device.load((int) (address + entry.toOffset), sizeLog2);
-                } else {
-                    return range.device.load((int) (physicalAddress - range.address()), sizeLog2);
-                }
-            } catch (final MemoryAccessException e) {
-                throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_LOAD);
+        try {
+            if (range.device.supportsFetch()) {
+                final TLBEntry entry = updateTLB(loadTLB, address, physicalAddress, range);
+                return entry.device.load((int) (address + entry.toOffset), sizeLog2);
+            } else {
+                return range.device.load((int) (physicalAddress - range.address()), sizeLog2);
             }
+        } catch (final MemoryAccessException e) {
+            throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_LOAD);
         }
     }
 
     private void storeSlow(final long address, final long value, final int sizeLog2) throws R5MemoryAccessException {
-        final int size = 1 << sizeLog2;
-        final int alignment = (int) (address & (size - 1));
-        if (alignment != 0) {
-            throw new R5MemoryAccessException(address, R5.EXCEPTION_MISALIGNED_STORE);
-        } else {
-            final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.STORE, false);
-            final MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
-            if (range == null) {
-                throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_STORE);
-            }
+        final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.STORE, false);
+        final MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
+        if (range == null) {
+            throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_STORE);
+        }
 
-            try {
-                if (range.device.supportsFetch()) {
-                    final TLBEntry entry = updateTLB(storeTLB, address, physicalAddress, range);
-                    final int offset = (int) (address + entry.toOffset);
-                    entry.device.store(offset, value, sizeLog2);
-                    physicalMemory.setDirty(range, offset);
-                } else {
-                    range.device.store((int) (physicalAddress - range.start), value, sizeLog2);
-                }
-            } catch (final MemoryAccessException e) {
-                throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_STORE);
+        try {
+            if (range.device.supportsFetch()) {
+                final TLBEntry entry = updateTLB(storeTLB, address, physicalAddress, range);
+                final int offset = (int) (address + entry.toOffset);
+                entry.device.store(offset, value, sizeLog2);
+                physicalMemory.setDirty(range, offset);
+            } else {
+                range.device.store((int) (physicalAddress - range.start), value, sizeLog2);
             }
+        } catch (final MemoryAccessException e) {
+            throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_STORE);
         }
     }
 
