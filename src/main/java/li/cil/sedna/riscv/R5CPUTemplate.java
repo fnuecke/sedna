@@ -15,6 +15,7 @@ import li.cil.sedna.instruction.InstructionDefinition.ProgramCounter;
 import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
 import li.cil.sedna.riscv.exception.R5MemoryAccessException;
 import li.cil.sedna.utils.BitUtils;
+import li.cil.sedna.utils.HashSetUtils;
 import li.cil.sedna.utils.SoftDouble;
 import li.cil.sedna.utils.SoftFloat;
 import org.apache.logging.log4j.LogManager;
@@ -344,13 +345,10 @@ final class R5CPUTemplate implements R5CPU {
                 return;
             }
 
-            // Better to send null in the common case where there are no breakpoints so all the inner loop has to do
-            // is a fast null check.
-            var tlbBreakpoints = !cache.breakpoints.isEmpty() ? cache.breakpoints : null;
             if (xlen == R5.XLEN_32) {
-                interpretTrace32(device, inst, pc, instOffset, instEnd, tlbBreakpoints);
+                interpretTrace32(device, inst, pc, instOffset, instEnd, cache.breakpoints);
             } else {
-                interpretTrace64(device, inst, pc, instOffset, instEnd, tlbBreakpoints);
+                interpretTrace64(device, inst, pc, instOffset, instEnd, cache.breakpoints);
             }
         } catch (final R5MemoryAccessException e) {
             raiseException(e.getType(), e.getAddress());
@@ -362,7 +360,7 @@ final class R5CPUTemplate implements R5CPU {
 
     @SuppressWarnings("LocalCanBeFinal") // `pc` and `instOffset` get updated by the generated code replacing decode().
     private void interpretTrace32(final MemoryMappedDevice device, int inst, long pc, int instOffset, final int instEnd,
-                                  NavigableSet<Long> breakpoints) {
+                                  Set<Long> breakpoints) {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
                 if(breakpoints != null && breakpoints.contains(pc)) {
@@ -399,7 +397,7 @@ final class R5CPUTemplate implements R5CPU {
 
     @SuppressWarnings("LocalCanBeFinal") // `pc` and `instOffset` get updated by the generated code replacing decode().
     private void interpretTrace64(final MemoryMappedDevice device, int inst, long pc, int instOffset, final int instEnd,
-                                  NavigableSet<Long> breakpoints) {
+                                  Set<Long> breakpoints) {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
                 if(breakpoints != null && breakpoints.contains(pc)) {
@@ -1205,8 +1203,16 @@ final class R5CPUTemplate implements R5CPU {
         if (range == null || !range.device.supportsFetch()) {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_FETCH);
         }
-
-        return updateTLB(fetchTLB, address, physicalAddress, range);
+        final TLBEntry tlb = updateTLB(fetchTLB, address, physicalAddress, range);
+        var subset = debug.breakpoints.subSet(address, true, address + (1 << R5.PAGE_ADDRESS_SHIFT), false);
+        int subsetSize = subset.size();
+        if(subsetSize != 0) {
+            tlb.breakpoints = HashSetUtils.hashSetForSize(subsetSize);
+            tlb.breakpoints.addAll(subset);
+        } else {
+            tlb.breakpoints = null;
+        }
+        return tlb;
     }
 
     private long loadSlow(final long address, final int sizeLog2) throws R5MemoryAccessException {
@@ -1401,19 +1407,17 @@ final class R5CPUTemplate implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // TLB
 
-    private TLBEntry updateTLB(final TLBEntry[] tlb, final long address, final long physicalAddress, final MappedMemoryRange range) {
+    private static TLBEntry updateTLB(final TLBEntry[] tlb, final long address, final long physicalAddress, final MappedMemoryRange range) {
         final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
         return updateTLBEntry(tlb[index], address, physicalAddress, range);
     }
 
-    private TLBEntry updateTLBEntry(final TLBEntry tlb, final long address, final long physicalAddress, final MappedMemoryRange range) {
+    private static TLBEntry updateTLBEntry(final TLBEntry tlb, final long address, final long physicalAddress, final MappedMemoryRange range) {
         final long hash = address & ~R5.PAGE_ADDRESS_MASK;
 
         tlb.hash = hash;
         tlb.toOffset = physicalAddress - address - range.start;
         tlb.device = range.device;
-
-        tlb.breakpoints = debug.hwBreakpoints.subSet(address, true, address + (1 << R5.PAGE_ADDRESS_SHIFT), false);
 
         return tlb;
     }
@@ -3288,8 +3292,7 @@ final class R5CPUTemplate implements R5CPU {
         public long toOffset;
         public MemoryMappedDevice device;
         //Subset of complete breakpoint set
-        //Any breakpoints added to the full list will immediately be visible here.
-        public NavigableSet<Long> breakpoints;
+        public Set<Long> breakpoints;
     }
 
     private final class Debug implements R5CPUDebug {
@@ -3388,7 +3391,7 @@ final class R5CPUTemplate implements R5CPU {
             return getPhysicalAddress(virtualAddress, MemoryAccessType.LOAD, true);
         }
 
-        private final NavigableSet<Long> hwBreakpoints = new TreeSet<>();
+        private final NavigableSet<Long> breakpoints = new TreeSet<>();
 
         private void handleBreakpoint(long pc) {
             if(stub != null) stub.breakpointHit(pc);
@@ -3396,12 +3399,29 @@ final class R5CPUTemplate implements R5CPU {
 
         @Override
         public void addBreakpoint(long virtualAddress) {
-            hwBreakpoints.add(virtualAddress);
+            breakpoints.add(virtualAddress);
+            final int index = (int) ((virtualAddress >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
+            final long hash = virtualAddress & ~R5.PAGE_ADDRESS_MASK;
+            final TLBEntry entry = fetchTLB[index];
+            if (entry.hash == hash) {
+                if(entry.breakpoints == null) {
+                    entry.breakpoints = HashSetUtils.hashSetForSize(1);
+                }
+                entry.breakpoints.add(virtualAddress);
+            }
         }
 
         @Override
         public void removeBreakpoint(long virtualAddress) {
-            hwBreakpoints.remove(virtualAddress);
+            breakpoints.remove(virtualAddress);
+            final int index = (int) ((virtualAddress >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
+            final long hash = virtualAddress & ~R5.PAGE_ADDRESS_MASK;
+            final TLBEntry entry = fetchTLB[index];
+            if (entry.hash == hash) {
+                if(entry.breakpoints != null) {
+                    entry.breakpoints.remove(virtualAddress);
+                }
+            }
         }
     }
 }
