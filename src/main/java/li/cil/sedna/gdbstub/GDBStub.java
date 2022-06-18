@@ -1,6 +1,5 @@
 package li.cil.sedna.gdbstub;
 
-import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.riscv.R5CPUDebug;
 import li.cil.sedna.riscv.exception.R5MemoryAccessException;
 import org.apache.logging.log4j.LogManager;
@@ -146,11 +145,25 @@ public class GDBStub {
         }
     }
 
-    private void unknownCommand(ByteBuffer packet) throws IOException {
-        LOGGER.debug("Unknown command: {}\n", StandardCharsets.US_ASCII.decode(packet.position(0)));
-        // Send an empty packet
-        try (var ignored = new PacketOutputStream(gdbOut)) {
+    private String asciiBytesToEscaped(ByteBuffer bytes) {
+        StringBuilder sb = new StringBuilder(bytes.remaining());
+        while (bytes.hasRemaining()) {
+            byte b = bytes.get();
+            //Printable ASCII
+            if (b >= 0x20 && b <= 0x7e) {
+                sb.append((char) b);
+            } else {
+                sb.append("\\x");
+                HexFormat.of().toHexDigits(sb, b);
+            }
         }
+        return sb.toString();
+    }
+
+    private void unknownCommand(ByteBuffer packet) throws IOException {
+        LOGGER.debug("Unknown command: {}\n", asciiBytesToEscaped(packet.position(0)));
+        // Send an empty packet
+        new PacketOutputStream(gdbOut).close();
     }
 
     private void readGeneralRegisters() throws IOException {
@@ -244,21 +257,6 @@ public class GDBStub {
             cpu.removeBreakpoint(addr);
             w.write("OK");
         }
-    }
-
-    private String asciiBytesToEscaped(ByteBuffer bytes) {
-        StringBuilder sb = new StringBuilder(bytes.remaining());
-        while (bytes.hasRemaining()) {
-            byte b = bytes.get();
-            //Printable ASCII
-            if (b >= 0x20 && b <= 0x7e) {
-                sb.append((char) b);
-            } else {
-                sb.append("\\x");
-                HexFormat.of().toHexDigits(sb, b);
-            }
-        }
-        return sb.toString();
     }
 
     public void gdbloop(StopReason reason) {
