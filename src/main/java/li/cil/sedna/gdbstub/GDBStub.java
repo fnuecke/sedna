@@ -327,14 +327,14 @@ public class GDBStub {
                             case 'Z' -> {
                                 byte type = packetBuffer.get();
                                 switch (type) {
-                                    case '0' -> handleBreakpointAdd(packetBuffer);
+                                    case '0','1' -> handleBreakpointAdd(packetBuffer);
                                     default -> unknownCommand(packetBuffer);
                                 }
                             }
                             case 'z' -> {
                                 byte type = packetBuffer.get();
                                 switch (type) {
-                                    case '0' -> handleBreakpointRemove(packetBuffer);
+                                    case '0','1' -> handleBreakpointRemove(packetBuffer);
                                     default -> unknownCommand(packetBuffer);
                                 }
                             }
