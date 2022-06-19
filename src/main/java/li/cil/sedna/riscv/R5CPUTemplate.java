@@ -1,5 +1,9 @@
 package li.cil.sedna.riscv;
 
+import it.unimi.dsi.fastutil.longs.LongAVLTreeSet;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
+import it.unimi.dsi.fastutil.longs.LongSortedSet;
 import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.MemoryMappedDevice;
@@ -15,7 +19,6 @@ import li.cil.sedna.instruction.InstructionDefinition.ProgramCounter;
 import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
 import li.cil.sedna.riscv.exception.R5MemoryAccessException;
 import li.cil.sedna.utils.BitUtils;
-import li.cil.sedna.utils.HashSetUtils;
 import li.cil.sedna.utils.SoftDouble;
 import li.cil.sedna.utils.SoftFloat;
 import org.apache.logging.log4j.LogManager;
@@ -360,7 +363,7 @@ final class R5CPUTemplate implements R5CPU {
 
     @SuppressWarnings("LocalCanBeFinal") // `pc` and `instOffset` get updated by the generated code replacing decode().
     private void interpretTrace32(final MemoryMappedDevice device, int inst, long pc, int instOffset, final int instEnd,
-                                  Set<Long> breakpoints) {
+                                  LongSet breakpoints) {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
                 if(breakpoints != null && breakpoints.contains(pc)) {
@@ -397,7 +400,7 @@ final class R5CPUTemplate implements R5CPU {
 
     @SuppressWarnings("LocalCanBeFinal") // `pc` and `instOffset` get updated by the generated code replacing decode().
     private void interpretTrace64(final MemoryMappedDevice device, int inst, long pc, int instOffset, final int instEnd,
-                                  Set<Long> breakpoints) {
+                                  LongSet breakpoints) {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
                 if(breakpoints != null && breakpoints.contains(pc)) {
@@ -1204,10 +1207,10 @@ final class R5CPUTemplate implements R5CPU {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_FETCH);
         }
         final TLBEntry tlb = updateTLB(fetchTLB, address, physicalAddress, range);
-        var subset = debug.breakpoints.subSet(address, true, address + (1 << R5.PAGE_ADDRESS_SHIFT), false);
+        var subset = debug.breakpoints.subSet(address, address + (1 << R5.PAGE_ADDRESS_SHIFT));
         int subsetSize = subset.size();
         if(subsetSize != 0) {
-            tlb.breakpoints = HashSetUtils.hashSetForSize(subsetSize);
+            tlb.breakpoints = new LongOpenHashSet(subsetSize);
             tlb.breakpoints.addAll(subset);
         } else {
             tlb.breakpoints = null;
@@ -3292,7 +3295,7 @@ final class R5CPUTemplate implements R5CPU {
         public long toOffset;
         public MemoryMappedDevice device;
         //Subset of complete breakpoint set
-        public Set<Long> breakpoints;
+        public LongSet breakpoints;
     }
 
     private final class Debug implements R5CPUDebug {
@@ -3391,7 +3394,7 @@ final class R5CPUTemplate implements R5CPU {
             return getPhysicalAddress(virtualAddress, MemoryAccessType.LOAD, true);
         }
 
-        private final NavigableSet<Long> breakpoints = new TreeSet<>();
+        private final LongSortedSet breakpoints = new LongAVLTreeSet();
 
         private void handleBreakpoint(long pc) {
             if(stub != null) stub.breakpointHit(pc);
@@ -3405,7 +3408,7 @@ final class R5CPUTemplate implements R5CPU {
             final TLBEntry entry = fetchTLB[index];
             if (entry.hash == hash) {
                 if(entry.breakpoints == null) {
-                    entry.breakpoints = HashSetUtils.hashSetForSize(1);
+                    entry.breakpoints = new LongOpenHashSet();
                 }
                 entry.breakpoints.add(virtualAddress);
             }
