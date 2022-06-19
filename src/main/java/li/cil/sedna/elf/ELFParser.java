@@ -270,10 +270,10 @@ public final class ELFParser {
 
             if (Long.compareUnsigned(header.alignment, 1) > 0) {
                 if (Long.bitCount(header.alignment) != 1) {
-                    throw new IllegalArgumentException("invalid alignment of program: not a power of two");
+                    throw new IllegalArgumentException("invalid alignment of program: " + header.alignment + " is not a power of two");
                 }
                 if ((header.virtualAddress & (header.alignment - 1)) != (header.offset & (header.alignment - 1))) {
-                    throw new IllegalArgumentException("invalid alignment of program: p_vaddr and p_offset misaligned");
+                    throw new IllegalArgumentException("invalid alignment of program: p_vaddr (" + Long.toHexString(header.virtualAddress) + ") and p_offset (" + Long.toHexString(header.offset) + ") misaligned (" + header.alignment + ")");
                 }
             }
 
