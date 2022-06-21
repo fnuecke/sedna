@@ -289,7 +289,7 @@ final class R5CPUTemplate implements R5CPU {
                 raiseInterrupt(pending);
             }
 
-            interpret();
+            interpret(false, false);
         }
 
         if (waitingForInterrupt && mcycle < cycleLimit) {
@@ -311,7 +311,7 @@ final class R5CPUTemplate implements R5CPU {
         return SSTATUS_MASK | R5.getStatusStateDirtyMask(xlen);
     }
 
-    private void interpret() {
+    private void interpret(final boolean singleStep, final boolean ignoreBreakpoints) {
         // The idea here is to run many sequential instructions with very little overhead.
         // We only need to exit the inner loop when we either leave the page we started in,
         // jump around (jumps, conditionals) or some state that influences how memory access
@@ -349,9 +349,9 @@ final class R5CPUTemplate implements R5CPU {
             }
 
             if (xlen == R5.XLEN_32) {
-                interpretTrace32(device, inst, pc, instOffset, instEnd, cache.breakpoints);
+                interpretTrace32(device, inst, pc, instOffset, singleStep ? 0 : instEnd, ignoreBreakpoints ? null : cache.breakpoints);
             } else {
-                interpretTrace64(device, inst, pc, instOffset, instEnd, cache.breakpoints);
+                interpretTrace64(device, inst, pc, instOffset, singleStep ? 0 : instEnd, ignoreBreakpoints ? null : cache.breakpoints);
             }
         } catch (final R5MemoryAccessException e) {
             raiseException(e.getType(), e.getAddress());
@@ -3425,6 +3425,11 @@ final class R5CPUTemplate implements R5CPU {
                     entry.breakpoints.remove(virtualAddress);
                 }
             }
+        }
+
+        @Override
+        public void step() {
+           interpret(true, true);
         }
     }
 }

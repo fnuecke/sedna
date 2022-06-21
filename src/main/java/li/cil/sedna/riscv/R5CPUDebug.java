@@ -19,4 +19,6 @@ public interface R5CPUDebug {
     void addBreakpoint(long virtualAddress);
 
     void removeBreakpoint(long virtualAddress);
+
+    void step();
 }

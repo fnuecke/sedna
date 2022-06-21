@@ -259,6 +259,11 @@ public class GDBStub {
         }
     }
 
+    private void handleStep() {
+        cpu.step();
+        state = GDBState.STOP_REPLY;
+    }
+
     public void gdbloop(StopReason reason) {
         final ByteBuffer packetBuffer = ByteBuffer.allocate(8192);
         gdbloop:
@@ -341,6 +346,15 @@ public class GDBStub {
                             case 'c' -> {
                                 state = GDBState.STOP_REPLY;
                                 break gdbloop;
+                            }
+                            case 's' -> {
+                                // We don't support the optional 'addr' parameter of the 's' packet.
+                                // It appears that GDB doesn't (and never has) sent this parameter anyway.
+                                if(packetBuffer.hasRemaining()) {
+                                    unknownCommand(packetBuffer);
+                                    return;
+                                }
+                                handleStep();
                             }
                             case 'D' -> {
                                 try (var s = new PacketOutputStream(gdbOut);
