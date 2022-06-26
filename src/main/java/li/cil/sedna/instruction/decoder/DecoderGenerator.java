@@ -219,7 +219,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
         public static final int LOCAL_INST = 2;
         public static final int LOCAL_PC = 3;
         public static final int LOCAL_INST_OFFSET = 5;
-        public static final int LOCAL_FIRST_FIELD = 7;
+        public static final int LOCAL_FIRST_FIELD = 8;
 
         public static final int LOCAL_GEN_INST = 1;
         public static final int LOCAL_GEN_PC = 2;
