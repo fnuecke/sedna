@@ -234,7 +234,7 @@ public class GDBStub {
     }
 
     public void breakpointHit(final long address) {
-        gdbloop(StopReason.BREAKPOINT);
+        runLoop(StopReason.BREAKPOINT);
     }
 
     private void handleBreakpointAdd(ByteBuffer buffer) throws IOException {
@@ -264,9 +264,9 @@ public class GDBStub {
         state = GDBState.STOP_REPLY;
     }
 
-    public void gdbloop(StopReason reason) {
+    public void runLoop(StopReason reason) {
         final ByteBuffer packetBuffer = ByteBuffer.allocate(8192);
-        gdbloop:
+        loop:
         while (true) {
             switch (state) {
                 case DISCONNECTED -> {
@@ -313,10 +313,10 @@ public class GDBStub {
                             case 'q' -> {
                                 final byte[] Supported = "Supported:".getBytes(StandardCharsets.US_ASCII);
                                 final byte[] Attached = "Attached".getBytes(StandardCharsets.US_ASCII);
-                                if (ByteBufferUtils.prefixOf(packetBuffer, ByteBuffer.wrap(Supported))) {
+                                if (ByteBufferUtils.startsWith(packetBuffer, ByteBuffer.wrap(Supported))) {
                                     packetBuffer.position(packetBuffer.position() + Supported.length);
                                     handleSupported(packetBuffer);
-                                } else if (ByteBufferUtils.prefixOf(packetBuffer, ByteBuffer.wrap(Attached))) {
+                                } else if (ByteBufferUtils.startsWith(packetBuffer, ByteBuffer.wrap(Attached))) {
                                     try (var s = new PacketOutputStream(gdbOut);
                                          var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
                                         w.write("1");
@@ -345,7 +345,7 @@ public class GDBStub {
                             }
                             case 'c' -> {
                                 state = GDBState.STOP_REPLY;
-                                break gdbloop;
+                                break loop;
                             }
                             case 's' -> {
                                 // We don't support the optional 'addr' parameter of the 's' packet.
@@ -362,7 +362,7 @@ public class GDBStub {
                                     w.write("OK");
                                 }
                                 disconnect();
-                                break gdbloop;
+                                break loop;
                             }
                             default -> unknownCommand(packetBuffer);
                         }

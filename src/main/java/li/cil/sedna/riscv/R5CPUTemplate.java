@@ -3291,7 +3291,7 @@ final class R5CPUTemplate implements R5CPU {
         private GDBStub stub;
 
         @Override
-        public void setGdbstub(GDBStub stub) {
+        public void setGDBStub(GDBStub stub) {
             this.stub = stub;
         }
 

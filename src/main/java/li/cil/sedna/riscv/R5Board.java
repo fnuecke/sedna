@@ -47,7 +47,7 @@ public final class R5Board implements Board {
     private final List<MemoryMappedDevice> devices = new ArrayList<>();
     private final List<Steppable> steppableDevices = new ArrayList<>();
     private MemoryMappedDevice standardOutputDevice;
-    private GDBStub gdbstub;
+    private GDBStub gdbStub;
     private boolean waitForGdb = false;
 
     @Serialized private final R5CPU cpu;
@@ -196,16 +196,16 @@ public final class R5Board implements Board {
         standardOutputDevice = device;
     }
 
-    public void enableGdb(int port, boolean waitForGdb) {
-        GDBStub gdbstub;
+    public void enableGDB(int port, boolean waitForGdb) {
+        GDBStub gdbStub;
         try {
-            gdbstub = GDBStub.defaultGDBStub(cpu.debug(), port);
-            cpu.debug().setGdbstub(gdbstub);
+            gdbStub = GDBStub.defaultGDBStub(cpu.debug(), port);
+            cpu.debug().setGDBStub(gdbStub);
         } catch (IOException e) {
             e.printStackTrace();
-            gdbstub = null;
+            gdbStub = null;
         }
-        this.gdbstub = gdbstub;
+        this.gdbStub = gdbStub;
         this.waitForGdb = waitForGdb;
     }
 
@@ -215,9 +215,9 @@ public final class R5Board implements Board {
             return;
         }
 
-        if(gdbstub != null && (gdbstub.messagesAvailable() || waitForGdb)) {
+        if(gdbStub != null && (gdbStub.messagesAvailable() || waitForGdb)) {
             waitForGdb = false;
-            gdbstub.gdbloop(GDBStub.StopReason.MESSAGE);
+            gdbStub.runLoop(GDBStub.StopReason.MESSAGE);
         }
 
         try {
