@@ -1,7 +1,8 @@
 package li.cil.sedna.gdbstub;
 
-import li.cil.sedna.riscv.R5CPUDebug;
 import li.cil.sedna.riscv.exception.R5MemoryAccessException;
+import li.cil.sedna.utils.ByteBufferUtils;
+import li.cil.sedna.utils.HexUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -14,8 +15,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
 
-public class GDBStub {
-
+public final class GDBStub {
     private enum GDBState {
         DISCONNECTED,
         WAITING_FOR_COMMAND,
@@ -30,52 +30,34 @@ public class GDBStub {
     private static final Logger LOGGER = LogManager.getLogger();
 
     private GDBState state = GDBState.DISCONNECTED;
-    private InputStream gdbIn;
-    private OutputStream gdbOut;
+    private InputStream input;
+    private OutputStream output;
 
     private final ServerSocketChannel listeningSock;
     private SocketChannel sock;
 
-    private final R5CPUDebug cpu;
+    private final CPUDebugInterface cpu;
 
-    public GDBStub(ServerSocketChannel socket, R5CPUDebug cpu) {
+    public GDBStub(final ServerSocketChannel socket, final CPUDebugInterface cpu) {
         this.listeningSock = socket;
         this.cpu = cpu;
+        this.cpu.addBreakpointListener(this::handleBreakpointHit);
     }
 
-    public static GDBStub defaultGDBStub(R5CPUDebug cpu, int port) throws IOException {
-        ServerSocketChannel chan = ServerSocketChannel.open();
+    public static GDBStub createDefault(final CPUDebugInterface cpu, final int port) throws IOException {
+        final ServerSocketChannel chan = ServerSocketChannel.open();
         chan.configureBlocking(false);
         chan.bind(new InetSocketAddress(port));
         return new GDBStub(chan, cpu);
     }
 
-    private boolean attemptConnect() {
-        try {
-            SocketChannel sock = listeningSock.accept();
-            if (sock == null) return false;
-            this.sock = sock;
-        } catch (IOException e) {
-            return false;
-        }
-        try {
-            this.gdbIn = new BufferedInputStream(sock.socket().getInputStream());
-            this.gdbOut = new BufferedOutputStream(sock.socket().getOutputStream());
-            state = GDBState.WAITING_FOR_COMMAND;
-            return true;
-        } catch (IOException e) {
-            disconnect();
-            return false;
-        }
-    }
-
-    public boolean messagesAvailable() {
+    public boolean isMessageAvailable() {
         return switch (state) {
-            case DISCONNECTED -> attemptConnect();
+            case DISCONNECTED -> tryConnect();
             case WAITING_FOR_COMMAND, STOP_REPLY -> {
                 try {
-                    yield this.gdbIn.available() > 0;
-                } catch (IOException e) {
+                    yield this.input.available() > 0;
+                } catch (final IOException e) {
                     disconnect();
                     yield false;
                 }
@@ -83,188 +65,7 @@ public class GDBStub {
         };
     }
 
-    //While most packets are 7bit ascii, a few are binary, so we'll use a ByteBuffer
-    private boolean receivePacket(ByteBuffer buffer) {
-        while (true) {
-            try {
-                byte actualChecksum = 0;
-                while (true) {
-                    int c = gdbIn.read();
-
-                    if (c == '$') break;
-                    if (c == -1) return false;
-                }
-                while (true) {
-                    int c = gdbIn.read();
-                    if (c == '#') break;
-                    if (c == -1) return false;
-                    buffer.put((byte) c);
-                    actualChecksum += (byte) c;
-                }
-                byte expectedChecksum;
-                int c;
-                byte d;
-                if ((c = gdbIn.read()) == -1 || (d = (byte) HexFormat.fromHexDigit(c)) == -1) return false;
-                expectedChecksum = (byte) (d << 4);
-                if ((c = gdbIn.read()) == -1 || (d = (byte) HexFormat.fromHexDigit(c)) == -1) return false;
-                expectedChecksum |= d;
-
-                if (actualChecksum != expectedChecksum) {
-                    gdbOut.write('-');
-                    gdbOut.flush();
-                    continue;
-                }
-                gdbOut.write('+');
-                gdbOut.flush();
-                buffer.flip();
-                return true;
-            } catch (IOException e) {
-                return false;
-            }
-        }
-    }
-
-    private void disconnect() {
-        try {
-            LOGGER.info("GDB disconnected");
-            this.state = GDBState.DISCONNECTED;
-            this.sock.close();
-        } catch (IOException ignored) {
-        } finally {
-            this.gdbIn = null;
-            this.gdbOut = null;
-            this.sock = null;
-        }
-    }
-
-    private void handleSupported(ByteBuffer buffer) throws IOException {
-        try (var s = new PacketOutputStream(gdbOut);
-             var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
-            // Size in hex
-            w.write("PacketSize=2000");
-        }
-    }
-
-    private String asciiBytesToEscaped(ByteBuffer bytes) {
-        StringBuilder sb = new StringBuilder(bytes.remaining());
-        while (bytes.hasRemaining()) {
-            byte b = bytes.get();
-            //Printable ASCII
-            if (b >= 0x20 && b <= 0x7e) {
-                sb.append((char) b);
-            } else {
-                sb.append("\\x");
-                HexFormat.of().toHexDigits(sb, b);
-            }
-        }
-        return sb.toString();
-    }
-
-    private void unknownCommand(ByteBuffer packet) throws IOException {
-        LOGGER.debug("Unknown command: {}\n", asciiBytesToEscaped(packet.position(0)));
-        // Send an empty packet
-        new PacketOutputStream(gdbOut).close();
-    }
-
-    private void readGeneralRegisters() throws IOException {
-        try (var s = new PacketOutputStream(gdbOut);
-             var w = new BufferedWriter(new OutputStreamWriter(s, StandardCharsets.US_ASCII))) {
-            for (long l : cpu.getX()) {
-                HexUtils.fromLong(w, l);
-            }
-            HexUtils.fromLong(w, cpu.getPc());
-        }
-    }
-
-    private void writeGeneralRegisters(ByteBuffer buf) throws IOException {
-        String regs = StandardCharsets.US_ASCII.decode(buf).toString();
-        ByteBuffer regsRaw = ByteBuffer.wrap(HexFormat.of().parseHex(regs)).order(ByteOrder.LITTLE_ENDIAN);
-        long[] xr = cpu.getX();
-        for (int i = 0; i < xr.length; i++) {
-            xr[i] = regsRaw.getLong();
-        }
-        cpu.setPc(regsRaw.getLong());
-        try (var s = new PacketOutputStream(gdbOut);
-             var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
-            w.write("OK");
-        }
-    }
-
-    private void handleReadMemory(ByteBuffer buffer) throws IOException {
-        String command = StandardCharsets.US_ASCII.decode(buffer).toString();
-        int addrEnd = command.indexOf(',');
-        long addr = Long.parseUnsignedLong(command, 0, addrEnd, 16);
-        int length = Integer.parseInt(command, addrEnd + 1, command.length(), 16);
-        try (var s = new PacketOutputStream(gdbOut);
-             var w = new BufferedWriter(new OutputStreamWriter(s, StandardCharsets.US_ASCII))) {
-            try {
-                byte[] mem = cpu.loadDebug(addr, length);
-                HexFormat.of().formatHex(w, mem);
-            } catch (R5MemoryAccessException e) {
-                w.write("E14");
-            }
-        }
-    }
-
-    private void handleWriteMemory(ByteBuffer buffer) throws IOException {
-        String command = StandardCharsets.US_ASCII.decode(buffer).toString();
-        int addrEnd = command.indexOf(',');
-        int lengthEnd = command.indexOf(':', addrEnd + 1);
-        long addr = Long.parseUnsignedLong(command, 0, addrEnd, 16);
-        int length = Integer.parseInt(command, addrEnd + 1, lengthEnd, 16);
-        int actualLength = (command.length() - (lengthEnd + 1)) / 2;
-        try (var s = new PacketOutputStream(gdbOut);
-             var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
-            if (length != actualLength) {
-                w.write("E22");
-                return;
-            }
-            byte[] mem = HexFormat.of().parseHex(command, lengthEnd + 1, command.length());
-            try {
-                int wrote = cpu.storeDebug(addr, mem);
-                if (wrote < length) {
-                    w.write("E14");
-                } else {
-                    w.write("OK");
-                }
-            } catch (R5MemoryAccessException e) {
-                w.write("E14");
-            }
-        }
-    }
-
-    public void breakpointHit(final long address) {
-        runLoop(StopReason.BREAKPOINT);
-    }
-
-    private void handleBreakpointAdd(ByteBuffer buffer) throws IOException {
-        buffer.get();
-        var charbuf = StandardCharsets.US_ASCII.decode(buffer);
-        long addr = HexUtils.toLong(charbuf);
-        try (var s = new PacketOutputStream(gdbOut);
-             var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
-            cpu.addBreakpoint(addr);
-            w.write("OK");
-        }
-    }
-
-    private void handleBreakpointRemove(ByteBuffer buffer) throws IOException {
-        buffer.get();
-        var charbuf = StandardCharsets.US_ASCII.decode(buffer);
-        long addr = HexUtils.toLong(charbuf);
-        try (var s = new PacketOutputStream(gdbOut);
-             var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
-            cpu.removeBreakpoint(addr);
-            w.write("OK");
-        }
-    }
-
-    private void handleStep() {
-        cpu.step();
-        state = GDBState.STOP_REPLY;
-    }
-
-    public void runLoop(StopReason reason) {
+    public void runLoop(final StopReason reason) {
         final ByteBuffer packetBuffer = ByteBuffer.allocate(8192);
         loop:
         while (true) {
@@ -276,17 +77,17 @@ public class GDBStub {
                     // via the Selector API
                     try {
                         this.listeningSock.configureBlocking(true);
-                    } catch (IOException e) {
+                    } catch (final IOException e) {
                         throw new RuntimeException(e);
                     }
-                    this.attemptConnect();
+                    this.tryConnect();
                 }
                 case STOP_REPLY -> {
-                    try (var s = new PacketOutputStream(gdbOut);
-                         var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
+                    try (final var s = new GDBPacketOutputStream(output);
+                         final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
                         w.write("S05");
                         state = GDBState.WAITING_FOR_COMMAND;
-                    } catch (IOException e) {
+                    } catch (final IOException e) {
                         disconnect();
                     }
                 }
@@ -300,12 +101,12 @@ public class GDBStub {
                         if (packetBuffer.limit() == 0) continue;
                         LOGGER.debug("Packet: {}\n", asciiBytesToEscaped(packetBuffer.slice()));
 
-                        byte command = packetBuffer.get();
+                        final byte command = packetBuffer.get();
                         switch (command) {
                             case '?' -> {
                                 //TODO handle different reasons
-                                try (var s = new PacketOutputStream(gdbOut);
-                                     var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
+                                try (final var s = new GDBPacketOutputStream(output);
+                                     final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
                                     w.write("S05");
                                 }
                             }
@@ -317,8 +118,8 @@ public class GDBStub {
                                     packetBuffer.position(packetBuffer.position() + Supported.length);
                                     handleSupported(packetBuffer);
                                 } else if (ByteBufferUtils.startsWith(packetBuffer, ByteBuffer.wrap(Attached))) {
-                                    try (var s = new PacketOutputStream(gdbOut);
-                                         var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
+                                    try (final var s = new GDBPacketOutputStream(output);
+                                         final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
                                         w.write("1");
                                     }
                                 } else {
@@ -330,16 +131,16 @@ public class GDBStub {
                             case 'm' -> handleReadMemory(packetBuffer);
                             case 'M' -> handleWriteMemory(packetBuffer);
                             case 'Z' -> {
-                                byte type = packetBuffer.get();
+                                final byte type = packetBuffer.get();
                                 switch (type) {
-                                    case '0','1' -> handleBreakpointAdd(packetBuffer);
+                                    case '0', '1' -> handleBreakpointAdd(packetBuffer);
                                     default -> unknownCommand(packetBuffer);
                                 }
                             }
                             case 'z' -> {
-                                byte type = packetBuffer.get();
+                                final byte type = packetBuffer.get();
                                 switch (type) {
-                                    case '0','1' -> handleBreakpointRemove(packetBuffer);
+                                    case '0', '1' -> handleBreakpointRemove(packetBuffer);
                                     default -> unknownCommand(packetBuffer);
                                 }
                             }
@@ -350,15 +151,15 @@ public class GDBStub {
                             case 's' -> {
                                 // We don't support the optional 'addr' parameter of the 's' packet.
                                 // It appears that GDB doesn't (and never has) sent this parameter anyway.
-                                if(packetBuffer.hasRemaining()) {
+                                if (packetBuffer.hasRemaining()) {
                                     unknownCommand(packetBuffer);
                                     return;
                                 }
                                 handleStep();
                             }
                             case 'D' -> {
-                                try (var s = new PacketOutputStream(gdbOut);
-                                     var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
+                                try (final var s = new GDBPacketOutputStream(output);
+                                     final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
                                     w.write("OK");
                                 }
                                 disconnect();
@@ -366,11 +167,213 @@ public class GDBStub {
                             }
                             default -> unknownCommand(packetBuffer);
                         }
-                    } catch (IOException e) {
+                    } catch (final IOException e) {
                         disconnect();
                     }
                 }
             }
+        }
+    }
+
+    private boolean tryConnect() {
+        try {
+            final SocketChannel sock = listeningSock.accept();
+            if (sock == null) return false;
+            this.sock = sock;
+        } catch (final IOException e) {
+            return false;
+        }
+        try {
+            this.input = new BufferedInputStream(sock.socket().getInputStream());
+            this.output = new BufferedOutputStream(sock.socket().getOutputStream());
+            state = GDBState.WAITING_FOR_COMMAND;
+            return true;
+        } catch (final IOException e) {
+            disconnect();
+            return false;
+        }
+    }
+
+    private void disconnect() {
+        try {
+            LOGGER.info("GDB disconnected");
+            this.state = GDBState.DISCONNECTED;
+            this.sock.close();
+        } catch (final IOException ignored) {
+        } finally {
+            this.input = null;
+            this.output = null;
+            this.sock = null;
+        }
+    }
+
+    /**
+     * While most packets are 7bit ascii, a few are binary, so we'll use a ByteBuffer.
+     */
+    private boolean receivePacket(final ByteBuffer buffer) {
+        while (true) {
+            try {
+                byte actualChecksum = 0;
+                while (true) {
+                    final int c = input.read();
+
+                    if (c == '$') break;
+                    if (c == -1) return false;
+                }
+                while (true) {
+                    final int c = input.read();
+                    if (c == '#') break;
+                    if (c == -1) return false;
+                    buffer.put((byte) c);
+                    actualChecksum += (byte) c;
+                }
+                byte expectedChecksum;
+                int c;
+                byte d;
+                if ((c = input.read()) == -1 || (d = (byte) HexFormat.fromHexDigit(c)) == -1) return false;
+                expectedChecksum = (byte) (d << 4);
+                if ((c = input.read()) == -1 || (d = (byte) HexFormat.fromHexDigit(c)) == -1) return false;
+                expectedChecksum |= d;
+
+                if (actualChecksum != expectedChecksum) {
+                    output.write('-');
+                    output.flush();
+                    continue;
+                }
+                output.write('+');
+                output.flush();
+                buffer.flip();
+                return true;
+            } catch (final IOException e) {
+                return false;
+            }
+        }
+    }
+
+    private void handleBreakpointHit(final long address) {
+        runLoop(StopReason.BREAKPOINT);
+    }
+
+    private void handleSupported(final ByteBuffer packet) throws IOException {
+        try (final var s = new GDBPacketOutputStream(output);
+             final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
+            // Size in hex
+            w.write("PacketSize=2000");
+        }
+    }
+
+    private void handleReadMemory(final ByteBuffer buffer) throws IOException {
+        final String command = StandardCharsets.US_ASCII.decode(buffer).toString();
+        final int addressEnd = command.indexOf(',');
+        final long address = Long.parseUnsignedLong(command, 0, addressEnd, 16);
+        final int length = Integer.parseInt(command, addressEnd + 1, command.length(), 16);
+        try (final var s = new GDBPacketOutputStream(output);
+             final var w = new BufferedWriter(new OutputStreamWriter(s, StandardCharsets.US_ASCII))) {
+            try {
+                final byte[] mem = cpu.loadDebug(address, length);
+                HexFormat.of().formatHex(w, mem);
+            } catch (final R5MemoryAccessException e) {
+                w.write("E14");
+            }
+        }
+    }
+
+    private void handleWriteMemory(final ByteBuffer buffer) throws IOException {
+        final String command = StandardCharsets.US_ASCII.decode(buffer).toString();
+        final int addressEnd = command.indexOf(',');
+        final int lengthEnd = command.indexOf(':', addressEnd + 1);
+        final long address = Long.parseUnsignedLong(command, 0, addressEnd, 16);
+        final int length = Integer.parseInt(command, addressEnd + 1, lengthEnd, 16);
+        final int actualLength = (command.length() - (lengthEnd + 1)) / 2;
+        try (final var s = new GDBPacketOutputStream(output);
+             final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
+            if (length != actualLength) {
+                w.write("E22");
+                return;
+            }
+            final byte[] mem = HexFormat.of().parseHex(command, lengthEnd + 1, command.length());
+            try {
+                final int wrote = cpu.storeDebug(address, mem);
+                if (wrote < length) {
+                    w.write("E14");
+                } else {
+                    w.write("OK");
+                }
+            } catch (final R5MemoryAccessException e) {
+                w.write("E14");
+            }
+        }
+    }
+
+    private void handleBreakpointAdd(final ByteBuffer buffer) throws IOException {
+        buffer.get();
+        final var chars = StandardCharsets.US_ASCII.decode(buffer);
+        final long address = HexUtils.getLong(chars);
+        try (final var s = new GDBPacketOutputStream(output);
+             final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
+            cpu.addBreakpoint(address);
+            w.write("OK");
+        }
+    }
+
+    private void handleBreakpointRemove(final ByteBuffer buffer) throws IOException {
+        buffer.get();
+        final var chars = StandardCharsets.US_ASCII.decode(buffer);
+        final long address = HexUtils.getLong(chars);
+        try (final var s = new GDBPacketOutputStream(output);
+             final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
+            cpu.removeBreakpoint(address);
+            w.write("OK");
+        }
+    }
+
+    private void handleStep() {
+        cpu.step();
+        state = GDBState.STOP_REPLY;
+    }
+
+    private String asciiBytesToEscaped(final ByteBuffer bytes) {
+        final StringBuilder sb = new StringBuilder(bytes.remaining());
+        while (bytes.hasRemaining()) {
+            final byte b = bytes.get();
+            //Printable ASCII
+            if (b >= 0x20 && b <= 0x7e) {
+                sb.append((char) b);
+            } else {
+                sb.append("\\x");
+                HexFormat.of().toHexDigits(sb, b);
+            }
+        }
+        return sb.toString();
+    }
+
+    private void unknownCommand(final ByteBuffer packet) throws IOException {
+        LOGGER.debug("Unknown command: {}\n", asciiBytesToEscaped(packet.position(0)));
+        // Send an empty packet
+        new GDBPacketOutputStream(output).close();
+    }
+
+    private void readGeneralRegisters() throws IOException {
+        try (final var s = new GDBPacketOutputStream(output);
+             final var w = new BufferedWriter(new OutputStreamWriter(s, StandardCharsets.US_ASCII))) {
+            for (final long l : cpu.getGeneralRegisters()) {
+                HexUtils.putLong(w, l);
+            }
+            HexUtils.putLong(w, cpu.getProgramCounter());
+        }
+    }
+
+    private void writeGeneralRegisters(final ByteBuffer buf) throws IOException {
+        final String regs = StandardCharsets.US_ASCII.decode(buf).toString();
+        final ByteBuffer regsRaw = ByteBuffer.wrap(HexFormat.of().parseHex(regs)).order(ByteOrder.LITTLE_ENDIAN);
+        final long[] xr = cpu.getGeneralRegisters();
+        for (int i = 0; i < xr.length; i++) {
+            xr[i] = regsRaw.getLong();
+        }
+        cpu.setProgramCounter(regsRaw.getLong());
+        try (final var s = new GDBPacketOutputStream(output);
+             final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
+            w.write("OK");
         }
     }
 }

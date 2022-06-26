@@ -196,12 +196,11 @@ public final class R5Board implements Board {
         standardOutputDevice = device;
     }
 
-    public void enableGDB(int port, boolean waitForGdb) {
+    public void enableGDB(final int port, final boolean waitForGdb) {
         GDBStub gdbStub;
         try {
-            gdbStub = GDBStub.defaultGDBStub(cpu.debug(), port);
-            cpu.debug().setGDBStub(gdbStub);
-        } catch (IOException e) {
+            gdbStub = GDBStub.createDefault(cpu.getDebugInterface(), port);
+        } catch (final IOException e) {
             e.printStackTrace();
             gdbStub = null;
         }
@@ -215,7 +214,7 @@ public final class R5Board implements Board {
             return;
         }
 
-        if(gdbStub != null && (gdbStub.messagesAvailable() || waitForGdb)) {
+        if (gdbStub != null && (gdbStub.isMessageAvailable() || waitForGdb)) {
             waitForGdb = false;
             gdbStub.runLoop(GDBStub.StopReason.MESSAGE);
         }

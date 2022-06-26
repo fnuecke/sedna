@@ -5,6 +5,7 @@ import li.cil.sedna.api.device.Resettable;
 import li.cil.sedna.api.device.Steppable;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.memory.MemoryMap;
+import li.cil.sedna.gdbstub.CPUDebugInterface;
 
 import javax.annotation.Nullable;
 
@@ -19,7 +20,7 @@ public interface R5CPU extends Steppable, Resettable, RealTimeCounter, Interrupt
 
     long getISA();
 
-    void setXLEN(final int xlen);
+    void setXLEN(int value);
 
     void reset(boolean hard, long pc);
 
@@ -27,5 +28,5 @@ public interface R5CPU extends Steppable, Resettable, RealTimeCounter, Interrupt
 
     void setFrequency(int value);
 
-    R5CPUDebug debug();
+    CPUDebugInterface getDebugInterface();
 }
