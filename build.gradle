@@ -35,6 +35,10 @@ repositories {
     }
 }
 
+def tryProject(final projectName, final libraryName) {
+    findProject(projectName) ?: libraryName
+}
+
 dependencies {
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
     testCompileOnly 'com.google.code.findbugs:jsr305:3.0.2'
@@ -47,7 +51,7 @@ dependencies {
     implementation 'org.ow2.asm:asm-commons:9.1'
     implementation 'org.ow2.asm:asm:9.1'
 
-    implementation 'li.cil.ceres:ceres:0.0.4'
+    implementation tryProject(':modules:ceres', 'li.cil.ceres:ceres:0.0.4')
 
     testImplementation 'org.mockito:mockito-core:4.1.0'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
