@@ -214,9 +214,9 @@ public final class R5Board implements Board {
             return;
         }
 
-        if (gdbStub != null && (gdbStub.isMessageAvailable() || waitForGdb)) {
+        if (gdbStub != null) {
+            gdbStub.run(waitForGdb);
             waitForGdb = false;
-            gdbStub.runLoop(GDBStub.StopReason.MESSAGE);
         }
 
         try {

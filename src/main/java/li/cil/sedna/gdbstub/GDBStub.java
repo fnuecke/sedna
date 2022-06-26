@@ -22,7 +22,7 @@ public final class GDBStub {
         STOP_REPLY
     }
 
-    public enum StopReason {
+    private enum StopReason {
         MESSAGE,
         BREAKPOINT
     }
@@ -51,21 +51,13 @@ public final class GDBStub {
         return new GDBStub(chan, cpu);
     }
 
-    public boolean isMessageAvailable() {
-        return switch (state) {
-            case DISCONNECTED -> tryConnect();
-            case WAITING_FOR_COMMAND, STOP_REPLY -> {
-                try {
-                    yield this.input.available() > 0;
-                } catch (final IOException e) {
-                    disconnect();
-                    yield false;
-                }
-            }
-        };
+    public void run(final boolean waitForMessage) {
+        if (isMessageAvailable() || waitForMessage) {
+            runLoop(StopReason.MESSAGE);
+        }
     }
 
-    public void runLoop(final StopReason reason) {
+    private void runLoop(final StopReason reason) {
         final ByteBuffer packetBuffer = ByteBuffer.allocate(8192);
         loop:
         while (true) {
@@ -205,6 +197,20 @@ public final class GDBStub {
             this.output = null;
             this.sock = null;
         }
+    }
+
+    private boolean isMessageAvailable() {
+        return switch (state) {
+            case DISCONNECTED -> tryConnect();
+            case WAITING_FOR_COMMAND, STOP_REPLY -> {
+                try {
+                    yield this.input.available() > 0;
+                } catch (final IOException e) {
+                    disconnect();
+                    yield false;
+                }
+            }
+        };
     }
 
     /**
