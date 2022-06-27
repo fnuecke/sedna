@@ -1207,10 +1207,11 @@ final class R5CPUTemplate implements R5CPU {
         }
         final TLBEntry tlb = updateTLB(fetchTLB, address, physicalAddress, range);
         final var subset = debugInterface.breakpoints.subSet(address, address + (1 << R5.PAGE_ADDRESS_SHIFT));
-        if (subset.isEmpty()) {
+        final int subsetSize = subset.size();
+        if (subsetSize == 0) {
             tlb.breakpoints = null;
         } else {
-            tlb.breakpoints = new LongOpenHashSet(subset.size());
+            tlb.breakpoints = new LongOpenHashSet(subsetSize);
             tlb.breakpoints.addAll(subset);
         }
         return tlb;
