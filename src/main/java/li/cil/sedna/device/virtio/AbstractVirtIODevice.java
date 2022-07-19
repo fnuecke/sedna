@@ -889,12 +889,12 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
             return (int) memoryMap.load(descIndexToAddress(i) + VIRTQ_DESC_LEN, Sizes.SIZE_32_LOG2);
         }
 
-        int getDescFlags(final int i) throws MemoryAccessException {
-            return (int) memoryMap.load(descIndexToAddress(i) + VIRTQ_DESC_FLAGS, Sizes.SIZE_16_LOG2) & 0xFFFF;
+        short getDescFlags(final int i) throws MemoryAccessException {
+            return (short) memoryMap.load(descIndexToAddress(i) + VIRTQ_DESC_FLAGS, Sizes.SIZE_16_LOG2);
         }
 
-        int getDescNext(final int i) throws MemoryAccessException {
-            return (int) memoryMap.load(descIndexToAddress(i) + VIRTQ_DESC_NEXT, Sizes.SIZE_16_LOG2) & 0xFFFF;
+        short getDescNext(final int i) throws MemoryAccessException {
+            return (short) memoryMap.load(descIndexToAddress(i) + VIRTQ_DESC_NEXT, Sizes.SIZE_16_LOG2);
         }
 
         long descIndexToAddress(final int i) {
@@ -910,17 +910,17 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         // };
         // virtq_avail is the structure expected at the physical address the `driver` field points at.
 
-        int getAvailFlags() throws MemoryAccessException {
-            return (int) memoryMap.load(driver + VIRTQ_AVAIL_FLAGS, Sizes.SIZE_16_LOG2) & 0xFFFF;
+        short getAvailFlags() throws MemoryAccessException {
+            return (short) memoryMap.load(driver + VIRTQ_AVAIL_FLAGS, Sizes.SIZE_16_LOG2);
         }
 
-        int getAvailIdx() throws MemoryAccessException {
-            return (int) memoryMap.load(driver + VIRTQ_AVAIL_IDX, Sizes.SIZE_16_LOG2) & 0xFFFF;
+        short getAvailIdx() throws MemoryAccessException {
+            return (short) memoryMap.load(driver + VIRTQ_AVAIL_IDX, Sizes.SIZE_16_LOG2);
         }
 
-        int getAvailRing(final int i) throws MemoryAccessException {
+        short getAvailRing(final int i) throws MemoryAccessException {
             final long address = driver + VIRTQ_AVAIL_RING + (long) toWrappedRingIndex(i) * VIRTQ_AVAILABLE_RING_STRIDE;
-            return (int) memoryMap.load(address, Sizes.SIZE_16_LOG2) & 0xFFFF;
+            return (short) (memoryMap.load(address, Sizes.SIZE_16_LOG2) & 0xFFFFL);
         }
 
         short getAvailUsedEvent() throws MemoryAccessException {
@@ -969,26 +969,26 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         }
 
         final class DescriptorChainImpl implements DescriptorChain {
-            final int headDescIdx;
+            final short headDescIdx;
             final int readableByteCount;
             final int writableByteCount;
             int readByteCount;
             int writtenByteCount;
             boolean isUsed;
 
-            int descIdx;
+            short descIdx;
             long address;
             int length;
             int position;
             int chainLength = 1;
 
-            DescriptorChainImpl(final int headDescIdx) throws VirtIODeviceException, MemoryAccessException {
+            DescriptorChainImpl(final short headDescIdx) throws VirtIODeviceException, MemoryAccessException {
                 this.headDescIdx = headDescIdx;
 
                 // Compute readable and writable byte counts.
                 int readableByteCount = 0, writableByteCount = 0;
-                int descIdx = headDescIdx;
-                int descFlags = getDescFlags(descIdx);
+                short descIdx = headDescIdx;
+                short descFlags = getDescFlags(descIdx);
                 int descLength = getDescLength(descIdx);
                 int chainLength = 1;
 
@@ -1221,7 +1221,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                 assert src.position() == src.limit();
             }
 
-            void setDescriptor(final int descIdx) throws MemoryAccessException {
+            void setDescriptor(final short descIdx) throws MemoryAccessException {
                 this.descIdx = descIdx;
                 address = getDescAddress(descIdx);
                 length = getDescLength(descIdx);
