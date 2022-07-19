@@ -1,1 +1,15 @@
 rootProject.name = 'sedna'
+
+def substituteLocal(final directoryName, final libraryName) {
+    final def path = new File("../${directoryName}");
+    if (path.exists()) {
+        println("Found local [${directoryName}] project, substituting...")
+        includeBuild(path) {
+            dependencySubstitution {
+                substitute module(libraryName) using project(':')
+            }
+        }
+    }
+}
+
+substituteLocal('ceres', 'li.cil.ceres:ceres')
