@@ -29,6 +29,7 @@ repositories {
             username = project.findProperty("gpr.user") ?: System.getenv("GPR_USER")
             password = project.findProperty("gpr.key") ?: System.getenv("GPR_KEY")
         }
+        content { includeGroup "li.cil.ceres" }
     }
 }
 
