@@ -3,6 +3,7 @@ package li.cil.sedna.gdbstub;
 import li.cil.sedna.riscv.exception.R5MemoryAccessException;
 import li.cil.sedna.utils.ByteBufferUtils;
 import li.cil.sedna.utils.HexUtils;
+import li.cil.sedna.utils.Interval;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -22,11 +23,6 @@ public final class GDBStub {
         STOP_REPLY
     }
 
-    private enum StopReason {
-        MESSAGE,
-        BREAKPOINT
-    }
-
     private static final Logger LOGGER = LogManager.getLogger();
 
     private GDBState state = GDBState.DISCONNECTED;
@@ -42,6 +38,7 @@ public final class GDBStub {
         this.listeningSock = socket;
         this.cpu = cpu;
         this.cpu.addBreakpointListener(this::handleBreakpointHit);
+        this.cpu.addWatchpointListener(this::handleWatchpointHit);
     }
 
     public static GDBStub createDefault(final CPUDebugInterface cpu, final int port) throws IOException {
@@ -53,11 +50,42 @@ public final class GDBStub {
 
     public void run(final boolean waitForMessage) {
         if (isMessageAvailable() || waitForMessage) {
-            runLoop(StopReason.MESSAGE);
+            runLoop(new MessageStop());
         }
     }
 
-    private void runLoop(final StopReason reason) {
+    private static abstract class StopReason {
+        public abstract void sendStopReply(Writer w) throws IOException;
+    }
+
+    private static class MessageStop extends StopReason {
+        @Override
+        public void sendStopReply(Writer w) throws IOException {
+            w.write("S05");
+        }
+    }
+
+    private static class BreakpointStop extends StopReason {
+        @Override
+        public void sendStopReply(Writer w) throws IOException {
+            w.write("S05");
+        }
+    }
+
+    private static class WatchpointStop extends StopReason {
+        private final long address;
+        public WatchpointStop(long address) {
+            this.address = address;
+        }
+        @Override
+        public void sendStopReply(Writer w) throws IOException {
+            w.write("T05watch:");
+            HexUtils.putLongBE(w, address);
+            w.write(';');
+        }
+    }
+
+    private void runLoop(StopReason reason) {
         final ByteBuffer packetBuffer = ByteBuffer.allocate(8192);
         loop:
         while (true) {
@@ -77,7 +105,7 @@ public final class GDBStub {
                 case STOP_REPLY -> {
                     try (final var s = new GDBPacketOutputStream(output);
                          final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
-                        w.write("S05");
+                        reason.sendStopReply(w);
                         state = GDBState.WAITING_FOR_COMMAND;
                     } catch (final IOException e) {
                         disconnect();
@@ -96,7 +124,6 @@ public final class GDBStub {
                         final byte command = packetBuffer.get();
                         switch (command) {
                             case '?' -> {
-                                //TODO handle different reasons
                                 try (final var s = new GDBPacketOutputStream(output);
                                      final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
                                     w.write("S05");
@@ -126,6 +153,7 @@ public final class GDBStub {
                                 final byte type = packetBuffer.get();
                                 switch (type) {
                                     case '0', '1' -> handleBreakpointAdd(packetBuffer);
+                                    case '2', '3', '4' -> handleWatchpointAdd(type, packetBuffer);
                                     default -> unknownCommand(packetBuffer);
                                 }
                             }
@@ -133,6 +161,7 @@ public final class GDBStub {
                                 final byte type = packetBuffer.get();
                                 switch (type) {
                                     case '0', '1' -> handleBreakpointRemove(packetBuffer);
+                                    case '2', '3', '4' -> handleWatchpointRemove(type, packetBuffer);
                                     default -> unknownCommand(packetBuffer);
                                 }
                             }
@@ -147,7 +176,7 @@ public final class GDBStub {
                                     unknownCommand(packetBuffer);
                                     return;
                                 }
-                                handleStep();
+                                reason = handleStep();
                             }
                             case 'D' -> {
                                 try (final var s = new GDBPacketOutputStream(output);
@@ -157,6 +186,7 @@ public final class GDBStub {
                                 disconnect();
                                 break loop;
                             }
+                            //TODO qXfer:features:read
                             default -> unknownCommand(packetBuffer);
                         }
                     } catch (final IOException e) {
@@ -257,7 +287,11 @@ public final class GDBStub {
     }
 
     private void handleBreakpointHit(final long address) {
-        runLoop(StopReason.BREAKPOINT);
+        runLoop(new BreakpointStop());
+    }
+
+    private void handleWatchpointHit(final long address) {
+        runLoop(new WatchpointStop(address));
     }
 
     private void handleSupported(final ByteBuffer packet) throws IOException {
@@ -333,9 +367,50 @@ public final class GDBStub {
         }
     }
 
-    private void handleStep() {
+    private void handleWatchpointAdd(final byte type, final ByteBuffer buffer) throws IOException {
+        buffer.get();
+        final String command = StandardCharsets.US_ASCII.decode(buffer).toString();
+        final int addressCharsEnd = command.indexOf(',');
+        final long address = Long.parseUnsignedLong(command, 0, addressCharsEnd, 16);
+        final int length = Integer.parseInt(command, addressCharsEnd + 1, command.length(), 16);
+        final Interval interval = new Interval(address, length);
+        try (final var s = new GDBPacketOutputStream(output);
+             final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
+            Watchpoint watchpoint =  switch (type) {
+                case '2' -> new Watchpoint(interval, false, true);
+                case '3' -> new Watchpoint(interval, true, false);
+                case '4' -> new Watchpoint(interval, true, true);
+                default -> throw new IllegalStateException("Unexpected value: " + type);
+            };
+            cpu.addWatchpoint(watchpoint);
+            w.write("OK");
+        }
+    }
+
+    private void handleWatchpointRemove(final byte type, final ByteBuffer buffer) throws IOException {
+        buffer.get();
+        final String command = StandardCharsets.US_ASCII.decode(buffer).toString();
+        final int addressCharsEnd = command.indexOf(',');
+        final long address = Long.parseUnsignedLong(command, 0, addressCharsEnd, 16);
+        final int length = Integer.parseInt(command, addressCharsEnd + 1, command.length(), 16);
+        final Interval interval = new Interval(address, length);
+        try (final var s = new GDBPacketOutputStream(output);
+             final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
+            Watchpoint watchpoint =  switch (type) {
+                case '2' -> new Watchpoint(interval, false, true);
+                case '3' -> new Watchpoint(interval, true, false);
+                case '4' -> new Watchpoint(interval, true, true);
+                default -> throw new IllegalStateException("Unexpected value: " + type);
+            };
+            cpu.removeWatchpoint(watchpoint);
+            w.write("OK");
+        }
+    }
+
+    private MessageStop handleStep() {
         cpu.step();
         state = GDBState.STOP_REPLY;
+        return new MessageStop();
     }
 
     private String asciiBytesToEscaped(final ByteBuffer bytes) {

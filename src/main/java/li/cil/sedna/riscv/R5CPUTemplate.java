@@ -12,6 +12,7 @@ import li.cil.sedna.api.memory.MappedMemoryRange;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.gdbstub.CPUDebugInterface;
+import li.cil.sedna.gdbstub.Watchpoint;
 import li.cil.sedna.instruction.InstructionDefinition.Field;
 import li.cil.sedna.instruction.InstructionDefinition.Instruction;
 import li.cil.sedna.instruction.InstructionDefinition.InstructionSize;
@@ -21,12 +22,16 @@ import li.cil.sedna.riscv.exception.R5MemoryAccessException;
 import li.cil.sedna.utils.BitUtils;
 import li.cil.sedna.utils.SoftDouble;
 import li.cil.sedna.utils.SoftFloat;
+import li.cil.sedna.utils.Interval;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
 
@@ -1173,7 +1178,11 @@ final class R5CPUTemplate implements R5CPU {
         final TLBEntry entry = loadTLB[index];
         if (entry.hash == hash) {
             try {
-                return entry.device.load((int) (address + entry.toOffset), sizeLog2);
+                final long result = entry.device.load((int) (address + entry.toOffset), sizeLog2);
+                if(entry.hasWatchpoint(new Interval(address, 1L << sizeLog2))) {
+                    debugInterface.handleWatchpoint(address);
+                }
+                return result;
             } catch (final MemoryAccessException e) {
                 throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_LOAD);
             }
@@ -1191,6 +1200,9 @@ final class R5CPUTemplate implements R5CPU {
         if (entry.hash == hash) {
             try {
                 entry.device.store((int) (address + entry.toOffset), value, sizeLog2);
+                if(entry.hasWatchpoint(new Interval(address, 1L << sizeLog2))) {
+                    debugInterface.handleWatchpoint(address);
+                }
             } catch (final MemoryAccessException e) {
                 throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_STORE);
             }
@@ -1227,7 +1239,18 @@ final class R5CPUTemplate implements R5CPU {
         try {
             if (range.device.supportsFetch()) {
                 final TLBEntry entry = updateTLB(loadTLB, address, physicalAddress, range);
-                return entry.device.load((int) (address + entry.toOffset), sizeLog2);
+                Interval pageInterval = new Interval(address & ~R5.PAGE_ADDRESS_MASK, 1 << R5.PAGE_ADDRESS_SHIFT);
+                entry.watchpoints = new ArrayList<>();
+                for(Watchpoint w : debugInterface.readWatchpoints) {
+                    if(w.range().intersects(pageInterval)) {
+                        entry.watchpoints.add(w);
+                    }
+                }
+                final long result =  entry.device.load((int) (address + entry.toOffset), sizeLog2);
+                if(entry.hasWatchpoint(new Interval(address, 1L << sizeLog2))) {
+                    debugInterface.handleWatchpoint(address);
+                }
+                return result;
             } else {
                 return range.device.load((int) (physicalAddress - range.address()), sizeLog2);
             }
@@ -1246,9 +1269,19 @@ final class R5CPUTemplate implements R5CPU {
         try {
             if (range.device.supportsFetch()) {
                 final TLBEntry entry = updateTLB(storeTLB, address, physicalAddress, range);
+                Interval pageInterval = new Interval(address & ~R5.PAGE_ADDRESS_MASK, 1 << R5.PAGE_ADDRESS_SHIFT);
+                entry.watchpoints = new ArrayList<>();
+                for(Watchpoint w : debugInterface.readWatchpoints) {
+                    if(w.range().intersects(pageInterval)) {
+                        entry.watchpoints.add(w);
+                    }
+                }
                 final int offset = (int) (address + entry.toOffset);
                 entry.device.store(offset, value, sizeLog2);
                 physicalMemory.setDirty(range, offset);
+                if(entry.hasWatchpoint(new Interval(address, 1L << sizeLog2))) {
+                    debugInterface.handleWatchpoint(address);
+                }
             } else {
                 range.device.store((int) (physicalAddress - range.start), value, sizeLog2);
             }
@@ -3281,11 +3314,34 @@ final class R5CPUTemplate implements R5CPU {
         public MemoryMappedDevice device;
         //Subset of complete breakpoint set
         public LongSet breakpoints;
+        @Nonnull
+        public List<Watchpoint> watchpoints = new ArrayList<>();
+
+        private void addWatchpoint(Watchpoint watchpoint) {
+            watchpoints.add(watchpoint);
+        }
+
+        private void removeWatchpoint(Watchpoint watchpoint) {
+            watchpoints.remove(watchpoint);
+        }
+
+        private boolean hasWatchpoint(Interval interval) {
+            for(Watchpoint w : watchpoints) {
+                if(w.range().intersects(interval)) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     private final class DebugInterface implements CPUDebugInterface {
         private final Collection<LongConsumer> breakpointListeners = new ArrayList<>();
+        private final Collection<LongConsumer> watchpointListeners = new ArrayList<>();
         private final LongSortedSet breakpoints = new LongAVLTreeSet();
+
+        private final List<Watchpoint> readWatchpoints = new ArrayList<>();
+        private final List<Watchpoint> writeWatchpoints = new ArrayList<>();
 
         @Override
         public long getProgramCounter() {
@@ -3361,6 +3417,18 @@ final class R5CPUTemplate implements R5CPU {
         }
 
         @Override
+        public void addWatchpointListener(final LongConsumer listener) {
+            if (!watchpointListeners.contains(listener)) {
+                watchpointListeners.add(listener);
+            }
+        }
+
+        @Override
+        public void removeWatchpointListener(final LongConsumer listener) {
+            watchpointListeners.remove(listener);
+        }
+
+        @Override
         public void addBreakpoint(final long address) {
             breakpoints.add(address);
 
@@ -3381,6 +3449,59 @@ final class R5CPUTemplate implements R5CPU {
             if (entry != null && entry.breakpoints != null) {
                 entry.breakpoints.remove(address);
             }
+        }
+
+        @Override
+        public void addWatchpoint(final Watchpoint watchpoint) {
+            final Interval interval = watchpoint.range();
+
+            if (watchpoint.read()) {
+                readWatchpoints.add(watchpoint);
+                tlbEntriesInInterval(interval, MemoryAccessType.LOAD).forEachRemaining((entry) -> entry.addWatchpoint(watchpoint));
+            }
+
+            if (watchpoint.write()) {
+                writeWatchpoints.add(watchpoint);
+                tlbEntriesInInterval(interval, MemoryAccessType.STORE).forEachRemaining((entry) -> entry.addWatchpoint(watchpoint));
+            }
+        }
+
+        @Override
+        public void removeWatchpoint(Watchpoint watchpoint) {
+            final Interval interval = watchpoint.range();
+            if (watchpoint.read()) {
+                readWatchpoints.remove(watchpoint);
+                tlbEntriesInInterval(interval, MemoryAccessType.LOAD).forEachRemaining((entry) -> entry.removeWatchpoint(watchpoint));
+            }
+
+            if (watchpoint.read()) {
+                writeWatchpoints.remove(watchpoint);
+                tlbEntriesInInterval(interval, MemoryAccessType.STORE).forEachRemaining((entry) -> entry.removeWatchpoint(watchpoint));
+            }
+        }
+
+        private Iterator<TLBEntry> tlbEntriesInInterval(Interval interval, MemoryAccessType accessType) {
+            return new Iterator<>() {
+                private long pageAddr = interval.start() & ~R5.PAGE_ADDRESS_MASK;
+                private TLBEntry next;
+
+                @Override
+                public boolean hasNext() {
+                    while (pageAddr <= interval.end()) {
+                        next = tryGetTLBEntry(pageAddr, accessType);
+                        pageAddr += (1 << R5.PAGE_ADDRESS_SHIFT);
+                        if (next != null) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+
+                @Override
+                public TLBEntry next() {
+                    return next;
+                }
+            };
         }
 
         /**
@@ -3424,6 +3545,12 @@ final class R5CPUTemplate implements R5CPU {
         private void handleBreakpoint(final long pc) {
             for (final LongConsumer listener : breakpointListeners) {
                 listener.accept(pc);
+            }
+        }
+
+        private void handleWatchpoint(final long address) {
+            for (final LongConsumer listener : watchpointListeners) {
+                listener.accept(address);
             }
         }
     }

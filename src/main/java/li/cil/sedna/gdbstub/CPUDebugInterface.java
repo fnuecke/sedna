@@ -24,4 +24,12 @@ public interface CPUDebugInterface {
     void addBreakpoint(long address);
 
     void removeBreakpoint(long address);
+
+    void addWatchpointListener(final LongConsumer listener);
+
+    void removeWatchpointListener(final LongConsumer listener);
+
+    void addWatchpoint(Watchpoint watchpoint);
+
+    void removeWatchpoint(Watchpoint watchpoint);
 }
