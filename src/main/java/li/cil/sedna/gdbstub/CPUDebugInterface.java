@@ -5,14 +5,20 @@ import li.cil.sedna.riscv.exception.R5MemoryAccessException;
 import java.util.function.LongConsumer;
 
 public interface CPUDebugInterface {
+    long[] getGeneralRegisters();
     long getProgramCounter();
-
     void setProgramCounter(long value);
+    long[] getFloatingRegisters();
+    byte getFflags();
+    void setFflags(byte value);
+    byte getFrm();
+    void setFrm(byte value);
+    int getFcsr();
+    void setFcsr(int value);
+    byte getPriv();
+    void setPriv(byte value);
 
     void step();
-
-    long[] getGeneralRegisters();
-
     byte[] loadDebug(final long address, final int size) throws R5MemoryAccessException;
 
     int storeDebug(final long address, final byte[] data) throws R5MemoryAccessException;

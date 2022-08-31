@@ -3364,6 +3364,58 @@ final class R5CPUTemplate implements R5CPU {
         }
 
         @Override
+        public long[] getFloatingRegisters() {
+            return f;
+        }
+
+        @Override
+        public byte getFflags() {
+            //TODO fs=off?
+            return fflags.value;
+        }
+
+        @Override
+        public void setFflags(byte value) {
+            //TODO set dirty?
+            fflags.value = (byte) (value & 0b11111);
+        }
+
+        @Override
+        public byte getFrm() {
+            return frm;
+        }
+
+        @Override
+        public void setFrm(byte value) {
+            //TODO set dirty?
+            frm = (byte) (value & 0b111);
+        }
+
+        @Override
+        public int getFcsr() {
+            return (frm << 5) | fflags.value;
+        }
+
+        @Override
+        public void setFcsr(int value) {
+            frm = (byte) ((value >>> 5) & 0b111);
+            fflags.value = (byte) (value & 0b11111);
+            //TODO set dirty?
+            //fs = R5.FS_DIRTY;
+        }
+
+        @Override
+        public byte getPriv() {
+            return (byte) priv;
+        }
+
+        @Override
+        public void setPriv(byte value) {
+            //TODO prevent Machine?
+            priv = value & 0b11;
+        }
+
+        @Override
         public byte[] loadDebug(final long address, final int size) throws R5MemoryAccessException {
             final byte[] mem = new byte[size];
             if (size == 0) return mem;
