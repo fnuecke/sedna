@@ -11,21 +11,21 @@ public final class HexUtils {
     public static void put64(final Appendable out, final long l) {
         byteBuf.order(ByteOrder.LITTLE_ENDIAN);
         byteBuf.putLong(l);
-        HexFormat.of().formatHex(out, byteBuf.array());
+        HexFormat.of().formatHex(out, byteBuf.array(), 0, 8);
         byteBuf.clear();
     }
 
     public static void put32(final Appendable out, final int i) {
         byteBuf.order(ByteOrder.LITTLE_ENDIAN);
         byteBuf.putInt(i);
-        HexFormat.of().formatHex(out, byteBuf.array());
+        HexFormat.of().formatHex(out, byteBuf.array(), 0, 4);
         byteBuf.clear();
     }
 
     public static void put64BE(final Appendable out, final long l) {
         byteBuf.order(ByteOrder.BIG_ENDIAN);
         byteBuf.putLong(l);
-        HexFormat.of().formatHex(out, byteBuf.array());
+        HexFormat.of().formatHex(out, byteBuf.array(), 0, 8);
         byteBuf.clear();
     }
 
