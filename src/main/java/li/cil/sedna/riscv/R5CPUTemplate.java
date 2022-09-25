@@ -1275,7 +1275,7 @@ final class R5CPUTemplate implements R5CPU {
                 final TLBEntry entry = updateTLB(storeTLB, address, physicalAddress, range);
                 Interval pageInterval = new Interval(address & ~R5.PAGE_ADDRESS_MASK, 1 << R5.PAGE_ADDRESS_SHIFT);
                 entry.watchpoints = new ArrayList<>();
-                for(Watchpoint w : debugInterface.readWatchpoints) {
+                for(Watchpoint w : debugInterface.writeWatchpoints) {
                     if(w.range().intersects(pageInterval)) {
                         entry.watchpoints.add(w);
                     }
