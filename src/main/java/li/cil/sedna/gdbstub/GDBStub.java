@@ -1,5 +1,6 @@
 package li.cil.sedna.gdbstub;
 
+import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
 import li.cil.sedna.riscv.exception.R5MemoryAccessException;
 import li.cil.sedna.utils.ByteBufferUtils;
 import li.cil.sedna.utils.HexUtils;
@@ -521,6 +522,7 @@ public final class GDBStub {
         }
     }
 
+    // Must be kept in sync with target.xml
     private static final int regNumFirstX = 0;
     private static final int regNumLastX = 31;
     private static final int regNumPc = 32;
@@ -530,11 +532,9 @@ public final class GDBStub {
     private static final int regNumFrm = 66;
     private static final int regNumFcsr = 67;
     private static final int regNumPriv = 68;
+    private static final int regNumFirstCSR = 0x1000;
+    private static final int regNumLastCSR = 0x1fff;
 
-    //TODO make CSR sparse, use numbers from spec + offset? 4096 space
-    //or does it even matter. Would be easy to just list them and not care
-    //We could just call readCSR then. And catch any exception
-    //though it would be nice to bypass priv checks... hmmm...
     private void handleReadRegister(final ByteBuffer buffer) throws IOException {
         final String regNumStr = StandardCharsets.US_ASCII.decode(buffer).toString();
         final int regNum = Integer.parseInt(regNumStr, 16);
@@ -547,7 +547,16 @@ public final class GDBStub {
             else if(regNum == regNumFrm) HexUtils.put32(w, cpu.getFrm());
             else if(regNum == regNumFcsr) HexUtils.put32(w, cpu.getFcsr());
             else if(regNum == regNumPriv) HexUtils.put64(w, cpu.getPriv());
-            else w.write("E01");
+            else if(regNum >= regNumFirstCSR && regNum <= regNumLastCSR) {
+                try {
+                    short csr = (short) (regNum - 0x1000);
+                    HexUtils.put64(w, cpu.getCSR(csr));
+                } catch (R5IllegalInstructionException e) {
+                    w.write("E01");
+                }
+            } else {
+                w.write("E01");
+            }
         }
     }
 
@@ -567,7 +576,15 @@ public final class GDBStub {
             else if(regNum == regNumFrm) cpu.setFrm((byte) regValRaw.getInt());
             else if(regNum == regNumFcsr) cpu.setFcsr(regValRaw.getInt());
             else if(regNum == regNumPriv) cpu.setPriv((byte) regValRaw.getInt());
-            else {
+            else if(regNum >= regNumFirstCSR && regNum <= regNumLastCSR) {
+                try {
+                    short csr = (short) (regNum - 0x1000);
+                    cpu.setCSR(csr, regValRaw.getLong());
+                } catch (R5IllegalInstructionException e) {
+                    w.write("E01");
+                    return;
+                }
+            } else {
                 w.write("E01");
                 return;
             }

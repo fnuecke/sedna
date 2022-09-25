@@ -82,9 +82,58 @@
     <feature name="org.gnu.gdb.riscv.virtual">
         <reg name="priv" bitsize="64"/>
     </feature>
-    <!--<feature name="org.gnu.gdb.riscv.csr">
-        <reg name="cycle" bitsize="64"/>
-        <reg name="time" bitsize="64"/>
-        <reg name="instret" bitsize="64"/>
-    </feature>-->
+    <!-- Register number is 0x1000 + CSR number -->
+    <!-- GDB remote protocol does not support changing target description at runtime, for example when switching between
+     32 bit and 64 bit mode. So we'll always use 64 bit width registers. -->
+    <!-- We include 32 bit only registers, but attempts to access them in 64 bit mode will result in an error message -->
+    <feature name="org.gnu.gdb.riscv.csr">
+        <!-- Supervisor Trap Setup -->
+        <reg name="sstatus" bitsize="64" regnum="0x1100"/>
+        <reg name="sie" bitsize="64" regnum="0x1104"/>
+        <reg name="stvec" bitsize="64" regnum="0x1105"/>
+        <reg name="scounteren" bitsize="64" regnum="0x1106"/>
+        <!-- Supervisor Trap Handling -->
+        <reg name="sscratch" bitsize="64" regnum="0x1140"/>
+        <reg name="sepc" bitsize="64" regnum="0x1141"/>
+        <reg name="scause" bitsize="64" regnum="0x1142"/>
+        <reg name="stval" bitsize="64" regnum="0x1143"/>
+        <reg name="sip" bitsize="64" regnum="0x1144"/>
+        <!-- Supervisor Protection and Translation -->
+        <reg name="satp" bitsize="64" regnum="0x1180"/>
+        <!-- Machine Trap Setup -->
+        <reg name="mstatus" bitsize="64" regnum="0x1300"/>
+        <reg name="misa" bitsize="64" regnum="0x1301"/>
+        <reg name="medeleg" bitsize="64" regnum="0x1302"/>
+        <reg name="mideleg" bitsize="64" regnum="0x1303"/>
+        <reg name="mie" bitsize="64" regnum="0x1304"/>
+        <reg name="mtvec" bitsize="64" regnum="0x1305"/>
+        <reg name="mcounteren" bitsize="64" regnum="0x1306"/>
+        <!-- Should be 32 bit, but it's tricky to keep track of which registers are which size
+        plus we don't support properly support 32 bit mode anyway due to protocol limitations explained above -->
+        <!-- Somehow due to GDBs bizarre "unknown CSR" logic, this is considered a general register, not a CSR
+         I can't stop it from being labeled a general register, but at least I can label it a CSR-->
+        <reg name="mstatush" bitsize="64" regnum="0x1310"  group="csr"/>
+        <!-- Machine Trap Handling -->
+        <!-- See "unknown CSR" comment above -->
+        <reg name="mcounteren" bitsize="64" regnum="0x1340" group="csr"/>
+        <reg name="mepc" bitsize="64" regnum="0x1341"/>
+        <reg name="mcause" bitsize="64" regnum="0x1342"/>
+        <reg name="mtval" bitsize="64" regnum="0x1343"/>
+        <reg name="mip" bitsize="64" regnum="0x1344"/>
+        <!-- Machine Counter/Timers -->
+        <reg name="mcycle" bitsize="64" regnum="0x1b00"/>
+        <reg name="minstret" bitsize="64" regnum="0x1b02"/>
+        <reg name="mcycleh" bitsize="64" regnum="0x1b80"/>
+        <reg name="minstreth" bitsize="64" regnum="0x1b82"/>
+        <!-- Sedna proprietary -->
+        <!-- There is no proper way to tell GDB this is write-only, so it'll just print an error message -->
+        <!-- See "unknown CSR" comment above -->
+        <reg name="switch32" bitsize="64" regnum="0x1bc0" group="csr"/>
+        <!-- Counters and Timers -->
+        <reg name="cycle" bitsize="64" regnum="0x1c00"/>
+        <reg name="time" bitsize="64" regnum="0x1c01"/>
+        <reg name="instret" bitsize="64" regnum="0x1c02"/>
+        <reg name="cycleh" bitsize="64" regnum="0x1c80"/>
+        <reg name="instreth" bitsize="64" regnum="0x1c82"/>
+    </feature>
 </target>

@@ -481,15 +481,19 @@ final class R5CPUTemplate implements R5CPU {
 
         return false;
     }
-
-    private void checkCSR(final int csr, final boolean throwIfReadonly) throws R5IllegalInstructionException {
-        if (throwIfReadonly && ((csr >= 0xC00 && csr <= 0xC1F) || (csr >= 0xC80 && csr <= 0xC9F)))
-            throw new R5IllegalInstructionException();
-
+    private boolean isReadonlyCSR(final int csr) {
         // Topmost bits, i.e. csr[11:8], encode access rights for CSR by convention. Of these, the top-most two bits,
         // csr[11:10], encode read-only state, where 0b11: read-only, 0b00..0b10: read-write.
-        if (throwIfReadonly && ((csr & 0b1100_0000_0000) == 0b1100_0000_0000))
+        boolean readonly = ((csr & 0b1100_0000_0000) == 0b1100_0000_0000);
+        // There are also these special cases
+        readonly |= (csr >= 0xC00 && csr <= 0xC1F) || (csr >= 0xC80 && csr <= 0xC9F);
+        return readonly;
+    }
+
+    private void checkCSR(final int csr, final boolean throwIfReadonly) throws R5IllegalInstructionException {
+        if (throwIfReadonly && isReadonlyCSR(csr))
             throw new R5IllegalInstructionException();
+
         // The two following bits, csr[9:8], encode the lowest privilege level that can access the CSR.
         if (priv < ((csr >>> 8) & 0b11))
             throw new R5IllegalInstructionException();
@@ -3411,8 +3415,17 @@ final class R5CPUTemplate implements R5CPU {
 
         @Override
         public void setPriv(byte value) {
-            //TODO prevent Machine?
-            priv = value & 0b11;
+            setPrivilege(value);
+        }
+
+        @Override
+        public long getCSR(short csr) throws R5IllegalInstructionException {
+            return readCSR(csr);
+        }
+
+        @Override
+        public void setCSR(short csr, long value) throws R5IllegalInstructionException {
+            writeCSR(csr, value);
         }
 
         @Override

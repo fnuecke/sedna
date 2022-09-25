@@ -1,5 +1,6 @@
 package li.cil.sedna.gdbstub;
 
+import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
 import li.cil.sedna.riscv.exception.R5MemoryAccessException;
 
 import java.util.function.LongConsumer;
@@ -17,6 +18,8 @@ public interface CPUDebugInterface {
     void setFcsr(int value);
     byte getPriv();
     void setPriv(byte value);
+    long getCSR(short csr) throws R5IllegalInstructionException;
+    void setCSR(short csr, long value) throws R5IllegalInstructionException;
 
     void step();
     byte[] loadDebug(final long address, final int size) throws R5MemoryAccessException;
