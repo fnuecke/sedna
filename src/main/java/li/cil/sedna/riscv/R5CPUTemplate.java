@@ -3539,7 +3539,7 @@ final class R5CPUTemplate implements R5CPU {
                 tlbEntriesInInterval(interval, MemoryAccessType.LOAD).forEachRemaining((entry) -> entry.removeWatchpoint(watchpoint));
             }
 
-            if (watchpoint.read()) {
+            if (watchpoint.write()) {
                 writeWatchpoints.remove(watchpoint);
                 tlbEntriesInInterval(interval, MemoryAccessType.STORE).forEachRemaining((entry) -> entry.removeWatchpoint(watchpoint));
             }
