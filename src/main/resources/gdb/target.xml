@@ -126,7 +126,7 @@
         <reg name="mcycleh" bitsize="64" regnum="0x1b80"/>
         <reg name="minstreth" bitsize="64" regnum="0x1b82"/>
         <!-- Sedna proprietary -->
-        <!-- There is no proper way to tell GDB this is write-only, so it'll just print an error message -->
+        <!-- There is no proper way to tell GDB this is write-only, so we add a special case to return 0 -->
         <!-- See "unknown CSR" comment above -->
         <reg name="switch32" bitsize="64" regnum="0x1bc0" group="csr"/>
         <!-- Counters and Timers -->

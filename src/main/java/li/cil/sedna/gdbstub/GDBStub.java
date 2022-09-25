@@ -533,6 +533,7 @@ public final class GDBStub {
     private static final int regNumFcsr = 67;
     private static final int regNumPriv = 68;
     private static final int regNumFirstCSR = 0x1000;
+    private static final int regNumSwitch32 = 0x1bc0;
     private static final int regNumLastCSR = 0x1fff;
 
     private void handleReadRegister(final ByteBuffer buffer) throws IOException {
@@ -548,6 +549,13 @@ public final class GDBStub {
             else if(regNum == regNumFcsr) HexUtils.put32(w, cpu.getFcsr());
             else if(regNum == regNumPriv) HexUtils.put64(w, cpu.getPriv());
             else if(regNum >= regNumFirstCSR && regNum <= regNumLastCSR) {
+                if(regNum == regNumSwitch32) {
+                    // This is a write-only register, which GDB doesn't understand. We're
+                    // special casing it so GDB (which always does a read before it writes) can
+                    // write to it
+                    HexUtils.put64(w, 0);
+                    return;
+                }
                 try {
                     short csr = (short) (regNum - 0x1000);
                     HexUtils.put64(w, cpu.getCSR(csr));
