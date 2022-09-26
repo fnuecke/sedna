@@ -142,6 +142,8 @@ final class R5CPUTemplate implements R5CPU {
     private final transient RealTimeCounter rtc;
     private transient int cycleFrequency = 50_000_000;
     private final transient DebugInterface debugInterface = new DebugInterface();
+    private transient boolean triggeredWatchpoint = false;
+    private transient long triggeredWatchpointAddress = 0;
 
     public R5CPUTemplate(final MemoryMap physicalMemory, @Nullable final RealTimeCounter rtc) {
         // This cast is necessary so that stack frame computation in ASM does not throw
@@ -359,6 +361,10 @@ final class R5CPUTemplate implements R5CPU {
             } else {
                 interpretTrace64(device, inst, pc, instOffset, singleStep ? 0 : instEnd, ignoreBreakpoints ? null : cache.breakpoints);
             }
+            if(triggeredWatchpoint) {
+                triggeredWatchpoint = false;
+                debugInterface.handleWatchpoint(triggeredWatchpointAddress);
+            }
         } catch (final R5MemoryAccessException e) {
             raiseException(e.getType(), e.getAddress());
         }
@@ -371,6 +377,12 @@ final class R5CPUTemplate implements R5CPU {
     private void interpretTrace32(final MemoryMappedDevice device, int inst, long pc, int instOffset, final int instEnd, final LongSet breakpoints) {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
+                // Since decode contains "continue" it's important to check at the beginning of the loop for a
+                // watchpoint trigger
+                if(triggeredWatchpoint) {
+                    this.pc = pc;
+                    return;
+                }
                 if (breakpoints != null && breakpoints.contains(pc)) {
                     this.pc = pc;
                     debugInterface.handleBreakpoint(pc);
@@ -407,6 +419,12 @@ final class R5CPUTemplate implements R5CPU {
     private void interpretTrace64(final MemoryMappedDevice device, int inst, long pc, int instOffset, final int instEnd, final LongSet breakpoints) {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
+                // Since decode contains "continue" it's important to check at the beginning of the loop for a
+                // watchpoint trigger
+                if(triggeredWatchpoint) {
+                    this.pc = pc;
+                    return;
+                }
                 if (breakpoints != null && breakpoints.contains(pc)) {
                     this.pc = pc;
                     debugInterface.handleBreakpoint(pc);
@@ -1184,7 +1202,8 @@ final class R5CPUTemplate implements R5CPU {
             try {
                 final long result = entry.device.load((int) (address + entry.toOffset), sizeLog2);
                 if(entry.hasWatchpoint(new Interval(address, 1L << sizeLog2))) {
-                    debugInterface.handleWatchpoint(address);
+                    triggeredWatchpoint = true;
+                    triggeredWatchpointAddress = address;
                 }
                 return result;
             } catch (final MemoryAccessException e) {
@@ -1205,7 +1224,8 @@ final class R5CPUTemplate implements R5CPU {
             try {
                 entry.device.store((int) (address + entry.toOffset), value, sizeLog2);
                 if(entry.hasWatchpoint(new Interval(address, 1L << sizeLog2))) {
-                    debugInterface.handleWatchpoint(address);
+                    triggeredWatchpoint = true;
+                    triggeredWatchpointAddress = address;
                 }
             } catch (final MemoryAccessException e) {
                 throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_STORE);
@@ -1245,19 +1265,17 @@ final class R5CPUTemplate implements R5CPU {
                 final TLBEntry entry = updateTLB(loadTLB, address, physicalAddress, range);
                 final Interval pageInterval = new Interval(address & ~R5.PAGE_ADDRESS_MASK, 1 << R5.PAGE_ADDRESS_SHIFT);
                 final Interval addressInterval = new Interval(address, 1L << sizeLog2);
-                boolean triggeredWatchpoint = false;
                 entry.watchpoints = new ArrayList<>();
                 for(Watchpoint w : debugInterface.readWatchpoints) {
                     if(w.range().intersects(pageInterval)) {
                         entry.watchpoints.add(w);
-                        if(w.range().intersects(addressInterval)) triggeredWatchpoint = true;
+                        if(w.range().intersects(addressInterval)) {
+                            triggeredWatchpoint = true;
+                            triggeredWatchpointAddress = address;
+                        }
                     }
                 }
-                final long result =  entry.device.load((int) (address + entry.toOffset), sizeLog2);
-                if(triggeredWatchpoint) {
-                    debugInterface.handleWatchpoint(address);
-                }
-                return result;
+                return entry.device.load((int) (address + entry.toOffset), sizeLog2);
             } else {
                 return range.device.load((int) (physicalAddress - range.address()), sizeLog2);
             }
@@ -1278,20 +1296,19 @@ final class R5CPUTemplate implements R5CPU {
                 final TLBEntry entry = updateTLB(storeTLB, address, physicalAddress, range);
                 Interval pageInterval = new Interval(address & ~R5.PAGE_ADDRESS_MASK, 1 << R5.PAGE_ADDRESS_SHIFT);
                 final Interval addressInterval = new Interval(address, 1L << sizeLog2);
-                boolean triggeredWatchpoint = false;
                 entry.watchpoints = new ArrayList<>();
                 for(Watchpoint w : debugInterface.writeWatchpoints) {
                     if(w.range().intersects(pageInterval)) {
                         entry.watchpoints.add(w);
-                        if(w.range().intersects(addressInterval)) triggeredWatchpoint = true;
+                        if(w.range().intersects(addressInterval)) {
+                            triggeredWatchpoint = true;
+                            triggeredWatchpointAddress = address;
+                        }
                     }
                 }
                 final int offset = (int) (address + entry.toOffset);
                 entry.device.store(offset, value, sizeLog2);
                 physicalMemory.setDirty(range, offset);
-                if(triggeredWatchpoint) {
-                    debugInterface.handleWatchpoint(address);
-                }
             } else {
                 range.device.store((int) (physicalAddress - range.start), value, sizeLog2);
             }
