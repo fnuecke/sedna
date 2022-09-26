@@ -1243,15 +1243,18 @@ final class R5CPUTemplate implements R5CPU {
         try {
             if (range.device.supportsFetch()) {
                 final TLBEntry entry = updateTLB(loadTLB, address, physicalAddress, range);
-                Interval pageInterval = new Interval(address & ~R5.PAGE_ADDRESS_MASK, 1 << R5.PAGE_ADDRESS_SHIFT);
+                final Interval pageInterval = new Interval(address & ~R5.PAGE_ADDRESS_MASK, 1 << R5.PAGE_ADDRESS_SHIFT);
+                final Interval addressInterval = new Interval(address, 1L << sizeLog2);
+                boolean triggeredWatchpoint = false;
                 entry.watchpoints = new ArrayList<>();
                 for(Watchpoint w : debugInterface.readWatchpoints) {
                     if(w.range().intersects(pageInterval)) {
                         entry.watchpoints.add(w);
+                        if(w.range().intersects(addressInterval)) triggeredWatchpoint = true;
                     }
                 }
                 final long result =  entry.device.load((int) (address + entry.toOffset), sizeLog2);
-                if(entry.hasWatchpoint(new Interval(address, 1L << sizeLog2))) {
+                if(triggeredWatchpoint) {
                     debugInterface.handleWatchpoint(address);
                 }
                 return result;
@@ -1274,16 +1277,19 @@ final class R5CPUTemplate implements R5CPU {
             if (range.device.supportsFetch()) {
                 final TLBEntry entry = updateTLB(storeTLB, address, physicalAddress, range);
                 Interval pageInterval = new Interval(address & ~R5.PAGE_ADDRESS_MASK, 1 << R5.PAGE_ADDRESS_SHIFT);
+                final Interval addressInterval = new Interval(address, 1L << sizeLog2);
+                boolean triggeredWatchpoint = false;
                 entry.watchpoints = new ArrayList<>();
                 for(Watchpoint w : debugInterface.writeWatchpoints) {
                     if(w.range().intersects(pageInterval)) {
                         entry.watchpoints.add(w);
+                        if(w.range().intersects(addressInterval)) triggeredWatchpoint = true;
                     }
                 }
                 final int offset = (int) (address + entry.toOffset);
                 entry.device.store(offset, value, sizeLog2);
                 physicalMemory.setDirty(range, offset);
-                if(entry.hasWatchpoint(new Interval(address, 1L << sizeLog2))) {
+                if(triggeredWatchpoint) {
                     debugInterface.handleWatchpoint(address);
                 }
             } else {
