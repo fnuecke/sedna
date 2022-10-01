@@ -292,6 +292,9 @@ public final class GDBStub {
         runLoop(new BreakpointStop());
     }
 
+    // Since pc is incremented before this is called, the pc will be 1 step off
+    // additionally, for some reason GDB immediately performs a single step before returning to the user
+    // so the user will observe the pc to be 2 steps away from where the read/write happened
     private void handleWatchpointHit(final long address) {
         runLoop(new WatchpointStop(address));
     }
