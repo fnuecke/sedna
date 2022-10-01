@@ -541,29 +541,36 @@ public final class GDBStub {
         final int regNum = Integer.parseInt(regNumStr, 16);
         try (final var s = new GDBPacketOutputStream(output);
              final var w = new BufferedWriter(new OutputStreamWriter(s, StandardCharsets.US_ASCII))) {
-            if(regNum >= regNumFirstX && regNum <= regNumLastX) HexUtils.put64(w, cpu.getGeneralRegisters()[regNum - regNumFirstX]);
-            else if(regNum == regNumPc) HexUtils.put64(w, cpu.getProgramCounter());
-            else if(regNum >= regNumFirstF && regNum <= regNumLastF) HexUtils.put64(w, cpu.getFloatingRegisters()[regNum - regNumFirstF]);
-            else if(regNum == regNumFflags) HexUtils.put32(w, cpu.getFflags());
-            else if(regNum == regNumFrm) HexUtils.put32(w, cpu.getFrm());
-            else if(regNum == regNumFcsr) HexUtils.put32(w, cpu.getFcsr());
-            else if(regNum == regNumPriv) HexUtils.put64(w, cpu.getPriv());
-            else if(regNum >= regNumFirstCSR && regNum <= regNumLastCSR) {
-                if(regNum == regNumSwitch32) {
-                    // This is a write-only register, which GDB doesn't understand. We're
-                    // special casing it so GDB (which always does a read before it writes) can
-                    // write to it
-                    HexUtils.put64(w, 0);
-                    return;
-                }
-                try {
-                    short csr = (short) (regNum - 0x1000);
-                    HexUtils.put64(w, cpu.getCSR(csr));
-                } catch (R5IllegalInstructionException e) {
+            try {
+                if (regNum >= regNumFirstX && regNum <= regNumLastX)
+                    HexUtils.put64(w, cpu.getGeneralRegisters()[regNum - regNumFirstX]);
+                else if (regNum == regNumPc) HexUtils.put64(w, cpu.getProgramCounter());
+                else if (regNum >= regNumFirstF && regNum <= regNumLastF)
+                    HexUtils.put64(w, cpu.getFloatingRegisters()[regNum - regNumFirstF]);
+                else if (regNum == regNumFflags) HexUtils.put32(w, (int) cpu.getCSR((short) 1));
+                else if (regNum == regNumFrm) HexUtils.put32(w, (int) cpu.getCSR((short) 2));
+                else if (regNum == regNumFcsr) HexUtils.put32(w, (int) cpu.getCSR((short) 3));
+                else if (regNum == regNumPriv) HexUtils.put64(w, cpu.getPriv());
+                else if (regNum >= regNumFirstCSR && regNum <= regNumLastCSR) {
+                    if (regNum == regNumSwitch32) {
+                        // This is a write-only register, which GDB doesn't understand. We're
+                        // special casing it so GDB (which always does a read before it writes) can
+                        // write to it
+                        HexUtils.put64(w, 0);
+                        return;
+                    }
+                    try {
+                        short csr = (short) (regNum - 0x1000);
+                        HexUtils.put64(w, cpu.getCSR(csr));
+                    } catch (R5IllegalInstructionException e) {
+                        w.write("E01");
+                    }
+                } else {
                     w.write("E01");
                 }
-            } else {
-                w.write("E01");
+            } catch (R5IllegalInstructionException e) {
+                // Impossible
+                throw new RuntimeException(e);
             }
         }
     }
@@ -577,26 +584,32 @@ public final class GDBStub {
         final ByteBuffer regValRaw = ByteBuffer.wrap(HexFormat.of().parseHex(regValStr)).order(ByteOrder.LITTLE_ENDIAN);
         try (final var s = new GDBPacketOutputStream(output);
              final var w = new BufferedWriter(new OutputStreamWriter(s, StandardCharsets.US_ASCII))) {
-            if(regNum >= regNumFirstX && regNum <= regNumLastX) cpu.getGeneralRegisters()[regNum - regNumFirstX] = regValRaw.getLong();
-            else if(regNum == regNumPc) cpu.setProgramCounter(regValRaw.getLong());
-            else if(regNum >= regNumFirstF && regNum <= regNumLastF) cpu.getFloatingRegisters()[regNum - regNumFirstF] = regValRaw.getLong();
-            else if(regNum == regNumFflags) cpu.setFflags((byte) regValRaw.getInt());
-            else if(regNum == regNumFrm) cpu.setFrm((byte) regValRaw.getInt());
-            else if(regNum == regNumFcsr) cpu.setFcsr(regValRaw.getInt());
-            else if(regNum == regNumPriv) cpu.setPriv((byte) regValRaw.getInt());
-            else if(regNum >= regNumFirstCSR && regNum <= regNumLastCSR) {
-                try {
-                    short csr = (short) (regNum - 0x1000);
-                    cpu.setCSR(csr, regValRaw.getLong());
-                } catch (R5IllegalInstructionException e) {
+            try {
+                if (regNum >= regNumFirstX && regNum <= regNumLastX)
+                    cpu.getGeneralRegisters()[regNum - regNumFirstX] = regValRaw.getLong();
+                else if (regNum == regNumPc) cpu.setProgramCounter(regValRaw.getLong());
+                else if (regNum >= regNumFirstF && regNum <= regNumLastF)
+                    cpu.getFloatingRegisters()[regNum - regNumFirstF] = regValRaw.getLong();
+                else if (regNum == regNumFflags) cpu.setCSR((short) 1, (byte) regValRaw.getInt());
+                else if (regNum == regNumFrm) cpu.setCSR((short) 2, (byte) regValRaw.getInt());
+                else if (regNum == regNumFcsr) cpu.setCSR((short) 3, regValRaw.getInt());
+                else if (regNum == regNumPriv) cpu.setPriv((byte) regValRaw.getInt());
+                else if (regNum >= regNumFirstCSR && regNum <= regNumLastCSR) {
+                    try {
+                        short csr = (short) (regNum - 0x1000);
+                        cpu.setCSR(csr, regValRaw.getLong());
+                    } catch (R5IllegalInstructionException e) {
+                        w.write("E01");
+                        return;
+                    }
+                } else {
                     w.write("E01");
                     return;
                 }
-            } else {
-                w.write("E01");
-                return;
+                w.write("OK");
+            } catch (R5IllegalInstructionException e) {
+                throw new RuntimeException(e);
             }
-            w.write("OK");
         }
     }
 }

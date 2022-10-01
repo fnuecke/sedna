@@ -10,12 +10,6 @@ public interface CPUDebugInterface {
     long getProgramCounter();
     void setProgramCounter(long value);
     long[] getFloatingRegisters();
-    byte getFflags();
-    void setFflags(byte value);
-    byte getFrm();
-    void setFrm(byte value);
-    int getFcsr();
-    void setFcsr(int value);
     byte getPriv();
     void setPriv(byte value);
     long getCSR(short csr) throws R5IllegalInstructionException;
