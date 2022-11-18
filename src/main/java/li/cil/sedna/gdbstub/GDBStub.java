@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.*;
 import java.net.InetSocketAddress;
-import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.ServerSocketChannel;
@@ -44,8 +43,8 @@ public final class GDBStub {
     }
 
     private static byte[] loadTargetDescription() {
-        try (final InputStream stream = GDBStub.class.getResourceAsStream("/gdb/target.xml");
-            ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+        try (final InputStream stream = GDBStub.class.getResourceAsStream("/gdb/target-riscv64.xml");
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             if (stream == null) {
                 throw new RuntimeException("Target description not found");
             }
@@ -452,7 +451,7 @@ public final class GDBStub {
     }
 
     private void handleReadTargetDescription(String annex, int offset, int length, OutputStream out) throws IOException {
-        if(!annex.equals("target.xml")) {
+        if(!annex.equals("target-riscv64.xml")) {
             out.write("E00".getBytes(StandardCharsets.US_ASCII));
             return;
         }
@@ -525,7 +524,7 @@ public final class GDBStub {
         }
     }
 
-    // Must be kept in sync with target.xml
+    // Must be kept in sync with target-riscv64.xml
     private static final int regNumFirstX = 0;
     private static final int regNumLastX = 31;
     private static final int regNumPc = 32;
