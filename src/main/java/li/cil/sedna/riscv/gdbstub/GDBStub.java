@@ -1,4 +1,4 @@
-package li.cil.sedna.gdbstub;
+package li.cil.sedna.riscv.gdbstub;
 
 import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
 import li.cil.sedna.riscv.exception.R5MemoryAccessException;
