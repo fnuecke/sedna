@@ -500,7 +500,7 @@ final class R5CPUTemplate implements R5CPU {
         return false;
     }
     private boolean isReadonlyCSR(final int csr) {
-        // Topmost bits, i.e. csr[11:8], encode access rights for CSR by convention. Of these, the top-most two bits,
+        // csr[11:8] encodes access rights for CSR by convention. Of these, the top-most two bits,
         // csr[11:10], encode read-only state, where 0b11: read-only, 0b00..0b10: read-write.
         boolean readonly = ((csr & 0b1100_0000_0000) == 0b1100_0000_0000);
         // There are also these special cases
@@ -512,7 +512,7 @@ final class R5CPUTemplate implements R5CPU {
         if (throwIfReadonly && isReadonlyCSR(csr))
             throw new R5IllegalInstructionException();
 
-        // The two following bits, csr[9:8], encode the lowest privilege level that can access the CSR.
+        // csr[9:8] encodes the lowest privilege level that can access the CSR.
         if (priv < ((csr >>> 8) & 0b11))
             throw new R5IllegalInstructionException();
     }
