@@ -91,7 +91,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
                             final Class<?> illegalInstructionExceptionClass,
                             final String decoderMethod,
                             final String decoderHook) {
-        super(ASM7, cv);
+        super(ASM8, cv);
         this.decoderTree = decoderTree;
         this.definitionProvider = definitionProvider;
         this.decoderMethod = decoderMethod;
@@ -193,7 +193,7 @@ public class DecoderGenerator extends ClassVisitor implements Opcodes {
         private final ClassVisitor classVisitor;
 
         public TemplateMethodVisitor(final MethodVisitor methodVisitor, final ClassVisitor classVisitor) {
-            super(Opcodes.ASM7, methodVisitor);
+            super(Opcodes.ASM8, methodVisitor);
             this.classVisitor = classVisitor;
         }
 

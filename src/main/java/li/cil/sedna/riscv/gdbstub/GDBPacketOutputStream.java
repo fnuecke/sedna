@@ -1,4 +1,4 @@
-package li.cil.sedna.gdbstub;
+package li.cil.sedna.riscv.gdbstub;
 
 import java.io.FilterOutputStream;
 import java.io.IOException;
