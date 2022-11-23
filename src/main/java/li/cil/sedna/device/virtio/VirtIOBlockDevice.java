@@ -95,7 +95,6 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
 
     private static final int MAX_SEGMENT_SIZE = 32 * VIRTIO_BLK_SECTOR_SIZE;
     private static final int MAX_SEGMENT_COUNT = 16;
-    private static final int BYTES_PER_THOUSAND_CYCLES = 32;
 
     private static final ThreadLocal<ByteBuffer> REQUEST_HEADER_BUFFER = ThreadLocal.withInitial(() ->
         ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN));
@@ -105,8 +104,15 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     private int remainingByteProcessingQuota;
     @Serialized private boolean hasPendingRequest;
 
+    private int maxBytesPerThousandCycles = 32;
+
     public VirtIOBlockDevice(final MemoryMap memoryMap, boolean readonly) {
         this(memoryMap, NullBlockDevice.get(readonly));
+    }
+
+    public VirtIOBlockDevice(final MemoryMap memoryMap, boolean readonly, int maxBytesPerThousandCycles) {
+        this(memoryMap, NullBlockDevice.get(readonly));
+        this.maxBytesPerThousandCycles = maxBytesPerThousandCycles;
     }
 
     public VirtIOBlockDevice(final MemoryMap memoryMap, final BlockDevice block) {
@@ -144,7 +150,7 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
 
     @Override
     public void step(final int cycles) {
-        final int byteQuota = Math.max(1, cycles * BYTES_PER_THOUSAND_CYCLES / 1000);
+        final int byteQuota = Math.max(1, cycles * maxBytesPerThousandCycles / 1000);
         if (remainingByteProcessingQuota <= 0) {
             remainingByteProcessingQuota += byteQuota;
         } else {
