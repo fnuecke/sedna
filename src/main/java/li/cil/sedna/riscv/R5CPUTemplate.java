@@ -1389,15 +1389,10 @@ final class R5CPUTemplate implements R5CPU {
             }
 
             // 7. Update accessed and dirty flags.
-            if ((pte & R5.PTE_A_MASK) == 0 ||
-                (accessType == MemoryAccessType.STORE && (pte & R5.PTE_D_MASK) == 0)) {
-                pte |= R5.PTE_A_MASK;
-                if (accessType == MemoryAccessType.STORE) {
-                    pte |= R5.PTE_D_MASK;
-                }
-
+            final long updated_pte = pte | R5.PTE_A_MASK | (accessType == MemoryAccessType.STORE ? R5.PTE_D_MASK : 0);
+            if (pte != updated_pte) {
                 try {
-                    physicalMemory.store(pteAddress, pte, pteSizeLog2);
+                    physicalMemory.store(pteAddress, updated_pte, pteSizeLog2);
                 } catch (final MemoryAccessException e) {
                     throw getPageFaultException(accessType, virtualAddress);
                 }
