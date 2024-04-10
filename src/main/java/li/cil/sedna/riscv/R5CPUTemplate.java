@@ -1362,11 +1362,11 @@ final class R5CPUTemplate implements R5CPU {
             if (!bypassPermissions) {
                 // Check privilege. Can only be in S or U mode here, M was handled above. V2p61.
                 final boolean userModeFlag = (pte & R5.PTE_U_MASK) != 0;
-                if (privilege == R5.PRIVILEGE_S) {
-                    if (userModeFlag &&
-                        (accessType == MemoryAccessType.FETCH || (mstatus & R5.STATUS_SUM_MASK) == 0))
-                        throw getPageFaultException(accessType, virtualAddress);
-                } else if (!userModeFlag) {
+                if (userModeFlag && (privilege != R5.PRIVILEGE_U) &&
+                    ((accessType == MemoryAccessType.FETCH) || ((mstatus & R5.STATUS_SUM_MASK) == 0))) {
+                    throw getPageFaultException(accessType, virtualAddress);
+                }
+                if (!userModeFlag && (privilege != R5.PRIVILEGE_S)) {
                     throw getPageFaultException(accessType, virtualAddress);
                 }
 
