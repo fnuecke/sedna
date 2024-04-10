@@ -27,7 +27,7 @@ jobs:
           key: ubuntu-latest-gradle-${{ hashFiles('**/*.gradle*') }}
           restore-keys: ubuntu-latest-gradle-
       - name: Build with Gradle
-        run: ./gradlew build
+        run: ./gradlew test
         env:
           GPR_USER: ${{ secrets.GPR_USER }}
           GPR_KEY: ${{ secrets.GPR_KEY }}
