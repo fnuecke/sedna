@@ -62,6 +62,11 @@ Sedna tests ISA conformity using the [RISC-V test suite](https://github.com/risc
 a simple JUnit [test runner](src/test/java/li/cil/sedna/riscv/ISATests.java). The compiled test binaries are included in
 this repository and can be found [here](src/test/data/riscv-tests).
 
+Note that an additional tests may be included from this fork: https://github.com/fnuecke/riscv-tests
+
+- A test for page misaligned access (e.g. loads spanning multiple pages) has been contributed by @ja2142 on
+  branch [page_misaligned_access_test](https://github.com/fnuecke/riscv-tests/tree/page_misaligned_access_test).
+
 ## Maven
 
 Sedna can be included into a project via the Github Package Repository. See [the documentation][GithubPackagesGradle]
