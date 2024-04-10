@@ -96,8 +96,6 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     private static final int MAX_SEGMENT_SIZE = 32 * VIRTIO_BLK_SECTOR_SIZE;
     private static final int MAX_SEGMENT_COUNT = 16;
 
-    private static final int DEFAULT_MAX_BYTES_PER_THOUSAND_CYCLES = 32;
-
     private static final ThreadLocal<ByteBuffer> REQUEST_HEADER_BUFFER = ThreadLocal.withInitial(() ->
         ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN));
     private static final ThreadLocal<byte[]> COPY_BUFFER = ThreadLocal.withInitial(() -> new byte[MAX_SEGMENT_SIZE * MAX_SEGMENT_COUNT]);
@@ -106,15 +104,10 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     private int remainingByteProcessingQuota;
     @Serialized private boolean hasPendingRequest;
 
-    private int maxBytesPerThousandCycles;
+    private int maxBytesPerThousandCycles = 32;
 
-    public VirtIOBlockDevice(final MemoryMap memoryMap, boolean readonly) {
-        this(memoryMap, readonly, DEFAULT_MAX_BYTES_PER_THOUSAND_CYCLES);
-    }
-
-    public VirtIOBlockDevice(final MemoryMap memoryMap, boolean readonly, int maxBytesPerThousandCycles) {
+    public VirtIOBlockDevice(final MemoryMap memoryMap, final boolean readonly) {
         this(memoryMap, NullBlockDevice.get(readonly));
-        this.maxBytesPerThousandCycles = maxBytesPerThousandCycles;
     }
 
     public VirtIOBlockDevice(final MemoryMap memoryMap, final BlockDevice block) {
@@ -127,6 +120,13 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
                 VIRTIO_BLK_F_FLUSH)
             .build());
         this.block = block;
+    }
+
+    public void setMaxBytesPerThousandCycles(final int value) {
+        if (value < 1) {
+            throw new IllegalArgumentException("value must be larger than zero");
+        }
+        maxBytesPerThousandCycles = value;
     }
 
     public void setBlock(final BlockDevice block) throws IOException {
