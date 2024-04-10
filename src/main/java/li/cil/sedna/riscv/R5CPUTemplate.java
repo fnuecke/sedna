@@ -297,7 +297,7 @@ final class R5CPUTemplate implements R5CPU {
             mcycle = cycleLimit;
         }
 
-        cycleDebt += cycleLimit - mcycle;
+        cycleDebt += (int) (cycleLimit - mcycle);
     }
 
     ///////////////////////////////////////////////////////////////////
@@ -341,7 +341,7 @@ final class R5CPUTemplate implements R5CPU {
                     if ((inst & 0b11) == 0b11) { // 32bit instruction.
                         final TLBEntry highCache = fetchPage(pc + 2);
                         final MemoryMappedDevice highDevice = highCache.device;
-                        inst |= highDevice.load((int) (pc + 2 + highCache.toOffset), Sizes.SIZE_16_LOG2) << 16;
+                        inst |= (int) (highDevice.load((int) (pc + 2 + highCache.toOffset), Sizes.SIZE_16_LOG2) << 16);
                     }
                 }
             } catch (final MemoryAccessException e) {
@@ -1944,7 +1944,7 @@ final class R5CPUTemplate implements R5CPU {
                       @Field("rs1") final int rs1,
                       @Field("rs2") final int rs2) {
         if (rd != 0) {
-            x[rd] = (int) x[rs1] << (int) x[rs2];
+            x[rd] = (long) (int) x[rs1] << (int) x[rs2];
         }
     }
 
@@ -2160,7 +2160,7 @@ final class R5CPUTemplate implements R5CPU {
                       @Field("rs1") final int rs1,
                       @Field("rs2") final int rs2) {
         if (rd != 0) {
-            x[rd] = (int) x[rs1] * (int) x[rs2];
+            x[rd] = (long) (int) x[rs1] * (int) x[rs2];
         }
     }
 
