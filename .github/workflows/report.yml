@@ -8,7 +8,7 @@ on:
 permissions:
   checks: write
 
-run-name: ${{ github.event.workflow_run.name }} (Process Test Results)
+run-name: Test results for last build of ${{ github.event.workflow_run.head_branch }}
 
 jobs:
   report:
