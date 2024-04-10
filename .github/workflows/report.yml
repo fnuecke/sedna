@@ -1,4 +1,4 @@
-name: report
+name: Process Test Results
 
 on:
   workflow_run:
@@ -24,3 +24,4 @@ jobs:
         with:
           commit: ${{ github.event.workflow_run.head_sha }}
           report_paths: '**/build/test-results/test/TEST-*.xml'
+          include_passed: true
