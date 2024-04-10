@@ -1317,11 +1317,16 @@ final class R5CPUTemplate implements R5CPU {
             levels = R5.SV39_LEVELS;
             ppnMask = R5.SATP_PPN_MASK64;
             pteSizeLog2 = Sizes.SIZE_64_LOG2;
-        } else {
-            assert mode == R5.SATP_MODE_SV48;
+        } else if (mode == R5.SATP_MODE_SV48) {
             levels = R5.SV48_LEVELS;
             ppnMask = R5.SATP_PPN_MASK64;
             pteSizeLog2 = Sizes.SIZE_64_LOG2;
+        } else if (mode == R5.SATP_MODE_SV57) {
+            levels = R5.SV57_LEVELS;
+            ppnMask = R5.SATP_PPN_MASK64;
+            pteSizeLog2 = Sizes.SIZE_64_LOG2;
+        } else {
+            throw getPageFaultException(accessType, virtualAddress);
         }
 
         final int xpnSize = R5.PAGE_ADDRESS_SHIFT - pteSizeLog2;

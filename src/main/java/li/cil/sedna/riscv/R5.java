@@ -148,10 +148,11 @@ public final class R5 {
     public static final int PTE_D_MASK = 0b1 << 7; // Dirty flag (written).
     public static final int PTE_RSW_MASK = 0b11 << 8; // Reserved for supervisor software.
 
-    // Config for SV39/48 configuration.
+    // Config for SV39/48/57 configuration.
     public static final int SV32_LEVELS = 2;
     public static final int SV39_LEVELS = 3;
     public static final int SV48_LEVELS = 4;
+    public static final int SV57_LEVELS = 5;
 
     // Floating point extension CSR.
     public static final int FCSR_FFLAGS_NX_MASK = 0b1 << 0; // Inexact.
