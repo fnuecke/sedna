@@ -1,4 +1,4 @@
-name: Process Test Results
+name: report
 
 on:
   workflow_run:
@@ -7,6 +7,8 @@ on:
 
 permissions:
   checks: write
+
+run-name: ${{ github.event.workflow_run.id }} (Process Test Results)
 
 jobs:
   report:
