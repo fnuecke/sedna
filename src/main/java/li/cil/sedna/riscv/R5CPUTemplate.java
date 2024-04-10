@@ -1266,14 +1266,14 @@ final class R5CPUTemplate implements R5CPU {
     private long loadxPageMisaligned(final long address, final int size) throws R5MemoryAccessException {
         long value = 0;
         for (int i = 0; i < size / 8; i++) {
-            value |= (loadx(address + i, 8, 0) & 0xff) << (i * 8);
+            value |= (loadx(address + i, 8, 0) & 0xFF) << (i * 8);
         }
         return value;
     }
 
     private void storexPageMisaligned(final long address, final long value, final int size) throws R5MemoryAccessException {
         for (int i = 0; i < size / 8; i++) {
-            final long valueByte = value >> i * 8 & 0xff;
+            final long valueByte = value >> i * 8 & 0xFF;
             storex(address + i, valueByte, 8, 0);
         }
     }
