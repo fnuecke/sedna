@@ -1371,7 +1371,7 @@ final class R5CPUTemplate implements R5CPU {
                 }
 
                 // MXR allows read on execute-only pages.
-                if ((mstatus & R5.STATUS_MXR_MASK) != 0) {
+                if (accessType == MemoryAccessType.LOAD && (mstatus & R5.STATUS_MXR_MASK) != 0 && (xwr & R5.PTE_X_MASK) != 0) {
                     xwr |= R5.PTE_R_MASK;
                 }
 
