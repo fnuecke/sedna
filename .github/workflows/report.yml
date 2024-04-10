@@ -13,13 +13,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download Test Report
-        uses: dawidd6/action-download-artifact@v4
+      - name: Download Test Results
+        uses: dawidd6/action-download-artifact@v3
         with:
           name: junit-test-results
           workflow: ${{ github.event.workflow.id }}
           run_id: ${{ github.event.workflow_run.id }}
-      - name: Publish Test Report
+      - name: Publish Test Results
         uses: mikepenz/action-junit-report@v4
         with:
           commit: ${{ github.event.workflow_run.head_sha }}
