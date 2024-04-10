@@ -1165,7 +1165,10 @@ final class R5CPUTemplate implements R5CPU {
         storex(address, value, Sizes.SIZE_64, Sizes.SIZE_64_LOG2);
     }
 
-    private long loadx(final long address, final int size, final int sizeLog2) throws R5MemoryAccessException {
+    protected long loadx(final long address, final int size, final int sizeLog2) throws R5MemoryAccessException {
+        if((address & ~R5.PAGE_ADDRESS_MASK) != ((address + size/8 - 1) & ~R5.PAGE_ADDRESS_MASK)) {
+            return loadxPageMisaligned(address, size, sizeLog2);
+        }
         final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
         final int alignment = size / 8; // Enforce aligned memory access.
         final int alignmentMask = alignment - 1;
@@ -1183,6 +1186,10 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     private void storex(final long address, final long value, final int size, final int sizeLog2) throws R5MemoryAccessException {
+        if((address & ~R5.PAGE_ADDRESS_MASK) != ((address + size/8 - 1) & ~R5.PAGE_ADDRESS_MASK)) {
+            storexPageMisaligned(address, value, size, sizeLog2);
+            return;
+        }
         final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
         final int alignment = size / 8; // Enforce aligned memory access.
         final int alignmentMask = alignment - 1;
@@ -1197,6 +1204,21 @@ final class R5CPUTemplate implements R5CPU {
         } else {
             storeSlow(address, value, sizeLog2);
         }
+    }
+
+    private void storexPageMisaligned(final long address, final long value, final int size, final int sizeLog2) throws R5MemoryAccessException {
+        for (int i = 0; i < size/8; i++) {
+            long valueByte = value >> i*8 & 0xff;
+            storex(address + i, valueByte, 8, 0);
+        }
+    }
+
+    private long loadxPageMisaligned(final long address, final int size, final int sizeLog2) throws R5MemoryAccessException {
+        long value = 0;
+        for (int i = 0; i < size/8; i++) {
+            value |= (loadx(address + i, 8, 0) & 0xff) << (i*8);
+        }
+        return value;
     }
 
     private TLBEntry fetchPageSlow(final long address) throws R5MemoryAccessException {
