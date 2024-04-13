@@ -451,7 +451,7 @@ public final class GDBStub {
     }
 
     private void handleReadTargetDescription(String annex, int offset, int length, OutputStream out) throws IOException {
-        if(!annex.equals("target-riscv64.xml")) {
+        if(!annex.equals("target.xml")) {
             out.write("E00".getBytes(StandardCharsets.US_ASCII));
             return;
         }
