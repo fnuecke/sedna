@@ -1,8 +1,10 @@
-package li.cil.sedna.gdbstub;
+package li.cil.sedna.riscv.gdbstub;
 
+import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
 import li.cil.sedna.riscv.exception.R5MemoryAccessException;
 import li.cil.sedna.utils.ByteBufferUtils;
 import li.cil.sedna.utils.HexUtils;
+import li.cil.sedna.utils.Interval;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -22,26 +24,35 @@ public final class GDBStub {
         STOP_REPLY
     }
 
-    private enum StopReason {
-        MESSAGE,
-        BREAKPOINT
-    }
-
     private static final Logger LOGGER = LogManager.getLogger();
-
+    private static final int MAX_PACKET_SIZE = 0x2000;
+    private final ServerSocketChannel listeningSock;
+    private final CPUDebugInterface cpu;
+    private final byte[] targetDescription;
     private GDBState state = GDBState.DISCONNECTED;
     private InputStream input;
     private OutputStream output;
-
-    private final ServerSocketChannel listeningSock;
     private SocketChannel sock;
-
-    private final CPUDebugInterface cpu;
 
     public GDBStub(final ServerSocketChannel socket, final CPUDebugInterface cpu) {
         this.listeningSock = socket;
         this.cpu = cpu;
         this.cpu.addBreakpointListener(this::handleBreakpointHit);
+        this.cpu.addWatchpointListener(this::handleWatchpointHit);
+        this.targetDescription = loadTargetDescription();
+    }
+
+    private static byte[] loadTargetDescription() {
+        try (final InputStream stream = GDBStub.class.getResourceAsStream("/gdb/target-riscv64.xml");
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            if (stream == null) {
+                throw new RuntimeException("Target description not found");
+            }
+            stream.transferTo(out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static GDBStub createDefault(final CPUDebugInterface cpu, final int port) throws IOException {
@@ -53,11 +64,42 @@ public final class GDBStub {
 
     public void run(final boolean waitForMessage) {
         if (isMessageAvailable() || waitForMessage) {
-            runLoop(StopReason.MESSAGE);
+            runLoop(new MessageStop());
         }
     }
 
-    private void runLoop(final StopReason reason) {
+    private static abstract class StopReason {
+        public abstract void sendStopReply(Writer w) throws IOException;
+    }
+
+    private static class MessageStop extends StopReason {
+        @Override
+        public void sendStopReply(Writer w) throws IOException {
+            w.write("S05");
+        }
+    }
+
+    private static class BreakpointStop extends StopReason {
+        @Override
+        public void sendStopReply(Writer w) throws IOException {
+            w.write("S05");
+        }
+    }
+
+    private static class WatchpointStop extends StopReason {
+        private final long address;
+        public WatchpointStop(long address) {
+            this.address = address;
+        }
+        @Override
+        public void sendStopReply(Writer w) throws IOException {
+            w.write("T05watch:");
+            HexUtils.put64BE(w, address);
+            w.write(';');
+        }
+    }
+
+    private void runLoop(StopReason reason) {
         final ByteBuffer packetBuffer = ByteBuffer.allocate(8192);
         loop:
         while (true) {
@@ -77,7 +119,7 @@ public final class GDBStub {
                 case STOP_REPLY -> {
                     try (final var s = new GDBPacketOutputStream(output);
                          final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
-                        w.write("S05");
+                        reason.sendStopReply(w);
                         state = GDBState.WAITING_FOR_COMMAND;
                     } catch (final IOException e) {
                         disconnect();
@@ -96,28 +138,13 @@ public final class GDBStub {
                         final byte command = packetBuffer.get();
                         switch (command) {
                             case '?' -> {
-                                //TODO handle different reasons
                                 try (final var s = new GDBPacketOutputStream(output);
                                      final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
                                     w.write("S05");
                                 }
                             }
                             //General Query
-                            case 'q' -> {
-                                final byte[] Supported = "Supported:".getBytes(StandardCharsets.US_ASCII);
-                                final byte[] Attached = "Attached".getBytes(StandardCharsets.US_ASCII);
-                                if (ByteBufferUtils.startsWith(packetBuffer, ByteBuffer.wrap(Supported))) {
-                                    packetBuffer.position(packetBuffer.position() + Supported.length);
-                                    handleSupported(packetBuffer);
-                                } else if (ByteBufferUtils.startsWith(packetBuffer, ByteBuffer.wrap(Attached))) {
-                                    try (final var s = new GDBPacketOutputStream(output);
-                                         final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
-                                        w.write("1");
-                                    }
-                                } else {
-                                    unknownCommand(packetBuffer);
-                                }
-                            }
+                            case 'q' -> handleQuery(packetBuffer);
                             case 'g' -> readGeneralRegisters();
                             case 'G' -> writeGeneralRegisters(packetBuffer);
                             case 'm' -> handleReadMemory(packetBuffer);
@@ -126,6 +153,7 @@ public final class GDBStub {
                                 final byte type = packetBuffer.get();
                                 switch (type) {
                                     case '0', '1' -> handleBreakpointAdd(packetBuffer);
+                                    case '2', '3', '4' -> handleWatchpointAdd(type, packetBuffer);
                                     default -> unknownCommand(packetBuffer);
                                 }
                             }
@@ -133,6 +161,7 @@ public final class GDBStub {
                                 final byte type = packetBuffer.get();
                                 switch (type) {
                                     case '0', '1' -> handleBreakpointRemove(packetBuffer);
+                                    case '2', '3', '4' -> handleWatchpointRemove(type, packetBuffer);
                                     default -> unknownCommand(packetBuffer);
                                 }
                             }
@@ -147,7 +176,7 @@ public final class GDBStub {
                                     unknownCommand(packetBuffer);
                                     return;
                                 }
-                                handleStep();
+                                reason = handleStep();
                             }
                             case 'D' -> {
                                 try (final var s = new GDBPacketOutputStream(output);
@@ -157,6 +186,8 @@ public final class GDBStub {
                                 disconnect();
                                 break loop;
                             }
+                            case 'p' -> handleReadRegister(packetBuffer);
+                            case 'P' -> handleWriteRegister(packetBuffer);
                             default -> unknownCommand(packetBuffer);
                         }
                     } catch (final IOException e) {
@@ -257,14 +288,20 @@ public final class GDBStub {
     }
 
     private void handleBreakpointHit(final long address) {
-        runLoop(StopReason.BREAKPOINT);
+        runLoop(new BreakpointStop());
+    }
+
+    // Since pc is incremented before this is called, the pc will be 1 step off
+    // additionally, for some reason GDB immediately performs a single step before returning to the user
+    // so the user will observe the pc to be 2 steps away from where the read/write happened
+    private void handleWatchpointHit(final long address) {
+        runLoop(new WatchpointStop(address));
     }
 
     private void handleSupported(final ByteBuffer packet) throws IOException {
         try (final var s = new GDBPacketOutputStream(output);
              final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
-            // Size in hex
-            w.write("PacketSize=2000");
+            w.write("PacketSize=%x;qXfer:features:read+".formatted(MAX_PACKET_SIZE));
         }
     }
 
@@ -314,7 +351,7 @@ public final class GDBStub {
     private void handleBreakpointAdd(final ByteBuffer buffer) throws IOException {
         buffer.get();
         final var chars = StandardCharsets.US_ASCII.decode(buffer);
-        final long address = HexUtils.getLong(chars);
+        final long address = HexUtils.getVarLengthInt(chars);
         try (final var s = new GDBPacketOutputStream(output);
              final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
             cpu.addBreakpoint(address);
@@ -325,7 +362,7 @@ public final class GDBStub {
     private void handleBreakpointRemove(final ByteBuffer buffer) throws IOException {
         buffer.get();
         final var chars = StandardCharsets.US_ASCII.decode(buffer);
-        final long address = HexUtils.getLong(chars);
+        final long address = HexUtils.getVarLengthInt(chars);
         try (final var s = new GDBPacketOutputStream(output);
              final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
             cpu.removeBreakpoint(address);
@@ -333,9 +370,113 @@ public final class GDBStub {
         }
     }
 
-    private void handleStep() {
+    private void handleWatchpointAdd(final byte type, final ByteBuffer buffer) throws IOException {
+        buffer.get();
+        final String command = StandardCharsets.US_ASCII.decode(buffer).toString();
+        final int addressCharsEnd = command.indexOf(',');
+        final long address = Long.parseUnsignedLong(command, 0, addressCharsEnd, 16);
+        final int length = Integer.parseInt(command, addressCharsEnd + 1, command.length(), 16);
+        final Interval interval = new Interval(address, length);
+        try (final var s = new GDBPacketOutputStream(output);
+             final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
+            Watchpoint watchpoint =  switch (type) {
+                case '2' -> new Watchpoint(interval, false, true);
+                case '3' -> new Watchpoint(interval, true, false);
+                case '4' -> new Watchpoint(interval, true, true);
+                default -> throw new IllegalStateException("Unexpected value: " + type);
+            };
+            cpu.addWatchpoint(watchpoint);
+            w.write("OK");
+        }
+    }
+
+    private void handleWatchpointRemove(final byte type, final ByteBuffer buffer) throws IOException {
+        buffer.get();
+        final String command = StandardCharsets.US_ASCII.decode(buffer).toString();
+        final int addressCharsEnd = command.indexOf(',');
+        final long address = Long.parseUnsignedLong(command, 0, addressCharsEnd, 16);
+        final int length = Integer.parseInt(command, addressCharsEnd + 1, command.length(), 16);
+        final Interval interval = new Interval(address, length);
+        try (final var s = new GDBPacketOutputStream(output);
+             final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
+            Watchpoint watchpoint =  switch (type) {
+                case '2' -> new Watchpoint(interval, false, true);
+                case '3' -> new Watchpoint(interval, true, false);
+                case '4' -> new Watchpoint(interval, true, true);
+                default -> throw new IllegalStateException("Unexpected value: " + type);
+            };
+            cpu.removeWatchpoint(watchpoint);
+            w.write("OK");
+        }
+    }
+
+    private MessageStop handleStep() {
         cpu.step();
         state = GDBState.STOP_REPLY;
+        return new MessageStop();
+    }
+
+    private void handleQuery(ByteBuffer packetBuffer) throws IOException {
+        final byte[] Supported = "Supported:".getBytes(StandardCharsets.US_ASCII);
+        final byte[] Attached = "Attached".getBytes(StandardCharsets.US_ASCII);
+        final byte[] features = "Xfer:features:read:".getBytes(StandardCharsets.US_ASCII);
+        if (ByteBufferUtils.startsWith(packetBuffer, ByteBuffer.wrap(Supported))) {
+            packetBuffer.position(packetBuffer.position() + Supported.length);
+            handleSupported(packetBuffer);
+        } else if (ByteBufferUtils.startsWith(packetBuffer, ByteBuffer.wrap(Attached))) {
+            try (final var s = new GDBPacketOutputStream(output);
+                 final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
+                w.write("1");
+            }
+        } else if (ByteBufferUtils.startsWith(packetBuffer, ByteBuffer.wrap(features))) {
+            packetBuffer.position(packetBuffer.position() + features.length);
+            handleReadTargetDescription(packetBuffer);
+        } else {
+            unknownCommand(packetBuffer);
+        }
+    }
+
+    private void handleReadTargetDescription(ByteBuffer buf) throws IOException {
+        try (final var s = new GDBPacketOutputStream(output)) {
+            try {
+                String annex = ByteBufferUtils.getStringToken(buf, (byte) ':');
+                int offset = Integer.parseInt(ByteBufferUtils.getStringToken(buf, (byte) ','), 16);
+                int length = Integer.parseInt(ByteBufferUtils.tokenAsString(buf), 16);
+                handleReadTargetDescription(annex, offset, length, s);
+            } catch (ByteBufferUtils.TokenException e) {
+                LOGGER.error("Failed to parse qXfer features read packet", e);
+                s.write("E00".getBytes(StandardCharsets.US_ASCII));
+            }
+        }
+    }
+
+    private void handleReadTargetDescription(String annex, int offset, int length, OutputStream out) throws IOException {
+        if(!annex.equals("target.xml")) {
+            out.write("E00".getBytes(StandardCharsets.US_ASCII));
+            return;
+        }
+        if(offset > targetDescription.length || offset < 0) {
+            out.write("E00".getBytes(StandardCharsets.US_ASCII));
+            return;
+        } else if (offset == targetDescription.length) {
+            out.write('l');
+            return;
+        }
+        // We need to make sure we don't exceed the max packet size
+        // Due to escaping each byte may take up to 2 bytes, hence the divide by 2.
+        // The 5 comes from 1 '$', 2 checksum bytes, 1 '#', and one 'l' for the qXfer read response
+        final int maxChunkLength = (MAX_PACKET_SIZE / 2) - 5;
+        final int maxLength = Math.min(targetDescription.length - offset, maxChunkLength);
+        length = Math.min(length, maxLength);
+        if(offset + length == targetDescription.length) {
+            out.write('l');
+        } else {
+            out.write('m');
+        }
+
+        try(GDBBinaryOutputStream binOut = new GDBBinaryOutputStream(out)) {
+            binOut.write(targetDescription, offset, length);
+        }
     }
 
     private String asciiBytesToEscaped(final ByteBuffer bytes) {
@@ -363,9 +504,9 @@ public final class GDBStub {
         try (final var s = new GDBPacketOutputStream(output);
              final var w = new BufferedWriter(new OutputStreamWriter(s, StandardCharsets.US_ASCII))) {
             for (final long l : cpu.getGeneralRegisters()) {
-                HexUtils.putLong(w, l);
+                HexUtils.put64(w, l);
             }
-            HexUtils.putLong(w, cpu.getProgramCounter());
+            HexUtils.put64(w, cpu.getProgramCounter());
         }
     }
 
@@ -380,6 +521,97 @@ public final class GDBStub {
         try (final var s = new GDBPacketOutputStream(output);
              final var w = new OutputStreamWriter(s, StandardCharsets.US_ASCII)) {
             w.write("OK");
+        }
+    }
+
+    // Must be kept in sync with target-riscv64.xml
+    private static final int regNumFirstX = 0;
+    private static final int regNumLastX = 31;
+    private static final int regNumPc = 32;
+    private static final int regNumFirstF = 33;
+    private static final int regNumLastF = 64;
+    private static final int regNumFflags = 65;
+    private static final int regNumFrm = 66;
+    private static final int regNumFcsr = 67;
+    private static final int regNumPriv = 68;
+    private static final int regNumFirstCSR = 0x1000;
+    private static final int regNumSwitch32 = 0x1bc0;
+    private static final int regNumLastCSR = 0x1fff;
+
+    private void handleReadRegister(final ByteBuffer buffer) throws IOException {
+        final String regNumStr = StandardCharsets.US_ASCII.decode(buffer).toString();
+        final int regNum = Integer.parseInt(regNumStr, 16);
+        try (final var s = new GDBPacketOutputStream(output);
+             final var w = new BufferedWriter(new OutputStreamWriter(s, StandardCharsets.US_ASCII))) {
+            try {
+                if (regNum >= regNumFirstX && regNum <= regNumLastX)
+                    HexUtils.put64(w, cpu.getGeneralRegisters()[regNum - regNumFirstX]);
+                else if (regNum == regNumPc) HexUtils.put64(w, cpu.getProgramCounter());
+                else if (regNum >= regNumFirstF && regNum <= regNumLastF)
+                    HexUtils.put64(w, cpu.getFloatingRegisters()[regNum - regNumFirstF]);
+                else if (regNum == regNumFflags) HexUtils.put32(w, (int) cpu.getCSR((short) 1));
+                else if (regNum == regNumFrm) HexUtils.put32(w, (int) cpu.getCSR((short) 2));
+                else if (regNum == regNumFcsr) HexUtils.put32(w, (int) cpu.getCSR((short) 3));
+                else if (regNum == regNumPriv) HexUtils.put64(w, cpu.getPriv());
+                else if (regNum >= regNumFirstCSR && regNum <= regNumLastCSR) {
+                    if (regNum == regNumSwitch32) {
+                        // This is a write-only register, which GDB doesn't understand. We're
+                        // special casing it so GDB (which always does a read before it writes) can
+                        // write to it
+                        HexUtils.put64(w, 0);
+                        return;
+                    }
+                    try {
+                        short csr = (short) (regNum - 0x1000);
+                        HexUtils.put64(w, cpu.getCSR(csr));
+                    } catch (R5IllegalInstructionException e) {
+                        w.write("E01");
+                    }
+                } else {
+                    w.write("E01");
+                }
+            } catch (R5IllegalInstructionException e) {
+                // Impossible
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    private void handleWriteRegister(final ByteBuffer buffer) throws IOException {
+        final String command = StandardCharsets.US_ASCII.decode(buffer).toString();
+        final String[] commandArr = command.split("=");
+        final String regNumStr = commandArr[0];
+        final int regNum = Integer.parseInt(regNumStr, 16);
+        final String regValStr = commandArr[1];
+        final ByteBuffer regValRaw = ByteBuffer.wrap(HexFormat.of().parseHex(regValStr)).order(ByteOrder.LITTLE_ENDIAN);
+        try (final var s = new GDBPacketOutputStream(output);
+             final var w = new BufferedWriter(new OutputStreamWriter(s, StandardCharsets.US_ASCII))) {
+            try {
+                if (regNum >= regNumFirstX && regNum <= regNumLastX)
+                    cpu.getGeneralRegisters()[regNum - regNumFirstX] = regValRaw.getLong();
+                else if (regNum == regNumPc) cpu.setProgramCounter(regValRaw.getLong());
+                else if (regNum >= regNumFirstF && regNum <= regNumLastF)
+                    cpu.getFloatingRegisters()[regNum - regNumFirstF] = regValRaw.getLong();
+                else if (regNum == regNumFflags) cpu.setCSR((short) 1, (byte) regValRaw.getInt());
+                else if (regNum == regNumFrm) cpu.setCSR((short) 2, (byte) regValRaw.getInt());
+                else if (regNum == regNumFcsr) cpu.setCSR((short) 3, regValRaw.getInt());
+                else if (regNum == regNumPriv) cpu.setPriv((byte) regValRaw.getInt());
+                else if (regNum >= regNumFirstCSR && regNum <= regNumLastCSR) {
+                    try {
+                        short csr = (short) (regNum - 0x1000);
+                        cpu.setCSR(csr, regValRaw.getLong());
+                    } catch (R5IllegalInstructionException e) {
+                        w.write("E01");
+                        return;
+                    }
+                } else {
+                    w.write("E01");
+                    return;
+                }
+                w.write("OK");
+            } catch (R5IllegalInstructionException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 }

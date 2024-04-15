@@ -5,7 +5,7 @@ import li.cil.sedna.api.device.Resettable;
 import li.cil.sedna.api.device.Steppable;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.gdbstub.CPUDebugInterface;
+import li.cil.sedna.riscv.gdbstub.CPUDebugInterface;
 
 import javax.annotation.Nullable;
 
