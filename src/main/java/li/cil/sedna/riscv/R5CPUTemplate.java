@@ -958,8 +958,8 @@ final class R5CPUTemplate implements R5CPU {
 
     private long getStatus(final long mask) {
         final long status = (mstatus | (fs << R5.STATUS_FS_SHIFT)) & mask;
-        final boolean dirty = ((mstatus & R5.STATUS_FS_MASK) == R5.STATUS_FS_MASK) ||
-            ((mstatus & R5.STATUS_XS_MASK) == R5.STATUS_XS_MASK);
+        final boolean dirty = ((status & R5.STATUS_FS_MASK) == R5.STATUS_FS_MASK) ||
+            ((status & R5.STATUS_XS_MASK) == R5.STATUS_XS_MASK);
         return status | (dirty ? R5.getStatusStateDirtyMask(xlen) : 0);
     }
 
