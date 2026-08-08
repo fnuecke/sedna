@@ -797,7 +797,7 @@ final class R5CPUTemplate implements R5CPU {
                     if (xlen != R5.XLEN_32) {
                         // We only support Sv39 and Sv48. On unsupported writes spec says just don't change anything.
                         final long mode = validatedValue & R5.SATP_MODE_MASK64;
-                        if (mode != R5.SATP_MODE_SV39 && mode != R5.SATP_MODE_SV48) {
+                        if (mode != R5.SATP_MODE_NONE && mode != R5.SATP_MODE_SV39 && mode != R5.SATP_MODE_SV48) {
                             break;
                         }
                     }
