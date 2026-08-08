@@ -27,7 +27,7 @@ public final class InstructionDefinitionLoader {
             }
 
             final ClassReader cr = new ClassReader(stream);
-            cr.accept(new ClassVisitor(Opcodes.ASM7) {
+            cr.accept(new ClassVisitor(Opcodes.ASM8) {
                 @Override
                 public MethodVisitor visitMethod(final int access, final String name, final String descriptor, final String signature, final String[] exceptions) {
                     final InstructionFunctionVisitor visitor = new InstructionFunctionVisitor(implementation, name, descriptor, exceptions);
@@ -169,7 +169,7 @@ public final class InstructionDefinitionLoader {
         private boolean writesPC;
 
         public InstructionFunctionVisitor(final Class<?> implementation, final String name, final String descriptor, final String[] exceptions) {
-            super(Opcodes.ASM7);
+            super(Opcodes.ASM8);
             this.implementation = implementation;
             this.name = name;
             this.descriptor = descriptor;
@@ -180,7 +180,7 @@ public final class InstructionDefinitionLoader {
         @Override
         public AnnotationVisitor visitParameterAnnotation(final int parameter, final String descriptor, final boolean visible) {
             if (Objects.equals(descriptor, Type.getDescriptor(InstructionDefinition.Field.class))) {
-                return new AnnotationVisitor(Opcodes.ASM7) {
+                return new AnnotationVisitor(Opcodes.ASM8) {
                     @Override
                     public void visit(final String name, final Object value) {
                         super.visit(name, value);
@@ -208,7 +208,7 @@ public final class InstructionDefinitionLoader {
         public AnnotationVisitor visitAnnotation(final String descriptor, final boolean visible) {
             if (Objects.equals(descriptor, Type.getDescriptor(InstructionDefinition.Instruction.class))) {
                 isImplementation = true;
-                return new AnnotationVisitor(Opcodes.ASM7) {
+                return new AnnotationVisitor(Opcodes.ASM8) {
                     @Override
                     public void visit(final String name, final Object value) {
                         super.visit(name, value);
@@ -345,12 +345,12 @@ public final class InstructionDefinitionLoader {
                 }
 
                 final ClassReader reader = new ClassReader(stream);
-                reader.accept(new ClassVisitor(Opcodes.ASM7) {
+                reader.accept(new ClassVisitor(Opcodes.ASM8) {
                     @Override
                     public MethodVisitor visitMethod(final int access, final String methodName, final String methodDescriptor, final String signature, final String[] exceptions) {
                         if (methodName.equals(NonStaticMethodInvocation.this.name) &&
                             methodDescriptor.equals(NonStaticMethodInvocation.this.descriptor)) {
-                            return new MethodVisitor(Opcodes.ASM7) {
+                            return new MethodVisitor(Opcodes.ASM8) {
                                 @Override
                                 public void visitMethodInsn(final int opcode, final String invokedMethodOwner, final String invokedMethodName, final String invokedMethodDescriptor, final boolean isInterface) {
                                     super.visitMethodInsn(opcode, invokedMethodOwner, invokedMethodName, invokedMethodDescriptor, isInterface);

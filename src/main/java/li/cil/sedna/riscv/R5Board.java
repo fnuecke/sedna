@@ -15,7 +15,7 @@ import li.cil.sedna.api.memory.MemoryRangeAllocationStrategy;
 import li.cil.sedna.device.flash.FlashMemoryDevice;
 import li.cil.sedna.devicetree.DeviceTreeRegistry;
 import li.cil.sedna.devicetree.FlattenedDeviceTree;
-import li.cil.sedna.gdbstub.GDBStub;
+import li.cil.sedna.riscv.gdbstub.GDBStub;
 import li.cil.sedna.memory.SimpleMemoryMap;
 import li.cil.sedna.riscv.device.R5CoreLocalInterrupter;
 import li.cil.sedna.riscv.device.R5PlatformLevelInterruptController;
