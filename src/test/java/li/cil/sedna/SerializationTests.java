@@ -33,10 +33,10 @@ public final class SerializationTests {
 
         assertEquals(0b1010, value.getRaisedInterrupts());
 
-        final ByteBuffer serialized = assertDoesNotThrow(() -> BinarySerialization.serialize(value));
+        final ByteBuffer serialized = assertDoesNotThrow(() -> BinarySerialization.serialize(value, R5CPU.class));
 
         final R5CPU deserialized = R5CPU.create(memoryMap);
-        assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, deserialized));
+        assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, R5CPU.class, deserialized));
 
         assertEquals(0b1010, deserialized.getRaisedInterrupts());
     }
