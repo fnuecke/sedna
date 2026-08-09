@@ -18,12 +18,10 @@ import li.cil.sedna.instruction.InstructionDefinition.InstructionSize;
 import li.cil.sedna.instruction.InstructionDefinition.ProgramCounter;
 import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
 import li.cil.sedna.riscv.exception.R5MemoryAccessException;
-import li.cil.sedna.utils.BitUtils;
 import li.cil.sedna.utils.SoftDouble;
 import li.cil.sedna.utils.SoftFloat;
 
 import javax.annotation.Nullable;
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -2114,10 +2112,7 @@ final class R5CPUTemplate implements R5CPU {
                       @Field("rs1") final int rs1,
                       @Field("rs2") final int rs2) {
         if (rd != 0) {
-            x[rd] = BigInteger.valueOf(x[rs1])
-                .multiply(BigInteger.valueOf(x[rs2]))
-                .shiftRight(R5.XLEN_64)
-                .longValue();
+            x[rd] = Math.multiplyHigh(x[rs1], x[rs2]);
         }
     }
 
@@ -2126,10 +2121,7 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs1") final int rs1,
                         @Field("rs2") final int rs2) {
         if (rd != 0) {
-            x[rd] = BigInteger.valueOf(x[rs1])
-                .multiply(BitUtils.unsignedLongToBigInteger(x[rs2]))
-                .shiftRight(R5.XLEN_64)
-                .longValue();
+            x[rd] = signedUnsignedMultiplyHigh(x[rs1], x[rs2]);
         }
     }
 
@@ -2138,11 +2130,16 @@ final class R5CPUTemplate implements R5CPU {
                        @Field("rs1") final int rs1,
                        @Field("rs2") final int rs2) {
         if (rd != 0) {
-            x[rd] = BitUtils.unsignedLongToBigInteger(x[rs1])
-                .multiply(BitUtils.unsignedLongToBigInteger(x[rs2]))
-                .shiftRight(R5.XLEN_64)
-                .longValue();
+            x[rd] = unsignedMultiplyHigh(x[rs1], x[rs2]);
         }
+    }
+
+    private static long unsignedMultiplyHigh(final long a, final long b) {
+        return Math.multiplyHigh(a, b) + (b & (a >> 63)) + (a & (b >> 63));
+    }
+
+    private static long signedUnsignedMultiplyHigh(final long signed, final long unsigned) {
+        return Math.multiplyHigh(signed, unsigned) + (signed & (unsigned >> 63));
     }
 
     @Instruction("DIV")

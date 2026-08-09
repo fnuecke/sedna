@@ -81,6 +81,14 @@ jmh {
     fork = (project.findProperty("jmh.fork") as String? ?: "1").toInt()
     (project.findProperty("jmh.include") as String?)?.let { includes = listOf(it) }
 
+    (project.findProperty("jmh.params") as String?)?.let { spec ->
+        spec.split(";").filter { it.isNotBlank() }.forEach { entry ->
+            val name = entry.substringBefore('=').trim()
+            val values = entry.substringAfter('=').split(",").map { it.trim() }
+            benchmarkParameters.put(name, objects.listProperty(String::class.java).value(values))
+        }
+    }
+
     warmupForks = 0
     resultFormat = "TEXT"
     includeTests = false

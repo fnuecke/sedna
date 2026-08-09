@@ -46,9 +46,19 @@ public final class R5Assembler {
         return rType(0b0000001, rs2, rs1, 0b000, rd, OP);
     }
 
-    /** {@code mulh}, the signed high half multiply, which sedna implements via BigInteger. */
+    /** {@code mulh}, the signed times signed high half multiply. */
     public static int mulh(final int rd, final int rs1, final int rs2) {
         return rType(0b0000001, rs2, rs1, 0b001, rd, OP);
+    }
+
+    /** {@code mulhsu}, the signed times unsigned high half multiply. */
+    public static int mulhsu(final int rd, final int rs1, final int rs2) {
+        return rType(0b0000001, rs2, rs1, 0b010, rd, OP);
+    }
+
+    /** {@code mulhu}, the unsigned times unsigned high half multiply. */
+    public static int mulhu(final int rd, final int rs1, final int rs2) {
+        return rType(0b0000001, rs2, rs1, 0b011, rd, OP);
     }
 
     /** {@code ld rd, imm(rs1)} */

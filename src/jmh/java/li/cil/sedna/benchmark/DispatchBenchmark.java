@@ -17,7 +17,7 @@ public class DispatchBenchmark {
 
     private static final int CODE_SIZE = (INSTRUCTIONS + 4096) * 4;
 
-    @Param({"nop", "add", "mul", "mulh", "ld", "sd", "fadd_d"})
+    @Param({"nop", "add", "mul", "mulh", "mulhsu", "mulhu", "ld", "sd", "fadd_d"})
     public String instruction;
 
     private Vm vm;
@@ -58,6 +58,8 @@ public class DispatchBenchmark {
             case "add" -> R5Assembler.add(2, 3, 4);
             case "mul" -> R5Assembler.mul(2, 3, 4);
             case "mulh" -> R5Assembler.mulh(2, 3, 4);
+            case "mulhsu" -> R5Assembler.mulhsu(2, 3, 4);
+            case "mulhu" -> R5Assembler.mulhu(2, 3, 4);
             case "ld" -> R5Assembler.ld(2, 1, 0);
             case "sd" -> R5Assembler.sd(2, 1, 0);
             case "fadd_d" -> R5Assembler.faddD(2, 3, 4);
