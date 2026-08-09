@@ -20,6 +20,7 @@ public final class FileMappedMemory extends ByteBufferMemory {
     private FileMappedMemory(final int size, final FileChannel channel) throws IOException {
         super(size, channel.map(FileChannel.MapMode.READ_WRITE, 0, size));
         this.channel = channel;
+        this.size = size;
     }
 
     @Override
