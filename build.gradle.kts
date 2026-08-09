@@ -39,8 +39,6 @@ dependencies {
     implementation("it.unimi.dsi:fastutil:8.5.6")
     implementation("org.apache.commons:commons-lang3:3.12.0")
     implementation("org.apache.logging.log4j:log4j-api:2.15.0")
-    implementation("org.apache.logging.log4j:log4j-core:2.15.0")
-    implementation("org.ow2.asm:asm-commons:9.1")
     implementation("org.ow2.asm:asm:9.1")
 
     implementation("li.cil.ceres:ceres:0.0.4")
@@ -73,6 +71,14 @@ publishing {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+tasks.register<JavaExec>("generateDecoder") {
+    group = "build"
+    description = "Regenerates src/main/java/li/cil/sedna/riscv/R5CPUImpl.java from the instruction declarations."
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("li.cil.sedna.riscv.R5CPUImplGenerator")
+    workingDir = projectDir
 }
 
 jmh {

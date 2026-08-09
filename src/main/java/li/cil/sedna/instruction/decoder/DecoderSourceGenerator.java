@@ -16,6 +16,7 @@ import li.cil.sedna.utils.BitUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -26,12 +27,7 @@ import java.util.stream.Collectors;
 /**
  * Emits a decoder as Java source, given a decoder tree.
  * <p>
- * This is the source counterpart to {@link DecoderGenerator}, which emits the same decoder as
- * bytecode directly into the CPU class at runtime. Emitting source instead means the decoder can be
- * read, diffed, stepped through in a debugger and instrumented. The old one will go away later.
- * <p>
- * The structure deliberately mirrors {@link DecoderGenerator}, because the generated code has to
- * keep the properties the bytecode version was explicitly designed to have:
+ * Some design decisions leading to the current implementation:
  * <ul>
  *     <li>Switch keys are compacted so that the cases form a dense range, which is what gets a
  *     {@code tableswitch} out of javac rather than a chain of comparisons.</li>
@@ -261,9 +257,11 @@ public final class DecoderSourceGenerator {
             }
 
             // Operands the sub-tree needs that we already have in locals get passed along, rather
-            // than being extracted a second time inside the method.
+            // than being extracted a second time inside the method. Sorted by local name because
+            // the argument set does not have a stable order (see hoistLocals).
             final List<FieldInstructionArgument> parameters = new ArrayList<>(node.getArguments().arguments.keySet());
             parameters.retainAll(context.locals.keySet());
+            parameters.sort(Comparator.comparing(context.locals::get));
 
             final List<InstructionDefinition> definitions = instructions.stream()
                 .map(definitionProvider)
@@ -378,14 +376,21 @@ public final class DecoderSourceGenerator {
 
         protected void hoistLocals(final DecoderTreeNodeArguments arguments) {
             final int threshold = Math.max(2, (int) (arguments.totalLeafCount * HOIST_THRESHOLD));
-            arguments.arguments.forEach((argument, entry) -> {
-                if (entry.count >= threshold && !context.locals.containsKey(argument)) {
+            // Sort for stable, deterministic output (e.g. for change check in test).
+            arguments.arguments.entrySet().stream()
+                .filter(e -> e.getValue().count >= threshold && !context.locals.containsKey(e.getKey()))
+                .sorted(Comparator.comparing(e -> localName(e.getValue())))
+                .forEach(e -> {
+                    final FieldInstructionArgument argument = e.getKey();
+                    final String name = localName(e.getValue());
                     hoisted.add(argument);
-                    final String name = String.join("_", entry.names);
                     context.locals.put(argument, name);
                     context.out.line("final int " + name + " = " + fieldExpression(argument, context.instExpr) + ";");
-                }
-            });
+                });
+        }
+
+        private String localName(final DecoderTreeNodeArguments.Entry entry) {
+            return entry.names.stream().sorted().collect(Collectors.joining("_"));
         }
 
         protected void dropLocals() {

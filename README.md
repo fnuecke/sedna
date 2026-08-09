@@ -41,15 +41,20 @@ This comes with a couple of caveats:
 
 ## Instructions and decoding
 
-Sedna uses run-time byte-code generation to create the decoder switch used by the instruction interpreter. This makes it
-very easy to add new instructions and to experiment with different switch layouts to improve performance. The
-instruction loader and switch generator are technically general purpose, i.e. they have no direct dependencies on the
-RISC-V part of this project. However, there are some assumptions on how instructions are defined and processed baked
-into their design.
+Sedna generates the decoder switch used by the instruction interpreter as Java source, which is checked into the
+repository ([R5CPUImpl](src/main/java/li/cil/sedna/riscv/R5CPUImpl.java)). This makes it very easy to add new
+instructions and to experiment with different switch layouts to improve performance, while keeping the code that
+actually runs readable, debuggable and visible to profilers. After changing instruction declarations or definitions,
+regenerate it with `./gradlew generateDecoder`; a test fails if the checked-in file is out of date. The instruction
+loader and switch generator are technically general purpose, i.e. they have no direct dependencies on the RISC-V part
+of this project. However, there are some assumptions on how instructions are defined and processed baked into their
+design.
 
-The current set of supported RISC-V instructions is declared [in this file](src/main/resources/riscv/instructions.txt).
+The current set of supported RISC-V instructions is declared in
+[instructions64.txt](src/main/resources/riscv/instructions64.txt) and
+[instructions32.txt](src/main/resources/riscv/instructions32.txt).
 
-Instruction implementations are defined in [the RISC-V CPU class](src/main/java/li/cil/sedna/riscv/R5CPUTemplate.java).
+Instruction implementations are defined in [the RISC-V CPU class](src/main/java/li/cil/sedna/riscv/R5CPUBase.java).
 
 ## Endianness
 

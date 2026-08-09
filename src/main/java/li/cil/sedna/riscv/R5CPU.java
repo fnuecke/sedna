@@ -11,7 +11,7 @@ import javax.annotation.Nullable;
 
 public interface R5CPU extends Steppable, Resettable, RealTimeCounter, InterruptController {
     static R5CPU create(final MemoryMap physicalMemory, @Nullable final RealTimeCounter rtc) {
-        return R5CPUGenerator.create(physicalMemory, rtc);
+        return new R5CPUImpl(physicalMemory, rtc);
     }
 
     static R5CPU create(final MemoryMap physicalMemory) {
