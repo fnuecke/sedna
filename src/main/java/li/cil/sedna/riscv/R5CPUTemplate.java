@@ -495,15 +495,15 @@ final class R5CPUTemplate implements R5CPU {
         switch (csr) {
             // Floating-Point Control and Status Registers
             case 0x001 -> { // fflags, Floating-Point Accrued Exceptions.
-                if (fs == R5.FS_OFF) return -1;
+                checkFPUEnabled();
                 return fpu32.flags.value;
             }
             case 0x002 -> { // frm, Floating-Point Dynamic Rounding Mode.
-                if (fs == R5.FS_OFF) return -1;
+                checkFPUEnabled();
                 return frm;
             }
             case 0x003 -> { // fcsr, Floating-Point Control and Status Register (frm + fflags).
-                if (fs == R5.FS_OFF) return -1;
+                checkFPUEnabled();
                 return (frm << 5) | fpu32.flags.value;
             }
 
@@ -720,14 +720,17 @@ final class R5CPUTemplate implements R5CPU {
         switch (csr) {
             // Floating-Point Control and Status Registers
             case 0x001 -> { // fflags, Floating-Point Accrued Exceptions.
+                checkFPUEnabled();
                 fpu32.flags.value = (byte) (value & 0b11111);
                 fs = R5.FS_DIRTY;
             }
             case 0x002 -> { // frm, Floating-Point Dynamic Rounding Mode.
+                checkFPUEnabled();
                 frm = (byte) (value & 0b111);
                 fs = R5.FS_DIRTY;
             }
             case 0x003 -> { // fcsr, Floating-Point Control and Status Register (frm + fflags).
+                checkFPUEnabled();
                 frm = (byte) ((value >>> 5) & 0b111);
                 fpu32.flags.value = (byte) (value & 0b11111);
                 fs = R5.FS_DIRTY;
@@ -993,6 +996,14 @@ final class R5CPUTemplate implements R5CPU {
         }
 
         priv = level;
+    }
+
+    private void checkFPUEnabled() throws R5IllegalInstructionException {
+        // Spec says "when an extension’s status is set to Off, any instruction that attempts
+        // to read or write the corresponding state will cause an illegal instruction exception."
+        if (fs == R5.FS_OFF) {
+            throw new R5IllegalInstructionException();
+        }
     }
 
     private int resolveRoundingMode(int rm) throws R5IllegalInstructionException {
@@ -2689,7 +2700,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FLW")
     private void flw(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
-                     @Field("imm") final int imm) throws R5MemoryAccessException {
+                     @Field("imm") final int imm) throws R5IllegalInstructionException, R5MemoryAccessException {
+        checkFPUEnabled();
         f[rd] = load32(x[rs1] + imm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
@@ -2697,8 +2709,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FSW")
     private void fsw(@Field("rs1") final int rs1,
                      @Field("rs2") final int rs2,
-                     @Field("imm") final int imm) throws R5MemoryAccessException {
-        if (fs == R5.FS_OFF) return;
+                     @Field("imm") final int imm) throws R5IllegalInstructionException, R5MemoryAccessException {
+        checkFPUEnabled();
         store32(x[rs1] + imm, (int) f[rs2]);
     }
 
@@ -2708,6 +2720,7 @@ final class R5CPUTemplate implements R5CPU {
                          @Field("rs2") final int rs2,
                          @Field("rs3") final int rs3,
                          @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.muladd(checkFloat(f[rs1]), checkFloat(f[rs2]), checkFloat(f[rs3]), rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -2719,6 +2732,7 @@ final class R5CPUTemplate implements R5CPU {
                          @Field("rs2") final int rs2,
                          @Field("rs3") final int rs3,
                          @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.mulsub(checkFloat(f[rs1]), checkFloat(f[rs2]), checkFloat(f[rs3]), rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -2730,6 +2744,7 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs2") final int rs2,
                           @Field("rs3") final int rs3,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.neg(fpu32.mulsub(checkFloat(f[rs1]), checkFloat(f[rs2]), checkFloat(f[rs3]), rm)) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -2741,6 +2756,7 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs2") final int rs2,
                           @Field("rs3") final int rs3,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.neg(fpu32.muladd(checkFloat(f[rs1]), checkFloat(f[rs2]), checkFloat(f[rs3]), rm)) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -2751,6 +2767,7 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
                         @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.add(checkFloat(f[rs1]), checkFloat(f[rs2]), rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -2761,6 +2778,7 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
                         @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.sub(checkFloat(f[rs1]), checkFloat(f[rs2]), rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -2771,6 +2789,7 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
                         @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.mul(checkFloat(f[rs1]), checkFloat(f[rs2]), rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -2781,6 +2800,7 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
                         @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.div(checkFloat(f[rs1]), checkFloat(f[rs2]), rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -2790,6 +2810,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fsqrt_s(@Field("rd") final int rd,
                          @Field("rs1") final int rs1,
                          @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.sqrt(checkFloat(f[rs1]), rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -2798,7 +2819,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FSGNJ.S")
     private void fsgnj_s(@Field("rd") final int rd,
                          @Field("rs1") final int rs1,
-                         @Field("rs2") final int rs2) {
+                         @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         final long value = checkFloat(f[rs1]) & ~SoftFloat.SIGN_MASK;
         f[rd] = value | (checkFloat(f[rs2]) & SoftFloat.SIGN_MASK) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -2807,7 +2829,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FSGNJN.S")
     private void fsgnjn_s(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) {
+                          @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         final long value = checkFloat(f[rs1]) & ~SoftFloat.SIGN_MASK;
         f[rd] = value | (~checkFloat(f[rs2]) & SoftFloat.SIGN_MASK) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -2816,7 +2839,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FSGNJX.S")
     private void fsgnjx_s(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) {
+                          @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         f[rd] = f[rs1] ^ (checkFloat(f[rs2]) & SoftFloat.SIGN_MASK) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
@@ -2824,7 +2848,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FMIN.S")
     private void fmin_s(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2) {
+                        @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         f[rd] = fpu32.min(checkFloat(f[rs1]), checkFloat(f[rs2])) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
@@ -2832,7 +2857,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FMAX.S")
     private void fmax_s(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2) {
+                        @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         f[rd] = fpu32.max(checkFloat(f[rs1]), checkFloat(f[rs2])) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
@@ -2841,6 +2867,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_w_s(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final int value = fpu32.floatToInt(checkFloat(f[rs1]), rm);
         if (rd != 0) {
@@ -2852,6 +2879,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_wu_s(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final int value = fpu32.floatToUnsignedInt(checkFloat(f[rs1]), rm);
         if (rd != 0) {
@@ -2861,7 +2889,8 @@ final class R5CPUTemplate implements R5CPU {
 
     @Instruction("FMV.X.W")
     private void fmv_x_w(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1) {
+                         @Field("rs1") final int rs1) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         if (rd != 0) {
             x[rd] = (int) f[rs1];
         }
@@ -2870,7 +2899,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FEQ.S")
     private void feq_s(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
-                       @Field("rs2") final int rs2) {
+                       @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         final boolean areEqual = fpu32.equals(checkFloat(f[rs1]), checkFloat(f[rs2]));
         if (rd != 0) {
             x[rd] = areEqual ? 1 : 0;
@@ -2880,7 +2910,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FLT.S")
     private void flt_s(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
-                       @Field("rs2") final int rs2) {
+                       @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         final boolean isLessThan = fpu32.lessThan(checkFloat(f[rs1]), checkFloat(f[rs2]));
         if (rd != 0) {
             x[rd] = isLessThan ? 1 : 0;
@@ -2890,7 +2921,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FLE.S")
     private void fle_s(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
-                       @Field("rs2") final int rs2) {
+                       @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         final boolean isLessOrEqual = fpu32.lessOrEqual(checkFloat(f[rs1]), checkFloat(f[rs2]));
         if (rd != 0) {
             x[rd] = isLessOrEqual ? 1 : 0;
@@ -2899,7 +2931,8 @@ final class R5CPUTemplate implements R5CPU {
 
     @Instruction("FCLASS.S")
     private void fclass_s(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1) {
+                          @Field("rs1") final int rs1) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         if (rd != 0) {
             x[rd] = fpu32.classify(checkFloat(f[rs1]));
         }
@@ -2909,6 +2942,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_s_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.intToFloat((int) x[rs1], rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -2918,6 +2952,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_s_wu(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.unsignedIntToFloat((int) x[rs1], rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -2925,7 +2960,8 @@ final class R5CPUTemplate implements R5CPU {
 
     @Instruction("FMV.W.X")
     private void fmv_w_x(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1) {
+                         @Field("rs1") final int rs1) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         f[rd] = x[rs1] | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
@@ -2937,6 +2973,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_l_s(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final long value = fpu32.floatToLong((int) f[rs1], rm);
         if (rd != 0) {
@@ -2948,6 +2985,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_lu_s(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final long value = fpu32.floatToUnsignedLong((int) f[rs1], rm);
         if (rd != 0) {
@@ -2959,6 +2997,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_s_l(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.longToFloat(x[rs1], rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -2968,6 +3007,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_s_lu(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.unsignedLongToFloat(x[rs1], rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -2979,7 +3019,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FLD")
     private void fld(@Field("rd") final int rd,
                      @Field("rs1") final int rs1,
-                     @Field("imm") final int imm) throws R5MemoryAccessException {
+                     @Field("imm") final int imm) throws R5IllegalInstructionException, R5MemoryAccessException {
+        checkFPUEnabled();
         f[rd] = load64(x[rs1] + imm);
         fs = R5.FS_DIRTY;
     }
@@ -2987,8 +3028,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FSD")
     private void fsd(@Field("rs1") final int rs1,
                      @Field("rs2") final int rs2,
-                     @Field("imm") final int imm) throws R5MemoryAccessException {
-        if (fs == R5.FS_OFF) return;
+                     @Field("imm") final int imm) throws R5IllegalInstructionException, R5MemoryAccessException {
+        checkFPUEnabled();
         store64(x[rs1] + imm, f[rs2]);
     }
 
@@ -2998,6 +3039,7 @@ final class R5CPUTemplate implements R5CPU {
                          @Field("rs2") final int rs2,
                          @Field("rs3") final int rs3,
                          @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.muladd(f[rs1], f[rs2], f[rs3], rm);
         fs = R5.FS_DIRTY;
@@ -3009,6 +3051,7 @@ final class R5CPUTemplate implements R5CPU {
                          @Field("rs2") final int rs2,
                          @Field("rs3") final int rs3,
                          @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.mulsub(f[rs1], f[rs2], f[rs3], rm);
         fs = R5.FS_DIRTY;
@@ -3020,6 +3063,7 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs2") final int rs2,
                           @Field("rs3") final int rs3,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.neg(fpu64.mulsub(f[rs1], f[rs2], f[rs3], rm));
         fs = R5.FS_DIRTY;
@@ -3031,6 +3075,7 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs2") final int rs2,
                           @Field("rs3") final int rs3,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.neg(fpu64.muladd(f[rs1], f[rs2], f[rs3], rm));
         fs = R5.FS_DIRTY;
@@ -3041,6 +3086,7 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
                         @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.add(f[rs1], f[rs2], rm);
         fs = R5.FS_DIRTY;
@@ -3051,6 +3097,7 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
                         @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.sub(f[rs1], f[rs2], rm);
         fs = R5.FS_DIRTY;
@@ -3061,6 +3108,7 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
                         @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.mul(f[rs1], f[rs2], rm);
         fs = R5.FS_DIRTY;
@@ -3071,6 +3119,7 @@ final class R5CPUTemplate implements R5CPU {
                         @Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
                         @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.div(f[rs1], f[rs2], rm);
         fs = R5.FS_DIRTY;
@@ -3080,6 +3129,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fsqrt_d(@Field("rd") final int rd,
                          @Field("rs1") final int rs1,
                          @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.sqrt(f[rs1], rm);
         fs = R5.FS_DIRTY;
@@ -3088,7 +3138,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FSGNJ.D")
     private void fsgnj_d(@Field("rd") final int rd,
                          @Field("rs1") final int rs1,
-                         @Field("rs2") final int rs2) {
+                         @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         final long value = f[rs1] & ~SoftDouble.SIGN_MASK;
         f[rd] = value | (f[rs2] & SoftDouble.SIGN_MASK);
         fs = R5.FS_DIRTY;
@@ -3097,7 +3148,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FSGNJN.D")
     private void fsgnjn_d(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) {
+                          @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         final long value = f[rs1] & ~SoftDouble.SIGN_MASK;
         f[rd] = value | (~f[rs2] & SoftDouble.SIGN_MASK);
         fs = R5.FS_DIRTY;
@@ -3106,7 +3158,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FSGNJX.D")
     private void fsgnjx_d(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) {
+                          @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         f[rd] = f[rs1] ^ (f[rs2] & SoftDouble.SIGN_MASK);
         fs = R5.FS_DIRTY;
     }
@@ -3114,7 +3167,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FMIN.D")
     private void fmin_d(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2) {
+                        @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         f[rd] = fpu64.min(f[rs1], f[rs2]);
         fs = R5.FS_DIRTY;
     }
@@ -3122,7 +3176,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FMAX.D")
     private void fmax_d(@Field("rd") final int rd,
                         @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2) {
+                        @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         f[rd] = fpu64.max(f[rs1], f[rs2]);
         fs = R5.FS_DIRTY;
     }
@@ -3131,6 +3186,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_s_d(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.doubleToFloat(f[rs1], rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -3140,6 +3196,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_d_s(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.floatToDouble((int) f[rs1], rm);
         fs = R5.FS_DIRTY;
@@ -3148,7 +3205,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FEQ.D")
     private void feq_d(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
-                       @Field("rs2") final int rs2) {
+                       @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         final boolean areEqual = fpu64.equals(f[rs1], f[rs2]);
         if (rd != 0) {
             x[rd] = areEqual ? 1 : 0;
@@ -3158,7 +3216,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FLT.D")
     private void flt_d(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
-                       @Field("rs2") final int rs2) {
+                       @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         final boolean isLessThan = fpu64.lessThan(f[rs1], f[rs2]);
         if (rd != 0) {
             x[rd] = isLessThan ? 1 : 0;
@@ -3168,7 +3227,8 @@ final class R5CPUTemplate implements R5CPU {
     @Instruction("FLE.D")
     private void fle_d(@Field("rd") final int rd,
                        @Field("rs1") final int rs1,
-                       @Field("rs2") final int rs2) {
+                       @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         final boolean isLessOrEqual = fpu64.lessOrEqual(f[rs1], f[rs2]);
         if (rd != 0) {
             x[rd] = isLessOrEqual ? 1 : 0;
@@ -3177,7 +3237,8 @@ final class R5CPUTemplate implements R5CPU {
 
     @Instruction("FCLASS.D")
     private void fclass_d(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1) {
+                          @Field("rs1") final int rs1) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         if (rd != 0) {
             x[rd] = fpu64.classify(f[rs1]);
         }
@@ -3187,6 +3248,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_w_d(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final int value = fpu64.doubleToInt(f[rs1], rm);
         if (rd != 0) {
@@ -3198,6 +3260,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_wu_d(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final int value = fpu64.doubleToUnsignedInt(f[rs1], rm);
         if (rd != 0) {
@@ -3209,6 +3272,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_d_w(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.intToDouble((int) x[rs1], rm);
         fs = R5.FS_DIRTY;
@@ -3218,6 +3282,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_d_wu(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.unsignedIntToDouble((int) x[rs1], rm);
         fs = R5.FS_DIRTY;
@@ -3230,6 +3295,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_l_d(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final long value = fpu64.doubleToLong(f[rs1], rm);
         if (rd != 0) {
@@ -3241,6 +3307,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_lu_d(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final long value = fpu64.doubleToUnsignedLong(f[rs1], rm);
         if (rd != 0) {
@@ -3250,7 +3317,8 @@ final class R5CPUTemplate implements R5CPU {
 
     @Instruction("FMV.X.D")
     private void fmv_x_d(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1) {
+                         @Field("rs1") final int rs1) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         if (rd != 0) {
             x[rd] = f[rs1];
         }
@@ -3260,6 +3328,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_d_l(@Field("rd") final int rd,
                           @Field("rs1") final int rs1,
                           @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.longToDouble(x[rs1], rm);
         fs = R5.FS_DIRTY;
@@ -3269,6 +3338,7 @@ final class R5CPUTemplate implements R5CPU {
     private void fcvt_d_lu(@Field("rd") final int rd,
                            @Field("rs1") final int rs1,
                            @Field("rm") int rm) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.unsignedLongToDouble(x[rs1], rm);
         fs = R5.FS_DIRTY;
@@ -3276,7 +3346,8 @@ final class R5CPUTemplate implements R5CPU {
 
     @Instruction("FMV.D.X")
     private void fmv_d_x(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1) {
+                         @Field("rs1") final int rs1) throws R5IllegalInstructionException {
+        checkFPUEnabled();
         f[rd] = x[rs1];
         fs = R5.FS_DIRTY;
     }
