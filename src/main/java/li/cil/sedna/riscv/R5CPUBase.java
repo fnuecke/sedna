@@ -136,6 +136,17 @@ public abstract class R5CPUBase implements R5CPU {
     private final transient TLBEntry[] loadTLB = new TLBEntry[TLB_SIZE];
     private final transient TLBEntry[] storeTLB = new TLBEntry[TLB_SIZE];
 
+    // Separate look-aside buffers for memory mapped devices, which the TLBs above deliberately
+    // exclude: those cache whole pages, and devices are packed with only 8-byte alignment, so a
+    // sub-page device may share its page with a neighbor. These entries therefore also carry the
+    // virtual address window the device actually occupies within the page; accesses outside it
+    // (a neighboring device, an unmapped hole) fall through to the slow path. Only consulted after
+    // a main-TLB miss, so the RAM fast path pays nothing for this. Few pages hold devices, so this
+    // can be much smaller than the main TLBs.
+    private static final int MMIO_TLB_SIZE = 64;
+    private final transient MMIOTLBEntry[] mmioLoadTLB = new MMIOTLBEntry[MMIO_TLB_SIZE];
+    private final transient MMIOTLBEntry[] mmioStoreTLB = new MMIOTLBEntry[MMIO_TLB_SIZE];
+
     // Access to physical memory for load/store operations.
     private final transient MemoryMap physicalMemory;
 
@@ -163,6 +174,12 @@ public abstract class R5CPUBase implements R5CPU {
         }
         for (int i = 0; i < TLB_SIZE; i++) {
             storeTLB[i] = new TLBEntry();
+        }
+        for (int i = 0; i < MMIO_TLB_SIZE; i++) {
+            mmioLoadTLB[i] = new MMIOTLBEntry();
+        }
+        for (int i = 0; i < MMIO_TLB_SIZE; i++) {
+            mmioStoreTLB[i] = new MMIOTLBEntry();
         }
 
         reset();
@@ -1194,6 +1211,15 @@ public abstract class R5CPUBase implements R5CPU {
     }
 
     private long loadSlow(final long address, final int sizeLog2) throws R5MemoryAccessException {
+        final MMIOTLBEntry mmioEntry = mmioLoadTLB[mmioIndex(address)];
+        if (mmioEntry.matches(address, sizeLog2)) {
+            try {
+                return mmioEntry.device.load((int) (address + mmioEntry.toOffset), sizeLog2);
+            } catch (final MemoryAccessException e) {
+                throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_LOAD);
+            }
+        }
+
         final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.LOAD, false);
         final MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
         if (range == null) {
@@ -1205,6 +1231,7 @@ public abstract class R5CPUBase implements R5CPU {
                 final TLBEntry entry = updateTLB(loadTLB, address, physicalAddress, range);
                 return entry.device.load((int) (address + entry.toOffset), sizeLog2);
             } else {
+                updateMMIOTLB(mmioEntry, address, physicalAddress, range);
                 return range.device.load((int) (physicalAddress - range.address()), sizeLog2);
             }
         } catch (final MemoryAccessException e) {
@@ -1213,6 +1240,16 @@ public abstract class R5CPUBase implements R5CPU {
     }
 
     private void storeSlow(final long address, final long value, final int sizeLog2) throws R5MemoryAccessException {
+        final MMIOTLBEntry mmioEntry = mmioStoreTLB[mmioIndex(address)];
+        if (mmioEntry.matches(address, sizeLog2)) {
+            try {
+                mmioEntry.device.store((int) (address + mmioEntry.toOffset), value, sizeLog2);
+                return;
+            } catch (final MemoryAccessException e) {
+                throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_STORE);
+            }
+        }
+
         final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.STORE, false);
         final MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
         if (range == null) {
@@ -1226,6 +1263,7 @@ public abstract class R5CPUBase implements R5CPU {
                 entry.device.store(offset, value, sizeLog2);
                 physicalMemory.setDirty(range, offset);
             } else {
+                updateMMIOTLB(mmioEntry, address, physicalAddress, range);
                 range.device.store((int) (physicalAddress - range.start), value, sizeLog2);
             }
         } catch (final MemoryAccessException e) {
@@ -1401,6 +1439,27 @@ public abstract class R5CPUBase implements R5CPU {
         return tlb;
     }
 
+    private static int mmioIndex(final long address) {
+        return (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (MMIO_TLB_SIZE - 1));
+    }
+
+    private static void updateMMIOTLB(final MMIOTLBEntry entry, final long address, final long physicalAddress, final MappedMemoryRange range) {
+        final long virtualPage = address & ~R5.PAGE_ADDRESS_MASK;
+        final long physicalPage = physicalAddress & ~R5.PAGE_ADDRESS_MASK;
+
+        entry.hash = virtualPage;
+        entry.toOffset = physicalAddress - address - range.start;
+        entry.device = range.device;
+
+        // The device's slice of this page, as virtual addresses. physicalPage <= physicalAddress
+        // and range.start <= physicalAddress <= range.end always hold here, so the page-local
+        // deltas below cannot underflow.
+        final long startInPage = Long.compareUnsigned(range.start, physicalPage) > 0 ? range.start - physicalPage : 0;
+        final long endInPage = Math.min(R5.PAGE_ADDRESS_MASK, range.end - physicalPage);
+        entry.windowStart = virtualPage + startInPage;
+        entry.windowEnd = virtualPage + endInPage;
+    }
+
     private void flushTLB() {
         // Only reset the most necessary field, the hash (which we use to check if an entry is applicable).
         // Reset per-array for *much* faster clears due to it being a faster memory access pattern/the
@@ -1414,6 +1473,12 @@ public abstract class R5CPUBase implements R5CPU {
         }
         for (int i = 0; i < TLB_SIZE; i++) {
             storeTLB[i].hash = -1;
+        }
+        for (int i = 0; i < MMIO_TLB_SIZE; i++) {
+            mmioLoadTLB[i].hash = -1;
+        }
+        for (int i = 0; i < MMIO_TLB_SIZE; i++) {
+            mmioStoreTLB[i].hash = -1;
         }
     }
 
@@ -1429,6 +1494,14 @@ public abstract class R5CPUBase implements R5CPU {
         }
         if (storeTLB[index].hash == hash) {
             storeTLB[index].hash = -1;
+        }
+
+        final int mmioIndex = mmioIndex(address);
+        if (mmioLoadTLB[mmioIndex].hash == hash) {
+            mmioLoadTLB[mmioIndex].hash = -1;
+        }
+        if (mmioStoreTLB[mmioIndex].hash == hash) {
+            mmioStoreTLB[mmioIndex].hash = -1;
         }
     }
 
@@ -3331,6 +3404,20 @@ public abstract class R5CPUBase implements R5CPU {
         public MemoryMappedDevice device;
         //Subset of complete breakpoint set
         public LongSet breakpoints;
+    }
+
+    private static final class MMIOTLBEntry {
+        public long hash = -1;
+        public long toOffset;
+        public MemoryMappedDevice device;
+        public long windowStart;
+        public long windowEnd;
+
+        public boolean matches(final long address, final int sizeLog2) {
+            return hash == (address & ~R5.PAGE_ADDRESS_MASK)
+                && Long.compareUnsigned(address, windowStart) >= 0
+                && Long.compareUnsigned(address + (1 << sizeLog2) - 1, windowEnd) <= 0;
+        }
     }
 
     final class DebugInterface implements CPUDebugInterface {
