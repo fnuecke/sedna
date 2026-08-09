@@ -297,7 +297,7 @@ final class R5CPUTemplate implements R5CPU {
             mcycle = cycleLimit;
         }
 
-        cycleDebt += (int) (cycleLimit - mcycle);
+        cycleDebt += (int) (mcycle - cycleLimit);
     }
 
     ///////////////////////////////////////////////////////////////////
