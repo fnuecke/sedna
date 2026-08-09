@@ -23,6 +23,11 @@ public final class R5CPUSerializer implements Serializer<R5CPU> {
     @Override
     public R5CPU deserialize(final DeserializationVisitor visitor, final Class<R5CPU> type, @Nullable final Object value) throws SerializationException {
         final Serializer<?> serializer = Ceres.getSerializer(R5CPUGenerator.getGeneratedClass());
-        return (R5CPU) serializer.deserialize(visitor, (Class) R5CPUGenerator.getGeneratedClass(), value);
+        final R5CPU cpu = (R5CPU) serializer.deserialize(visitor, (Class) R5CPUGenerator.getGeneratedClass(), value);
+
+        // Required for in-place deserialization, otherwise caches are based on no longer valid state.
+        cpu.invalidateCaches();
+
+        return cpu;
     }
 }
