@@ -84,8 +84,9 @@ public final class SimpleMemoryMap implements MemoryMap {
         final MappedMemoryRange range = getMemoryRange(address);
         if (range != null && (range.device.getSupportedSizes() & (1 << sizeLog2)) != 0) {
             return range.device.load((int) (address - range.start), sizeLog2);
+        } else {
+            throw new MemoryAccessException();
         }
-        return 0;
     }
 
     @Override
@@ -93,6 +94,8 @@ public final class SimpleMemoryMap implements MemoryMap {
         final MappedMemoryRange range = getMemoryRange(address);
         if (range != null && (range.device.getSupportedSizes() & (1 << sizeLog2)) != 0) {
             range.device.store((int) (address - range.start), value, sizeLog2);
+        } else {
+            throw new MemoryAccessException();
         }
     }
 }

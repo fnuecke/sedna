@@ -1,18 +1,24 @@
 package li.cil.sedna;
 
+import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.PhysicalMemory;
+import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
+import li.cil.sedna.device.memory.Memory;
 import li.cil.sedna.memory.MemoryMaps;
 import li.cil.sedna.memory.SimpleMemoryMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public final class MemoryMapTests {
+    private static final long ADDRESS = 0x80000000L;
+
     private MemoryMap memoryMap;
 
     @BeforeEach
@@ -56,5 +62,38 @@ public final class MemoryMapTests {
 
         assertEquals(0, MemoryMaps.getContinuousMemorySize(memoryMap, 0));
         assertEquals(0, MemoryMaps.getContinuousMemorySize(memoryMap, 0x80008000L));
+    }
+
+    @Test
+    public void mappedAccessesAreServiced() throws MemoryAccessException {
+        memoryMap.addDevice(ADDRESS, Memory.create(0x1000));
+
+        memoryMap.store(ADDRESS, 0x12345678, Sizes.SIZE_32_LOG2);
+
+        assertEquals(0x12345678, memoryMap.load(ADDRESS, Sizes.SIZE_32_LOG2));
+    }
+
+    @Test
+    public void unmappedAccessesAreReported() {
+        memoryMap.addDevice(ADDRESS, Memory.create(0x1000));
+
+        assertThrows(MemoryAccessException.class, () -> memoryMap.load(0, Sizes.SIZE_32_LOG2));
+        assertThrows(MemoryAccessException.class, () -> memoryMap.store(0, 1, Sizes.SIZE_32_LOG2));
+
+        // Just past the end of the mapped device.
+        assertThrows(MemoryAccessException.class, () -> memoryMap.load(ADDRESS + 0x1000, Sizes.SIZE_32_LOG2));
+        assertThrows(MemoryAccessException.class, () -> memoryMap.store(ADDRESS + 0x1000, 1, Sizes.SIZE_32_LOG2));
+    }
+
+    @Test
+    public void accessesOfAnUnsupportedSizeAreReported() {
+        final PhysicalMemory device = mock(PhysicalMemory.class);
+        when(device.getLength()).thenReturn(0x1000);
+        when(device.getSupportedSizes()).thenReturn(1 << Sizes.SIZE_32_LOG2);
+
+        assertTrue(memoryMap.addDevice(ADDRESS, device));
+
+        assertThrows(MemoryAccessException.class, () -> memoryMap.load(ADDRESS, Sizes.SIZE_8_LOG2));
+        assertThrows(MemoryAccessException.class, () -> memoryMap.store(ADDRESS, 1, Sizes.SIZE_8_LOG2));
     }
 }
