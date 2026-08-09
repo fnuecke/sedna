@@ -87,7 +87,22 @@ final class R5CPUTemplate implements R5CPU {
 
     ///////////////////////////////////////////////////////////////////
     // User-level CSRs
+    /**
+     * Cycles elapsed. Advances while the hart is idle in WFI, since the clock keeps running, which
+     * is what makes it usable as a time source via {@link #getTime()}.
+     */
     private long mcycle;
+
+    /**
+     * Instructions executed. Unlike {@link #mcycle} this does <em>not</em> advance while the hart is
+     * idle, which makes it the counter to divide by when measuring how much work was actually done.
+     * <p>
+     * Slight deviation from the specification: an instruction that raises an exception has already
+     * been counted by the time it turns out not to retire, so traps are included here. Traps are
+     * rare next to retired instructions, and for measuring emulator throughput counting the work
+     * spent decoding and attempting them is the more useful answer anyway.
+     */
+    private long minstret;
 
     // Machine-level CSRs
     private long mstatus; // Machine Status Register
@@ -207,6 +222,7 @@ final class R5CPUTemplate implements R5CPU {
             reservation_set = -1;
 
             mcycle = 0;
+            minstret = 0;
 
             mstatus = (R5.mxl(xlen) << R5.STATUS_UXL_SHIFT) |
                 (R5.mxl(xlen) << R5.STATUS_SXL_SHIFT);
@@ -238,6 +254,11 @@ final class R5CPUTemplate implements R5CPU {
     @Override
     public long getTime() {
         return mcycle;
+    }
+
+    @Override
+    public long getInstructionsRetired() {
+        return minstret;
     }
 
     @Override
@@ -372,6 +393,7 @@ final class R5CPUTemplate implements R5CPU {
                     return;
                 }
                 mcycle++;
+                minstret++;
 
                 ///////////////////////////////////////////////////////////////////
                 // This is the hook we replace when generating the decoder code. //
@@ -408,6 +430,7 @@ final class R5CPUTemplate implements R5CPU {
                     return;
                 }
                 mcycle++;
+                minstret++;
 
                 ///////////////////////////////////////////////////////////////////
                 // This is the hook we replace when generating the decoder code. //
@@ -663,23 +686,27 @@ final class R5CPUTemplate implements R5CPU {
             // 0x615: htimedeltah, Upper 32 bits of htimedelta, RV32 only.
 
             //Machine Counter/Timers
-            // mcycle, Machine cycle counter.
-            case 0xB00, 0xB02 -> { // minstret, Machine instructions-retired counter.
+            case 0xB00 -> { // mcycle, Machine cycle counter.
                 return mcycle;
+            }
+            case 0xB02 -> { // minstret, Machine instructions-retired counter.
+                return minstret;
             }
             // 0xB03: mhpmcounter3, Machine performance-monitoring counter.
             // 0xB04...0xB1F: mhpmcounter4...mhpmcounter31, Machine performance-monitoring counter.
-            // mcycleh, Upper 32 bits of mcycle, RV32 only.
-            case 0xB80, 0xB82 -> { // minstreth, Upper 32 bits of minstret, RV32 only.
+            case 0xB80 -> { // mcycleh, Upper 32 bits of mcycle, RV32 only.
                 if (xlen != R5.XLEN_32) throw new R5IllegalInstructionException();
                 return mcycle >>> 32;
+            }
+            case 0xB82 -> { // minstreth, Upper 32 bits of minstret, RV32 only.
+                if (xlen != R5.XLEN_32) throw new R5IllegalInstructionException();
+                return minstret >>> 32;
             }
             // 0xB83: mhpmcounter3h, Upper 32 bits of mhpmcounter3, RV32 only.
             // 0xB84...0xB9F: mhpmcounter4h...mhpmcounter31h, Upper 32 bits of mhpmcounter4, RV32 only.
 
             // Counters and Timers
-            // cycle
-            case 0xC00, 0xC02 -> { // instret
+            case 0xC00 -> { // cycle
                 // counteren[2:0] is IR, TM, CY. As such the bit index matches the masked csr value.
                 checkCounterAccess(csr & 0b11);
                 return mcycle;
@@ -687,14 +714,25 @@ final class R5CPUTemplate implements R5CPU {
             case 0xC01 -> { // time
                 return rtc.getTime();
             }
+            case 0xC02 -> { // instret
+                // counteren[2:0] is IR, TM, CY. As such the bit index matches the masked csr value.
+                checkCounterAccess(csr & 0b11);
+                return minstret;
+            }
             // 0xC03 ... 0xC1F: hpmcounter3 ... hpmcounter31
-            // cycleh
-            case 0xC80, 0xC82 -> { // instreth
+            case 0xC80 -> { // cycleh
                 if (xlen != R5.XLEN_32) throw new R5IllegalInstructionException();
 
                 // counteren[2:0] is IR, TM, CY. As such the bit index matches the masked csr value.
                 checkCounterAccess(csr & 0b11);
                 return mcycle >>> 32;
+            }
+            case 0xC82 -> { // instreth
+                if (xlen != R5.XLEN_32) throw new R5IllegalInstructionException();
+
+                // counteren[2:0] is IR, TM, CY. As such the bit index matches the masked csr value.
+                checkCounterAccess(csr & 0b11);
+                return minstret >>> 32;
             }
             // 0xC81: timeh
             // 0xC83 ... 0xC9F: hpmcounter3h ... hpmcounter31h
