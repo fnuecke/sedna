@@ -8,7 +8,8 @@ public final class R5IllegalInstructionException extends Exception {
     }
 
     public R5IllegalInstructionException(final int instruction) {
-        super();
+        // This exception is for control-flow, so it's fired a lot; skip stacktrace.
+        super(null, null, false, false);
         this.instruction = instruction;
     }
 
