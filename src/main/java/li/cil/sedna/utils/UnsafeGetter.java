@@ -7,7 +7,7 @@ import sun.misc.Unsafe;
 import java.lang.reflect.Field;
 
 public final class UnsafeGetter {
-    private static final Logger LOGGER = LogManager.getLogger();
+    private static final Logger LOGGER = LogManager.getLogger(UnsafeGetter.class);
     private static final Unsafe UNSAFE;
 
     static {

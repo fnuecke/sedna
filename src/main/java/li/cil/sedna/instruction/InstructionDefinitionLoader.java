@@ -15,7 +15,7 @@ import java.util.HashSet;
 import java.util.Objects;
 
 public final class InstructionDefinitionLoader {
-    private static final Logger LOGGER = LogManager.getLogger();
+    private static final Logger LOGGER = LogManager.getLogger(InstructionDefinitionLoader.class);
 
     public static HashMap<InstructionDeclaration, InstructionDefinition> load(final Class<?> implementation, final ArrayList<InstructionDeclaration> declarations) throws IOException {
         final HashMap<InstructionDeclaration, InstructionDefinition> definitions = new HashMap<>();

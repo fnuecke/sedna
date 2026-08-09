@@ -27,7 +27,7 @@ public final class GDBStub {
         BREAKPOINT
     }
 
-    private static final Logger LOGGER = LogManager.getLogger();
+    private static final Logger LOGGER = LogManager.getLogger(GDBStub.class);
 
     private GDBState state = GDBState.DISCONNECTED;
     private InputStream input;

@@ -12,7 +12,7 @@ import java.util.*;
 import java.util.function.Consumer;
 
 public final class DeviceTreeRegistry {
-    private static final Logger LOGGER = LogManager.getLogger();
+    private static final Logger LOGGER = LogManager.getLogger(DeviceTreeRegistry.class);
 
     private static final Map<Class<? extends Device>, DeviceTreeProvider> PROVIDERS = new HashMap<>();
     private static final Map<Class<? extends Device>, DeviceTreeProvider> PROVIDER_CACHE = new HashMap<>();

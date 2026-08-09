@@ -1,6 +1,7 @@
 plugins {
     java
     `maven-publish`
+    id("me.champeau.jmh") version "0.7.2"
 }
 
 val semver: String by project
@@ -72,4 +73,25 @@ publishing {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+jmh {
+    warmupIterations = (project.findProperty("jmh.warmupIterations") as String? ?: "3").toInt()
+    iterations = (project.findProperty("jmh.iterations") as String? ?: "5").toInt()
+    fork = (project.findProperty("jmh.fork") as String? ?: "1").toInt()
+    (project.findProperty("jmh.include") as String?)?.let { includes = listOf(it) }
+
+    warmupForks = 0
+    resultFormat = "TEXT"
+    includeTests = false
+    jvmArgs = listOf("-XX:MaxDirectMemorySize=4g")
+}
+
+configurations.matching { it.name.startsWith("jmh") }.configureEach {
+    resolutionStrategy.force(
+        "org.ow2.asm:asm:9.1",
+        "org.ow2.asm:asm-tree:9.1",
+        "org.ow2.asm:asm-commons:9.1",
+        "org.ow2.asm:asm-analysis:9.1"
+    )
 }

@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 public final class R5Instructions {
-    private static final Logger LOGGER = LogManager.getLogger();
+    private static final Logger LOGGER = LogManager.getLogger(R5Instructions.class);
 
     public static final Spec RV32 = new Spec("/riscv/instructions32.txt");
     public static final Spec RV64 = new Spec("/riscv/instructions64.txt");
