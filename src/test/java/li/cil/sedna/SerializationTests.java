@@ -11,11 +11,11 @@ import li.cil.sedna.device.memory.Memory;
 import li.cil.sedna.device.serial.UART16550A;
 import li.cil.sedna.device.virtio.VirtIOConsoleDevice;
 import li.cil.sedna.memory.SimpleMemoryMap;
+import li.cil.sedna.riscv.R5CPU;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -26,19 +26,19 @@ public final class SerializationTests {
     }
 
     @Test
-    public void testAtomicIntegerSerializer() {
-        final AtomicInteger value = new AtomicInteger(123);
+    public void testCPUPendingInterruptSerialization() {
+        final MemoryMap memoryMap = new SimpleMemoryMap();
+        final R5CPU value = R5CPU.create(memoryMap);
+        value.raiseInterrupts(0b1010);
+
+        assertEquals(0b1010, value.getRaisedInterrupts());
 
         final ByteBuffer serialized = assertDoesNotThrow(() -> BinarySerialization.serialize(value));
-        AtomicInteger deserialized = assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, AtomicInteger.class));
 
-        assertEquals(value.get(), deserialized.get());
+        final R5CPU deserialized = R5CPU.create(memoryMap);
+        assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, deserialized));
 
-        value.set(321);
-        deserialized = assertDoesNotThrow(() -> BinarySerialization.deserialize(serialized, value));
-
-        assertSame(value, deserialized);
-        assertEquals(123, value.get());
+        assertEquals(0b1010, deserialized.getRaisedInterrupts());
     }
 
     @Test

@@ -23,7 +23,6 @@ import li.cil.sedna.riscv.devicetree.R5PlatformLevelInterruptControllerProvider;
 import li.cil.sedna.serialization.serializers.*;
 
 import java.util.BitSet;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public final class Sedna {
     private static boolean isInitialized = false;
@@ -39,7 +38,6 @@ public final class Sedna {
 
         isInitialized = true;
 
-        Ceres.putSerializer(AtomicInteger.class, new AtomicIntegerSerializer());
         Ceres.putSerializer(BitSet.class, new BitSetSerializer());
         Ceres.putSerializer(ByteArrayFIFOQueue.class, new ByteArrayFIFOQueueSerializer());
         Ceres.putSerializer(VirtIOFileSystemDevice.FileSystemFileMap.class, new FileSystemFileMapSerializer());
