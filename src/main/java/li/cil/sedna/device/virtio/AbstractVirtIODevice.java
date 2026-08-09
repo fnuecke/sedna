@@ -329,6 +329,12 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
             return false;
         }
 
+        // Only the split virtqueue layout is implemented, so a driver asking for packed rings gets
+        // the feature set refused.
+        if ((features & VIRTIO_F_RING_PACKED) != 0) {
+            return false;
+        }
+
         return true;
     }
 
@@ -712,10 +718,6 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                     if (!isFeatureSubsetSupported(getNegotiatedFeatures())) {
                         status &= ~VIRTIO_STATUS_FEATURES_OK;
                     } else {
-                        if ((status & VIRTIO_F_RING_PACKED) != 0) {
-                            throw new AssertionError("Packed queues not implemented");
-                        }
-
                         handleFeaturesNegotiated();
                     }
                 }
