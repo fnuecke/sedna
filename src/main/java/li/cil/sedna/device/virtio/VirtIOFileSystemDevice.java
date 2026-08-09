@@ -351,6 +351,8 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
             throw e;
         } catch (final SecurityException e) {
             lerror(chain, tag, LINUX_ERRNO_EPERM);
+        } catch (final IllegalArgumentException e) {
+            lerror(chain, tag, LINUX_ERRNO_EINVAL);
         } catch (final NoSuchFileException e) {
             lerror(chain, tag, LINUX_ERRNO_ENOENT);
         } catch (final FileAlreadyExistsException e) {

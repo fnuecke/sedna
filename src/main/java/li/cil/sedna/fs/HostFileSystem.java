@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 
 public final class HostFileSystem implements FileSystem {
     private final File root;
+    private final java.nio.file.Path rootPath;
 
     public HostFileSystem() {
         this(new File("."));
@@ -18,6 +19,7 @@ public final class HostFileSystem implements FileSystem {
 
     public HostFileSystem(final File root) {
         this.root = root.getAbsoluteFile();
+        this.rootPath = this.root.toPath().normalize();
     }
 
     @Override
@@ -155,10 +157,17 @@ public final class HostFileSystem implements FileSystem {
     }
 
     private java.nio.file.Path toHost(final Path path) {
-        java.nio.file.Path result = root.toPath();
+        java.nio.file.Path result = rootPath;
         for (final String part : path.getParts()) {
             result = result.resolve(part);
         }
+
+        result = result.normalize();
+        if (!result.startsWith(rootPath)) {
+            throw new SecurityException(String.format(
+                "Path [%s] resolves outside of the exported directory [%s].", path, rootPath));
+        }
+
         return result;
     }
 }

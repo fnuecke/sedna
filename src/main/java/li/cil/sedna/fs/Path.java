@@ -19,6 +19,10 @@ public final class Path {
     }
 
     public Path resolve(final String part) {
+        if (part.isEmpty() || part.indexOf('/') >= 0 || part.indexOf('\\') >= 0) {
+            throw new IllegalArgumentException("Not a single path element: [" + part + "].");
+        }
+
         if (part.equals(".")) {
             return new Path(parts);
         }
