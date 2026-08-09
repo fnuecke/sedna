@@ -69,7 +69,7 @@ public final class ISATests {
                             memoryMap.addDevice(start, Memory.create((int) (PHYSICAL_MEMORY_START + PHYSICAL_MEMORY_LENGTH - start)));
                         }
 
-                        loadProgramSegments(elf, memoryMap);
+                        loadProgramSegments(elf, memoryMap, toHostAddress, htif.getLength());
 
                         memoryMap.addDevice(toHostAddress, htif);
 
@@ -100,14 +100,21 @@ public final class ISATests {
         return 0; // appeasing the compiler: this line will never be executed.
     }
 
-    private void loadProgramSegments(final ELF elf, final MemoryMap memoryMap) throws MemoryAccessException {
+    private void loadProgramSegments(final ELF elf, final MemoryMap memoryMap,
+                                     final long htifAddress, final int htifLength) throws MemoryAccessException {
         for (final ProgramHeader header : elf.programHeaderTable) {
             if (header.is(ProgramHeaderType.PT_LOAD)) {
                 final ByteBuffer data = header.getView();
                 final long address = header.physicalAddress;
                 final long length = header.sizeInFile;
                 for (int i = 0; i < length; i++) {
-                    memoryMap.store(address + i, data.get(), Sizes.SIZE_8_LOG2);
+                    final long target = address + i;
+                    final byte value = data.get();
+                    // Skip the HTIF area, since those would be commands.
+                    if (target >= htifAddress && target < htifAddress + htifLength) {
+                        continue;
+                    }
+                    memoryMap.store(target, value, Sizes.SIZE_8_LOG2);
                 }
             }
         }
