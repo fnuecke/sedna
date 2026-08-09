@@ -11,6 +11,7 @@ import li.cil.sedna.api.device.InterruptSource;
 import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.Steppable;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
+import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.riscv.R5;
 
 import java.util.stream.Collectors;
@@ -145,6 +146,11 @@ public final class R5CoreLocalInterrupter implements Steppable, InterruptSource,
                 }
             }
         }
+    }
+
+    @Override
+    public boolean storeCAS(int offset, long value, long expected, int sizeLog2) throws MemoryAccessException {
+        throw new MemoryAccessException();
     }
 
     private void checkTimeComparators() {

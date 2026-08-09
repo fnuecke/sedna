@@ -744,6 +744,11 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         }
     }
 
+    @Override
+    public boolean storeCAS(int offset, long value, long expected, int sizeLog2) throws MemoryAccessException {
+        throw new MemoryAccessException();
+    }
+
     ///////////////////////////////////////////////////////////////////
     // InterruptSource
 

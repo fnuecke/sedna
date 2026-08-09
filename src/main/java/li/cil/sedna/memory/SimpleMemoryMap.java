@@ -5,6 +5,7 @@ import li.cil.sedna.api.memory.MappedMemoryRange;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MemoryRange;
+import li.cil.sedna.riscv.R5CPU;
 
 import javax.annotation.Nullable;
 import java.util.HashMap;
@@ -16,6 +17,9 @@ public final class SimpleMemoryMap implements MemoryMap {
 
     // For device IO we often get sequential access to the same range/device, so we remember the last one as a cache.
     private MappedMemoryRange cache;
+
+    @Nullable
+    private R5CPU cpu;
 
     @Override
     public boolean addDevice(final long address, final MemoryMappedDevice device) {
@@ -90,9 +94,16 @@ public final class SimpleMemoryMap implements MemoryMap {
 
     @Override
     public void store(final long address, final long value, final int sizeLog2) throws MemoryAccessException {
+        if (cpu != null)
+            cpu.notify(address, 1 << sizeLog2);
+
         final MappedMemoryRange range = getMemoryRange(address);
         if (range != null && (range.device.getSupportedSizes() & (1 << sizeLog2)) != 0) {
             range.device.store((int) (address - range.start), value, sizeLog2);
         }
+    }
+
+    public void setCpu(R5CPU cpu) {
+        this.cpu = cpu;
     }
 }

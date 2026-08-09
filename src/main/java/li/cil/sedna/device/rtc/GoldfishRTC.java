@@ -6,6 +6,7 @@ import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.InterruptSource;
 import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
+import li.cil.sedna.api.memory.MemoryAccessException;
 
 import static java.util.Collections.singleton;
 
@@ -68,5 +69,10 @@ public final class GoldfishRTC implements InterruptSource, MemoryMappedDevice {
     @Override
     public void store(final int offset, final long value, final int sizeLog2) {
         // all no-ops
+    }
+
+    @Override
+    public boolean storeCAS(int offset, long value, long expected, int sizeLog2) throws MemoryAccessException {
+        throw new MemoryAccessException();
     }
 }

@@ -9,6 +9,7 @@ import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.Resettable;
 import li.cil.sedna.api.device.Steppable;
 import li.cil.sedna.api.device.serial.SerialDevice;
+import li.cil.sedna.api.memory.MemoryAccessException;
 
 import static java.util.Collections.singleton;
 
@@ -428,6 +429,11 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
             case UART_MCR_OFFSET -> mcr = (byte) (value & 0b11111);
             case UART_SCR_OFFSET -> scr = (byte) value;
         }
+    }
+
+    @Override
+    public boolean storeCAS(int offset, long value, long expected, int sizeLog2) throws MemoryAccessException {
+        throw new MemoryAccessException();
     }
 
     @Override

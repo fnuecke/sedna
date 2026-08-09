@@ -1,6 +1,7 @@
 package li.cil.sedna.device.syscon;
 
 import li.cil.sedna.api.device.MemoryMappedDevice;
+import li.cil.sedna.api.memory.MemoryAccessException;
 
 public abstract class AbstractSystemController implements MemoryMappedDevice {
     public static final int SYSCON_RESET = 0x1000;
@@ -24,6 +25,15 @@ public abstract class AbstractSystemController implements MemoryMappedDevice {
                 case SYSCON_POWEROFF -> handlePowerOff();
             }
         }
+    }
+
+    @Override
+    public boolean storeCAS(int offset, long value, long expected, int sizeLog2) throws MemoryAccessException {
+        if (expected == 0) {
+            store(offset, value, sizeLog2);
+            return true;
+        } else
+            return false;
     }
 
     protected abstract void handleReset();

@@ -106,4 +106,18 @@ public final class UnsafeMemory extends PhysicalMemory {
             UNSAFE.putByte(address + offset++, src.get());
         }
     }
+
+    @Override
+    public boolean storeCAS(final int offset, final long value, final long expected, final int sizeLog2) throws MemoryAccessException {
+        if (offset < 0 || offset > getLength() - (1 << sizeLog2))
+            throw new MemoryAccessException();
+
+        return switch (sizeLog2) {
+            case Sizes.SIZE_8_LOG2 -> throw new MemoryAccessException();
+            case Sizes.SIZE_16_LOG2 -> throw new MemoryAccessException(); //view16.compareAndSet(buffer, offset, expected, value);
+            case Sizes.SIZE_32_LOG2 -> UNSAFE.compareAndSwapInt(null, address + offset, (int)expected, (int)value); //view32.compareAndSet(buffer, offset, expected, value);
+            case Sizes.SIZE_64_LOG2 -> UNSAFE.compareAndSwapLong(null, address + offset, expected, value);
+            default -> throw new IllegalArgumentException();
+        };
+    }
 }

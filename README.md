@@ -35,8 +35,7 @@ and `Zifencei`. For the uninitiated, this means:
 
 This comes with a couple of caveats:
 
-- The `FENCE` and `FENCE.I` instructions are no-ops and atomic operations do not lock underlying memory. Multi-core
-  setups will behave incorrectly.
+- The `FENCE` and `FENCE.I` instructions are no-ops.
 - Floating-point operations have been reimplemented in software for flag correctness. Meaning they're slow.
 
 ## Instructions and decoding

@@ -2,8 +2,13 @@ package li.cil.sedna.riscv;
 
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.device.memory.ByteBufferMemory;
+import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
+
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -78,5 +83,53 @@ public class ByteBufferMemoryTests {
         memory.store(0, 0x44332211, Sizes.SIZE_32_LOG2);
 
         assertEquals(0x44332211, memory.load(0x00, Sizes.SIZE_32_LOG2));
+    }
+
+    @Test
+    @EnabledIf(value = "storeCasCondition", disabledReason = "Requires multicore system")
+    public void testStoreCas() throws Exception {
+        final int nThreads = Runtime.getRuntime().availableProcessors();
+
+        final CyclicBarrier barrier = new CyclicBarrier(nThreads);
+        final Thread[] threads = new Thread[nThreads];
+        final AtomicInteger collisions = new AtomicInteger(0);
+
+        memory.store(0, 0, Sizes.SIZE_64_LOG2);
+
+        for (int i = 0; i < nThreads; i++)
+            threads[i] = new Thread(() -> {
+                try {
+                    barrier.await();
+
+                    for (int j = 0; j < 1_000_000; j++) {
+                        boolean first = false;
+                        long a;
+                        do {
+                            if (first)
+                                collisions.incrementAndGet();
+                            else
+                                first = true;
+
+                            a = memory.load(0, Sizes.SIZE_64_LOG2);
+                        } while (!memory.storeCAS(0, a + 1, a, Sizes.SIZE_64_LOG2));
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+
+        for (Thread t: threads)
+            t.start();
+
+        for (Thread t: threads)
+            t.join();
+
+        assertEquals(nThreads * 1_000_000L, memory.load(0, Sizes.SIZE_64_LOG2));
+        if (collisions.get() < 0)
+            LogManager.getLogger().warn("Test passed but no collisions occurred, results may not be representative.");
+    }
+
+    public boolean storeCasCondition() {
+        return Runtime.getRuntime().availableProcessors() > 1;
     }
 }

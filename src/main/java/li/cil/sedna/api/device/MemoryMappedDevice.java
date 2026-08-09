@@ -75,4 +75,17 @@ public interface MemoryMappedDevice extends Device {
      * @see Sizes
      */
     void store(final int offset, final long value, final int sizeLog2) throws MemoryAccessException;
+
+    /**
+     * Performs an atomic Compare and Swap operation on this device.
+     *
+     * @param offset   the offset local to the device to write to.
+     * @param value    the value to write to the device.
+     * @param expected the value to compare against
+     * @param sizeLog2 the size of the value to write, log2. See {@link Sizes}.
+     * @return success of the compare and swap
+     * @throws MemoryAccessException if there was an error accessing the data in this device.
+     * @see Sizes
+     */
+    boolean storeCAS(final int offset, final long value, final long expected, final int sizeLog2) throws MemoryAccessException;
 }

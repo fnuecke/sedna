@@ -2,13 +2,20 @@ package li.cil.sedna.device.flash;
 
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.MemoryMappedDevice;
+import li.cil.sedna.api.memory.MemoryAccessException;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 public final class FlashMemoryDevice implements MemoryMappedDevice {
     private final ByteBuffer data;
     private final boolean readonly;
+
+    private static final VarHandle view16 = MethodHandles.byteBufferViewVarHandle(short[].class, ByteOrder.LITTLE_ENDIAN);
+    private static final VarHandle view32 = MethodHandles.byteBufferViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
+    private static final VarHandle view64 = MethodHandles.byteBufferViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
     public FlashMemoryDevice(final ByteBuffer data, final boolean readonly) {
         this.data = data;
@@ -66,5 +73,19 @@ public final class FlashMemoryDevice implements MemoryMappedDevice {
             case Sizes.SIZE_64_LOG2 -> data.putLong(offset, value);
             default -> throw new IllegalArgumentException();
         }
+    }
+
+    @Override
+    public boolean storeCAS(final int offset, final long value, final long expected, final int sizeLog2) throws MemoryAccessException {
+        if (readonly || (offset < 0 || offset > data.limit() - (1 << sizeLog2)))
+            throw new MemoryAccessException();
+
+        return switch (sizeLog2) {
+            case Sizes.SIZE_8_LOG2 -> throw new MemoryAccessException();
+            case Sizes.SIZE_16_LOG2 -> view16.compareAndSet(data, offset, expected, value);
+            case Sizes.SIZE_32_LOG2 -> view32.compareAndSet(data, offset, expected, value);
+            case Sizes.SIZE_64_LOG2 -> view64.compareAndSet(data, offset, expected, value);
+            default -> throw new IllegalArgumentException();
+        };
     }
 }

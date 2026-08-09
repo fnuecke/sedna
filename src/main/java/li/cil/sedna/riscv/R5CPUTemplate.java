@@ -251,6 +251,28 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     @Override
+    public void notify(long address, int size) {
+        if (reservation_set == -1)
+            return;
+
+        final int index = (int) ((reservation_set >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
+        final long hash = reservation_set & ~R5.PAGE_ADDRESS_MASK;
+        final TLBEntry entry = loadTLB[index];
+        if (entry.hash != hash)
+            reservation_set = -1;
+        else {
+            final MappedMemoryRange range = physicalMemory.getMemoryRange(entry.device).orElse(null);
+            if (range == null)
+                reservation_set = -1;
+            else {
+                final long pAddress = reservation_set + entry.toOffset + range.start;
+                if ((pAddress + 8) > address && pAddress < (address + (size / 8)))
+                    reservation_set = -1;
+            }
+        }
+    }
+
+    @Override
     public CPUDebugInterface getDebugInterface() {
         return debugInterface;
     }
@@ -1186,6 +1208,8 @@ final class R5CPUTemplate implements R5CPU {
     }
 
     private void storex(final long address, final long value, final int size, final int sizeLog2) throws R5MemoryAccessException {
+        // Would just use a hook in MemoryMap, but it is inconsistently called.
+
         final long lastAddress = address + size / 8 - 1;
         if ((address & ~R5.PAGE_ADDRESS_MASK) != (lastAddress & ~R5.PAGE_ADDRESS_MASK)) {
             storexPageMisaligned(address, value, size);
@@ -1196,6 +1220,12 @@ final class R5CPUTemplate implements R5CPU {
         final long hash = address & ~R5.PAGE_ADDRESS_MASK;
         final TLBEntry entry = storeTLB[index];
         if (entry.hash == hash) {
+            final long pAddr = physicalMemory.getMemoryRange(entry.device)
+                .map(range -> range.start + address + entry.toOffset)
+                .orElse(-1L);
+            if (pAddr != -1)
+                notify(pAddr, size);
+
             try {
                 entry.device.store((int) (address + entry.toOffset), value, sizeLog2);
             } catch (final MemoryAccessException e) {
@@ -1203,6 +1233,28 @@ final class R5CPUTemplate implements R5CPU {
             }
         } else {
             storeSlow(address, value, sizeLog2);
+        }
+    }
+
+    private boolean storeCAS(final long address, final long value, final long expected, final int size, final int sizeLog2) throws R5MemoryAccessException {
+        // Would just use a hook in MemoryMap, but it is inconsistently called.
+        notify(address, size);
+
+        final long lastAddress = address + size / 8 - 1;
+        if ((address & ((size / 8) - 1)) != 0 || (address & ~R5.PAGE_ADDRESS_MASK) != (lastAddress & ~R5.PAGE_ADDRESS_MASK))
+            throw new R5MemoryAccessException(address, R5.EXCEPTION_MISALIGNED_STORE);
+
+        final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
+        final long hash = address & ~R5.PAGE_ADDRESS_MASK;
+        final TLBEntry entry = storeTLB[index];
+        if (entry.hash == hash) {
+            try {
+                return entry.device.storeCAS((int) (address + entry.toOffset), value, expected, sizeLog2);
+            } catch (final MemoryAccessException e) {
+                throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_STORE);
+            }
+        } else {
+            return storeSlowCAS(address, value, expected, sizeLog2);
         }
     }
 
@@ -1244,6 +1296,8 @@ final class R5CPUTemplate implements R5CPU {
 
     private void storeSlow(final long address, final long value, final int sizeLog2) throws R5MemoryAccessException {
         final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.STORE, false);
+        notify(physicalAddress, 8 << sizeLog2);
+
         final MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
         if (range == null) {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_STORE);
@@ -1257,6 +1311,28 @@ final class R5CPUTemplate implements R5CPU {
                 physicalMemory.setDirty(range, offset);
             } else {
                 range.device.store((int) (physicalAddress - range.start), value, sizeLog2);
+            }
+        } catch (final MemoryAccessException e) {
+            throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_STORE);
+        }
+    }
+
+    private boolean storeSlowCAS(final long address, final long value, final long expected, final int sizeLog2) throws R5MemoryAccessException {
+        final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.STORE, false);
+        final MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
+        if (range == null) {
+            throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_STORE);
+        }
+
+        try {
+            if (range.device.supportsFetch()) {
+                final TLBEntry entry = updateTLB(storeTLB, address, physicalAddress, range);
+                final int offset = (int) (address + entry.toOffset);
+                final boolean success = entry.device.storeCAS(offset, value, expected, sizeLog2);
+                physicalMemory.setDirty(range, offset);
+                return success;
+            } else {
+                return range.device.storeCAS((int) (physicalAddress - range.start), value, expected, sizeLog2);
             }
         } catch (final MemoryAccessException e) {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_STORE);
@@ -1445,6 +1521,8 @@ final class R5CPUTemplate implements R5CPU {
         for (int i = 0; i < TLB_SIZE; i++) {
             storeTLB[i].hash = -1;
         }
+
+        reservation_set = -1;
     }
 
     private void flushTLB(final long address) {
@@ -2254,11 +2332,17 @@ final class R5CPUTemplate implements R5CPU {
     private void lr_w(@Field("rd") final int rd,
                       @Field("rs1") final int rs1) throws R5MemoryAccessException {
         final long address = x[rs1];
+        if ((address & 0x07) != 0) // Feel free to remove if you want to tackle cross-page atomics
+            throw new R5MemoryAccessException(address, R5.EXCEPTION_MISALIGNED_LOAD);
+
         final int result = load32(address);
-        reservation_set = address;
+        reservation_set = address; // Consider changing this to the physical address for easier use
 
         if (rd != 0) {
-            x[rd] = result;
+            if (xlen == R5.XLEN_64) // Sign extend
+                x[rd] = (long) (int) result;
+            else
+                x[rd] = result;
         }
     }
 
@@ -2268,6 +2352,9 @@ final class R5CPUTemplate implements R5CPU {
                       @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final int result;
         final long address = x[rs1];
+        if ((address & 0x07) != 0) // Feel free to remove if you want to tackle cross-page atomics
+            throw new R5MemoryAccessException(address, R5.EXCEPTION_MISALIGNED_STORE);
+
         if (address == reservation_set) {
             store32(address, (int) x[rs2]);
             result = 0;
@@ -2287,13 +2374,18 @@ final class R5CPUTemplate implements R5CPU {
                            @Field("rs1") final int rs1,
                            @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final int a = load32(address);
+        int a;
         final int b = (int) x[rs2];
 
-        store32(address, b);
+        do {
+            a = load32(address);
+        } while (!storeCAS(address, b, a, Sizes.SIZE_32, Sizes.SIZE_32_LOG2));
 
         if (rd != 0) {
-            x[rd] = a;
+            if (xlen == R5.XLEN_64) // Sign extend
+                x[rd] = (long)(int)a;
+            else
+                x[rd] = a;
         }
     }
 
@@ -2302,13 +2394,18 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final int a = load32(address);
+        int a;
         final int b = (int) x[rs2];
 
-        store32(address, a + b);
+        do {
+            a = load32(address);
+        } while (!storeCAS(address, a + b, a, Sizes.SIZE_32, Sizes.SIZE_32_LOG2));
 
         if (rd != 0) {
-            x[rd] = a;
+            if (xlen == R5.XLEN_64) // Sign extend
+                x[rd] = (long)(int)a;
+            else
+                x[rd] = a;
         }
     }
 
@@ -2317,13 +2414,18 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final int a = load32(address);
+        int a;
         final int b = (int) x[rs2];
 
-        store32(address, a ^ b);
+        do {
+            a = load32(address);
+        } while (!storeCAS(address, a ^ b, a, Sizes.SIZE_32, Sizes.SIZE_32_LOG2));
 
         if (rd != 0) {
-            x[rd] = a;
+            if (xlen == R5.XLEN_64) // Sign extend
+                x[rd] = (long)(int)a;
+            else
+                x[rd] = a;
         }
     }
 
@@ -2332,13 +2434,18 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final int a = load32(address);
+        int a;
         final int b = (int) x[rs2];
 
-        store32(address, a & b);
+        do {
+            a = load32(address);
+        } while (!storeCAS(address, a & b, a, Sizes.SIZE_32, Sizes.SIZE_32_LOG2));
 
         if (rd != 0) {
-            x[rd] = a;
+            if (xlen == R5.XLEN_64) // Sign extend
+                x[rd] = (long)(int)a;
+            else
+                x[rd] = a;
         }
     }
 
@@ -2347,13 +2454,18 @@ final class R5CPUTemplate implements R5CPU {
                          @Field("rs1") final int rs1,
                          @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final int a = load32(address);
+        int a;
         final int b = (int) x[rs2];
 
-        store32(address, a | b);
+        do {
+            a = load32(address);
+        } while (!storeCAS(address, a | b, a, Sizes.SIZE_32, Sizes.SIZE_32_LOG2));
 
         if (rd != 0) {
-            x[rd] = a;
+            if (xlen == R5.XLEN_64) // Sign extend
+                x[rd] = (long)(int)a;
+            else
+                x[rd] = a;
         }
     }
 
@@ -2362,13 +2474,18 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final int a = load32(address);
+        int a;
         final int b = (int) x[rs2];
 
-        store32(address, Math.min(a, b));
+        do {
+            a = load32(address);
+        } while (!storeCAS(address, Math.min(a, b), a, Sizes.SIZE_32, Sizes.SIZE_32_LOG2));
 
         if (rd != 0) {
-            x[rd] = a;
+            if (xlen == R5.XLEN_64) // Sign extend
+                x[rd] = (long)(int)a;
+            else
+                x[rd] = a;
         }
     }
 
@@ -2377,13 +2494,18 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final int a = load32(address);
+        int a;
         final int b = (int) x[rs2];
 
-        store32(address, Math.max(a, b));
+        do {
+            a = load32(address);
+        } while (!storeCAS(address, Math.max(a, b), a, Sizes.SIZE_32, Sizes.SIZE_32_LOG2));
 
         if (rd != 0) {
-            x[rd] = a;
+            if (xlen == R5.XLEN_64) // Sign extend
+                x[rd] = (long)(int)a;
+            else
+                x[rd] = a;
         }
     }
 
@@ -2392,14 +2514,18 @@ final class R5CPUTemplate implements R5CPU {
                            @Field("rs1") final int rs1,
                            @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final int a = load32(address);
+        int a;
         final int b = (int) x[rs2];
 
-
-        store32(address, Integer.compareUnsigned(a, b) < 0 ? a : b);
+        do {
+            a = load32(address);
+        } while (!storeCAS(address, Integer.compareUnsigned(a, b) < 0 ? a : b, a, Sizes.SIZE_32, Sizes.SIZE_32_LOG2));
 
         if (rd != 0) {
-            x[rd] = a;
+            if (xlen == R5.XLEN_64) // Sign extend
+                x[rd] = (long)(int)a;
+            else
+                x[rd] = a;
         }
     }
 
@@ -2408,13 +2534,18 @@ final class R5CPUTemplate implements R5CPU {
                            @Field("rs1") final int rs1,
                            @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final int a = load32(address);
+        int a;
         final int b = (int) x[rs2];
 
-        store32(address, Integer.compareUnsigned(a, b) > 0 ? a : b);
+        do {
+            a = load32(address);
+        } while (!storeCAS(address, Integer.compareUnsigned(a, b) > 0 ? a : b, a, Sizes.SIZE_32, Sizes.SIZE_32_LOG2));
 
         if (rd != 0) {
-            x[rd] = a;
+            if (xlen == R5.XLEN_64) // Sign extend
+                x[rd] = (long)(int)a;
+            else
+                x[rd] = a;
         }
     }
 
@@ -2425,6 +2556,9 @@ final class R5CPUTemplate implements R5CPU {
     private void lr_d(@Field("rd") final int rd,
                       @Field("rs1") final int rs1) throws R5MemoryAccessException {
         final long address = x[rs1];
+        if ((address & 0x07) != 0) // Feel free to remove if you want to tackle cross-page atomics
+            throw new R5MemoryAccessException(address, R5.EXCEPTION_MISALIGNED_LOAD);
+
         final long result = load64(address);
         reservation_set = address;
 
@@ -2439,6 +2573,9 @@ final class R5CPUTemplate implements R5CPU {
                       @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final int result;
         final long address = x[rs1];
+        if ((address & 0x07) != 0) // Feel free to remove if you want to tackle cross-page atomics
+            throw new R5MemoryAccessException(address, R5.EXCEPTION_MISALIGNED_STORE);
+
         if (address == reservation_set) {
             store64(address, x[rs2]);
             result = 0;
@@ -2458,10 +2595,12 @@ final class R5CPUTemplate implements R5CPU {
                            @Field("rs1") final int rs1,
                            @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final long a = load64(address);
+        long a;
         final long b = x[rs2];
 
-        store64(address, b);
+        do {
+            a = load64(address);
+        } while (!storeCAS(address, b, a, Sizes.SIZE_64, Sizes.SIZE_64_LOG2));
 
         if (rd != 0) {
             x[rd] = a;
@@ -2473,10 +2612,12 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final long a = load64(address);
+        long a;
         final long b = x[rs2];
 
-        store64(address, a + b);
+        do {
+            a = load64(address);
+        } while (!storeCAS(address, a + b, a, Sizes.SIZE_64, Sizes.SIZE_64_LOG2));
 
         if (rd != 0) {
             x[rd] = a;
@@ -2488,10 +2629,12 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final long a = load64(address);
+        long a;
         final long b = x[rs2];
 
-        store64(address, a ^ b);
+        do {
+            a = load64(address);
+        } while (!storeCAS(address, a ^ b, a, Sizes.SIZE_64, Sizes.SIZE_64_LOG2));
 
         if (rd != 0) {
             x[rd] = a;
@@ -2503,10 +2646,12 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final long a = load64(address);
+        long a;
         final long b = x[rs2];
 
-        store64(address, a & b);
+        do {
+            a = load64(address);
+        } while (!storeCAS(address, a & b, a, Sizes.SIZE_64, Sizes.SIZE_64_LOG2));
 
         if (rd != 0) {
             x[rd] = a;
@@ -2518,10 +2663,12 @@ final class R5CPUTemplate implements R5CPU {
                          @Field("rs1") final int rs1,
                          @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final long a = load64(address);
+        long a;
         final long b = x[rs2];
 
-        store64(address, a | b);
+        do {
+            a = load64(address);
+        } while (!storeCAS(address, a | b, a, Sizes.SIZE_64, Sizes.SIZE_64_LOG2));
 
         if (rd != 0) {
             x[rd] = a;
@@ -2533,10 +2680,12 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final long a = load64(address);
+        long a;
         final long b = x[rs2];
 
-        store64(address, Math.min(a, b));
+        do {
+            a = load64(address);
+        } while (!storeCAS(address, Math.min(a, b), a, Sizes.SIZE_64, Sizes.SIZE_64_LOG2));
 
         if (rd != 0) {
             x[rd] = a;
@@ -2548,10 +2697,12 @@ final class R5CPUTemplate implements R5CPU {
                           @Field("rs1") final int rs1,
                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final long a = load64(address);
+        long a;
         final long b = x[rs2];
 
-        store64(address, Math.max(a, b));
+        do {
+            a = load64(address);
+        } while (!storeCAS(address, Math.max(a, b), a, Sizes.SIZE_64, Sizes.SIZE_64_LOG2));
 
         if (rd != 0) {
             x[rd] = a;
@@ -2563,10 +2714,12 @@ final class R5CPUTemplate implements R5CPU {
                            @Field("rs1") final int rs1,
                            @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final long a = load64(address);
+        long a;
         final long b = x[rs2];
 
-        store64(address, Long.compareUnsigned(a, b) < 0 ? a : b);
+        do {
+            a = load64(address);
+        } while (!storeCAS(address, Long.compareUnsigned(a, b) < 0 ? a : b, a, Sizes.SIZE_64, Sizes.SIZE_64_LOG2));
 
         if (rd != 0) {
             x[rd] = a;
@@ -2578,10 +2731,12 @@ final class R5CPUTemplate implements R5CPU {
                            @Field("rs1") final int rs1,
                            @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
-        final long a = load64(address);
+        long a;
         final long b = x[rs2];
 
-        store64(address, Long.compareUnsigned(a, b) > 0 ? a : b);
+        do {
+            a = load64(address);
+        } while (!storeCAS(address, Long.compareUnsigned(a, b) > 0 ? a : b, a, Sizes.SIZE_64, Sizes.SIZE_64_LOG2));
 
         if (rd != 0) {
             x[rd] = a;

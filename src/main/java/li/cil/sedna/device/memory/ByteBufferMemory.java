@@ -5,6 +5,8 @@ import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.utils.DirectByteBufferUtils;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -14,6 +16,10 @@ import java.nio.ByteOrder;
 public class ByteBufferMemory extends PhysicalMemory {
     private final ByteBuffer data;
     private final int size;
+
+    private static final VarHandle view16 = MethodHandles.byteBufferViewVarHandle(short[].class, ByteOrder.LITTLE_ENDIAN);
+    private static final VarHandle view32 = MethodHandles.byteBufferViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
+    private static final VarHandle view64 = MethodHandles.byteBufferViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
     public ByteBufferMemory(final int size) {
         if ((size & 0b11) != 0)
@@ -88,5 +94,19 @@ public class ByteBufferMemory extends PhysicalMemory {
         slice.position(offset);
         slice.limit(offset + src.remaining());
         slice.put(src);
+    }
+
+    @Override
+    public boolean storeCAS(final int offset, final long value, final long expected, final int sizeLog2) throws MemoryAccessException {
+        if (offset < 0 || offset > data.limit() - (1 << sizeLog2))
+            throw new MemoryAccessException();
+
+        return switch (sizeLog2) {
+            case Sizes.SIZE_8_LOG2 -> throw new MemoryAccessException();
+            case Sizes.SIZE_16_LOG2 -> view16.compareAndSet(data, offset, expected, value);
+            case Sizes.SIZE_32_LOG2 -> view32.compareAndSet(data, offset, expected, value);
+            case Sizes.SIZE_64_LOG2 -> view64.compareAndSet(data, offset, expected, value);
+            default -> throw new IllegalArgumentException();
+        };
     }
 }

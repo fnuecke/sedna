@@ -53,9 +53,11 @@ public final class ISATests {
 
                         final long toHostAddress = getToHostAddress(elf);
 
-                        final MemoryMap memoryMap = new SimpleMemoryMap();
+                        final SimpleMemoryMap memoryMap = new SimpleMemoryMap();
                         final R5CPU cpu = R5CPU.create(memoryMap);
                         final HostTargetInterface htif = new HostTargetInterface();
+
+                        memoryMap.setCpu(cpu);
 
                         // RAM block below and potentially up to HTIF.
                         if (PHYSICAL_MEMORY_START < toHostAddress) {
@@ -192,6 +194,11 @@ public final class ISATests {
                     break;
                 }
             }
+        }
+
+        @Override
+        public boolean storeCAS(int offset, long value, long expected, int sizeLog2) throws MemoryAccessException {
+            throw new MemoryAccessException(); // Seems trivial to implement, but unnecessary.
         }
 
         protected void handleCommand() {

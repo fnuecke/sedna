@@ -6,6 +6,7 @@ import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.InterruptController;
 import li.cil.sedna.api.device.InterruptSource;
 import li.cil.sedna.api.device.MemoryMappedDevice;
+import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.riscv.R5;
 
 import java.util.Arrays;
@@ -190,6 +191,11 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
                 }
             }
         }
+    }
+
+    @Override
+    public boolean storeCAS(int offset, long value, long expected, int sizeLog2) throws MemoryAccessException {
+        throw new MemoryAccessException();
     }
 
     @Override

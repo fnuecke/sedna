@@ -60,6 +60,7 @@ public final class R5Board implements Board {
     public R5Board() {
         memoryMap = new SimpleMemoryMap();
         rtc = cpu = R5CPU.create(memoryMap);
+        ((SimpleMemoryMap)memoryMap).setCpu(cpu);
 
         flash = new FlashMemoryDevice(FLASH_SIZE);
         clint = new R5CoreLocalInterrupter(rtc);
