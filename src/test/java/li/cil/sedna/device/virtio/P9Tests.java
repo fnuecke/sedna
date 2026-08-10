@@ -69,6 +69,8 @@ public final class P9Tests {
     private static final byte P9_TCLUNK = 120;
 
 
+    private static final int LINUX_ERRNO_ENOENT = 2;
+
     private static final int ROOT_FID = 0;
     private static final int FILE_FID = 1;
 
@@ -146,7 +148,7 @@ public final class P9Tests {
     }
 
     @Test
-    public void walkingToAMissingNameReturnsAShortWalk() throws Exception {
+    public void walkingToAMissingFirstElementIsAnError() throws Exception {
         attachRoot();
 
         final ByteBuffer reply = request(P9_TWALK, 3, body -> {
@@ -156,9 +158,35 @@ public final class P9Tests {
             putString(body, "absent");
         });
 
-        assertEquals(P9_TWALK + 1, reply.get(4));
+        assertEquals(P9_TLERROR + 1, reply.get(4), "walking to a missing first element must fail");
         reply.position(7);
-        assertEquals(0, reply.getShort(), "no path element was walked");
+        assertEquals(LINUX_ERRNO_ENOENT, reply.getInt(), "a missing name must report ENOENT");
+    }
+
+    @Test
+    public void walkingToAMissingLaterElementReturnsAShortWalk() throws Exception {
+        attachRoot();
+
+        final ByteBuffer reply = request(P9_TWALK, 3, body -> {
+            body.putInt(ROOT_FID);
+            body.putInt(FILE_FID);
+            body.putShort((short) 2);
+            putString(body, "subdir");
+            putString(body, "absent");
+        });
+
+        assertEquals(P9_TWALK + 1, reply.get(4), "a partial walk must still succeed");
+        reply.position(7);
+        assertEquals(1, reply.getShort(), "only the first element was walked");
+    }
+
+    @Test
+    public void statfsValidatesTheFid() throws Exception {
+        attachRoot();
+
+        final ByteBuffer reply = request(P9_TSTATFS, 3, body -> body.putInt(0x4242));
+
+        assertEquals(P9_TLERROR + 1, reply.get(4), "statfs must reject a fid it never handed out");
     }
 
     @Test
@@ -247,7 +275,6 @@ public final class P9Tests {
         final ByteBuffer clunkReply = request(P9_TCLUNK, 3, body -> body.putInt(ROOT_FID));
         assertEquals(P9_TCLUNK + 1, clunkReply.get(4));
 
-        // Note: Tstatfs would still succeed here -- it never reads or validates the fid it is given.
         final ByteBuffer reply = request(P9_TGETATTR, 4, body -> {
             body.putInt(ROOT_FID);
             body.putLong(0x000007FFL);

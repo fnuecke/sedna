@@ -194,6 +194,11 @@ public final class P9Server {
             request.get(wname, 0, strlen);
             path = path.resolve(new String(wname, 0, strlen, StandardCharsets.US_ASCII));
             if (!fileSystem.exists(path)) {
+                // walk(5): If the first element cannot be walked for any reason, Rerror is returned.
+                // Only later elements may report a short walk.
+                if (i == 0) {
+                    throw new NoSuchFileException(path.toString());
+                }
                 break;
             }
 
