@@ -46,6 +46,7 @@ dependencies {
     testImplementation("org.mockito:mockito-core:4.1.0")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.2")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.8.2")
 }
 
 publishing {
@@ -58,12 +59,15 @@ publishing {
         }
     }
     repositories {
-        maven {
-            name = "GitHubPackages"
-            url = uri(System.getenv("GITHUB_MAVEN_URL") ?: "")
-            credentials {
-                username = System.getenv("GITHUB_ACTOR")
-                password = System.getenv("GITHUB_TOKEN")
+        val githubMavenUrl = System.getenv("GITHUB_MAVEN_URL")
+        if (!githubMavenUrl.isNullOrEmpty()) {
+            maven {
+                name = "GitHubPackages"
+                url = uri(githubMavenUrl)
+                credentials {
+                    username = System.getenv("GITHUB_ACTOR")
+                    password = System.getenv("GITHUB_TOKEN")
+                }
             }
         }
     }
