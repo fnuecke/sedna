@@ -241,7 +241,10 @@ public final class SoftFloat {
 
         if (exponentA == EXPONENT_MASK || exponentB == EXPONENT_MASK || exponentC == EXPONENT_MASK) {
             if (isNaN(a) || isNaN(b) || isNaN(c)) { // nan * b + c || a * nan + c || a * b + nan
-                if (isSignalingNaN(a) || isSignalingNaN(b) || isSignalingNaN(c)) {
+                if (isSignalingNaN(a) || isSignalingNaN(b) || isSignalingNaN(c)
+                    // inf * 0 is invalid even when the addend is a quiet NaN.
+                    || (exponentA == EXPONENT_MASK && mantissaA == 0 && exponentB == 0 && mantissaB == 0)
+                    || (exponentB == EXPONENT_MASK && mantissaB == 0 && exponentA == 0 && mantissaA == 0)) {
                     flags.raise(FLAG_INVALID);
                 }
                 return nan();

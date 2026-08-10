@@ -94,6 +94,30 @@ public final class SoftFloatRoundingTests {
     }
 
     @Test
+    public void fusedMultiplyAddRaisesInvalidForInfTimesZeroDespiteQuietNaNAddend() {
+        // "The fused multiply-add instructions must set the invalid operation exception flag when
+        // the multiplicands are infinity and zero, even when the addend is a quiet NaN."
+        final int qnan32 = 0x7fc00000;
+        final SoftFloat fpu32 = new SoftFloat();
+        fpu32.muladd(F_INF, 0, qnan32, RM_RNE);
+        assertEquals(SoftFloat.FLAG_INVALID, fpu32.flags.value & SoftFloat.FLAG_INVALID, "inf * 0 + qNaN must raise NV");
+        fpu32.flags.value = 0;
+        fpu32.muladd(0, F_INF | SIGN_F, qnan32, RM_RNE);
+        assertEquals(SoftFloat.FLAG_INVALID, fpu32.flags.value & SoftFloat.FLAG_INVALID, "0 * -inf + qNaN must raise NV");
+        fpu32.flags.value = 0;
+        fpu32.muladd(F_INF, F_ONE, qnan32, RM_RNE);
+        assertEquals(0, fpu32.flags.value, "inf * 1 + qNaN is quiet NaN propagation, no flags");
+
+        final long qnan64 = 0x7ff8000000000000L;
+        final SoftDouble fpu64 = new SoftDouble();
+        fpu64.muladd(D_INF, 0, qnan64, RM_RNE);
+        assertEquals(SoftFloat.FLAG_INVALID, fpu64.flags.value & SoftFloat.FLAG_INVALID, "inf * 0 + qNaN must raise NV");
+        fpu64.flags.value = 0;
+        fpu64.muladd(D_INF, D_ONE, qnan64, RM_RNE);
+        assertEquals(0, fpu64.flags.value, "inf * 1 + qNaN is quiet NaN propagation, no flags");
+    }
+
+    @Test
     public void fusedMultiplyAddMatchesJavaFmaOnRandomFloats() {
         final SoftFloat fpu = new SoftFloat();
         final Random random = new Random(12345);
