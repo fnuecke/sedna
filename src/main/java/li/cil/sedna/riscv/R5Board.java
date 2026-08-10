@@ -48,7 +48,6 @@ public final class R5Board implements Board {
     private final List<Steppable> steppableDevices = new ArrayList<>();
     private MemoryMappedDevice standardOutputDevice;
     private GDBStub gdbStub;
-    private boolean waitForGdb = false;
 
     @Serialized private final R5CPU cpu;
     @Serialized private final R5CoreLocalInterrupter clint;
@@ -200,12 +199,14 @@ public final class R5Board implements Board {
         GDBStub gdbStub;
         try {
             gdbStub = GDBStub.createDefault(cpu.getDebugInterface(), port);
+            if (waitForGdb) {
+                gdbStub.waitForAttach();
+            }
         } catch (final IOException e) {
             e.printStackTrace();
             gdbStub = null;
         }
         this.gdbStub = gdbStub;
-        this.waitForGdb = waitForGdb;
     }
 
     @Override
@@ -215,8 +216,10 @@ public final class R5Board implements Board {
         }
 
         if (gdbStub != null) {
-            gdbStub.run(waitForGdb);
-            waitForGdb = false;
+            gdbStub.poll();
+            if (gdbStub.isHalted()) {
+                return;
+            }
         }
 
         try {
