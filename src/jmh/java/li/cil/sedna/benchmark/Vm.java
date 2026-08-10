@@ -154,8 +154,17 @@ public final class Vm {
         execute(R5Assembler.csrrs(0, csr, 31));
     }
 
+    public void clearCSRBits(final int csr, final long mask) {
+        registers()[31] = mask;
+        execute(R5Assembler.csrrc(0, csr, 31));
+    }
+
     public void enterSupervisor(final long pc) {
         writeCSR(R5Assembler.CSR_SATP, satpFor(rootTable));
+        // MPP must be cleared before setting it: it is a two-bit field, and a trap taken from
+        // machine mode leaves it holding M (0b11), which OR-ing S (0b01) into does not change --
+        // the MRET below would then silently stay in machine mode.
+        clearCSRBits(R5Assembler.CSR_MSTATUS, R5.STATUS_MPP_MASK);
         setCSRBits(R5Assembler.CSR_MSTATUS, (long) R5.PRIVILEGE_S << R5.STATUS_MPP_SHIFT);
         writeCSR(R5Assembler.CSR_MEPC, pc);
         execute(R5Assembler.MRET);

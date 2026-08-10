@@ -147,6 +147,13 @@ public abstract class R5CPUBase implements R5CPU {
     private final transient MMIOTLBEntry[] mmioLoadTLB = new MMIOTLBEntry[MMIO_TLB_SIZE];
     private final transient MMIOTLBEntry[] mmioStoreTLB = new MMIOTLBEntry[MMIO_TLB_SIZE];
 
+    // TLB entries are keyed by page address, whose low bits are always zero, so the privilege level
+    // the translation was made under rides along in them. Entries made under different privilege
+    // levels then simply fail to match instead of having to be thrown away, which is what lets a
+    // privilege change avoid flushing. Derived state, recomputed whenever priv or mstatus change.
+    private transient long fetchTLBTag;
+    private transient long dataTLBTag;
+
     // Access to physical memory for load/store operations.
     private final transient MemoryMap physicalMemory;
 
@@ -227,6 +234,7 @@ public abstract class R5CPUBase implements R5CPU {
         xlen = R5.XLEN_64;
 
         flushTLB();
+        updateTLBTags();
 
         if (hard) {
             Arrays.fill(x, 0);
@@ -261,6 +269,7 @@ public abstract class R5CPUBase implements R5CPU {
     @Override
     public void invalidateCaches() {
         flushTLB();
+        updateTLBTags();
     }
 
     @Override
@@ -944,10 +953,12 @@ public abstract class R5CPUBase implements R5CPU {
 
     private void setStatus(final long value) {
         final long change = mstatus ^ value;
-        final boolean mmuConfigChanged =
-            (change & (R5.STATUS_MPRV_MASK | R5.STATUS_SUM_MASK | R5.STATUS_MXR_MASK)) != 0 ||
-                ((mstatus & R5.STATUS_MPRV_MASK) != 0 && (change & R5.STATUS_MPP_MASK) != 0);
-        if (mmuConfigChanged) {
+
+        // SUM and MXR change what a translation resolves to at an unchanged privilege level, so
+        // cached entries really are stale and have to go. MPRV and MPP only change which privilege
+        // level data accesses run at, which the tag already distinguishes, so those just need the
+        // tag recomputed below.
+        if ((change & (R5.STATUS_SUM_MASK | R5.STATUS_MXR_MASK)) != 0) {
             flushTLB();
         }
 
@@ -956,14 +967,17 @@ public abstract class R5CPUBase implements R5CPU {
         final long mask = MSTATUS_MASK & ~(R5.getStatusStateDirtyMask(xlen) | R5.STATUS_FS_MASK |
             R5.STATUS_UXL_MASK | R5.STATUS_SXL_MASK);
         mstatus = (mstatus & ~mask) | (value & mask);
+
+        updateTLBTags();
     }
 
     private void setPrivilege(final int level) {
+        // Always update, MPRV may have changed.
+        updateTLBTags();
+
         if (priv == level) {
             return;
         }
-
-        flushTLB();
 
         switch (level) {
             case R5.PRIVILEGE_S -> xlen = R5.xlen((mstatus & R5.STATUS_SXL_MASK) >>> R5.STATUS_SXL_SHIFT);
@@ -972,6 +986,17 @@ public abstract class R5CPUBase implements R5CPU {
         }
 
         priv = level;
+
+        // No TLB flush: entries carry the privilege they were made under, so the ones belonging to
+        // the level being left simply stop matching, and are still there when it is returned to.
+        updateTLBTags();
+    }
+
+    private void updateTLBTags() {
+        fetchTLBTag = priv;
+        dataTLBTag = (mstatus & R5.STATUS_MPRV_MASK) != 0
+            ? (mstatus & R5.STATUS_MPP_MASK) >>> R5.STATUS_MPP_SHIFT
+            : priv;
     }
 
     private void checkFPUEnabled() throws R5IllegalInstructionException {
@@ -1111,7 +1136,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
 
         final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
-        final long hash = address & ~R5.PAGE_ADDRESS_MASK;
+        final long hash = (address & ~R5.PAGE_ADDRESS_MASK) | fetchTLBTag;
         final TLBEntry entry = fetchTLB[index];
         if (entry.hash == hash) {
             return entry;
@@ -1159,7 +1184,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
 
         final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
-        final long hash = address & ~R5.PAGE_ADDRESS_MASK;
+        final long hash = (address & ~R5.PAGE_ADDRESS_MASK) | dataTLBTag;
         final TLBEntry entry = loadTLB[index];
         if (entry.hash == hash) {
             try {
@@ -1180,7 +1205,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
 
         final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
-        final long hash = address & ~R5.PAGE_ADDRESS_MASK;
+        final long hash = (address & ~R5.PAGE_ADDRESS_MASK) | dataTLBTag;
         final TLBEntry entry = storeTLB[index];
         if (entry.hash == hash) {
             try {
@@ -1199,7 +1224,7 @@ public abstract class R5CPUBase implements R5CPU {
         if (range == null || !range.device.supportsFetch()) {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_FETCH);
         }
-        final TLBEntry tlb = updateTLB(fetchTLB, address, physicalAddress, range);
+        final TLBEntry tlb = updateTLB(fetchTLB, address, fetchTLBTag, physicalAddress, range);
         final var subset = debugInterface.breakpoints.subSet(address, address + (1 << R5.PAGE_ADDRESS_SHIFT));
         if (subset.isEmpty()) {
             tlb.breakpoints = null;
@@ -1212,7 +1237,7 @@ public abstract class R5CPUBase implements R5CPU {
 
     private long loadSlow(final long address, final int sizeLog2) throws R5MemoryAccessException {
         final MMIOTLBEntry mmioEntry = mmioLoadTLB[mmioIndex(address)];
-        if (mmioEntry.matches(address, sizeLog2)) {
+        if (mmioEntry.matches(address, dataTLBTag, sizeLog2)) {
             try {
                 return mmioEntry.device.load((int) (address + mmioEntry.toOffset), sizeLog2);
             } catch (final MemoryAccessException e) {
@@ -1228,10 +1253,10 @@ public abstract class R5CPUBase implements R5CPU {
 
         try {
             if (range.device.supportsFetch()) {
-                final TLBEntry entry = updateTLB(loadTLB, address, physicalAddress, range);
+                final TLBEntry entry = updateTLB(loadTLB, address, dataTLBTag, physicalAddress, range);
                 return entry.device.load((int) (address + entry.toOffset), sizeLog2);
             } else {
-                updateMMIOTLB(mmioEntry, address, physicalAddress, range);
+                updateMMIOTLB(mmioEntry, address, dataTLBTag, physicalAddress, range);
                 return range.device.load((int) (physicalAddress - range.address()), sizeLog2);
             }
         } catch (final MemoryAccessException e) {
@@ -1241,7 +1266,7 @@ public abstract class R5CPUBase implements R5CPU {
 
     private void storeSlow(final long address, final long value, final int sizeLog2) throws R5MemoryAccessException {
         final MMIOTLBEntry mmioEntry = mmioStoreTLB[mmioIndex(address)];
-        if (mmioEntry.matches(address, sizeLog2)) {
+        if (mmioEntry.matches(address, dataTLBTag, sizeLog2)) {
             try {
                 mmioEntry.device.store((int) (address + mmioEntry.toOffset), value, sizeLog2);
                 return;
@@ -1258,12 +1283,12 @@ public abstract class R5CPUBase implements R5CPU {
 
         try {
             if (range.device.supportsFetch()) {
-                final TLBEntry entry = updateTLB(storeTLB, address, physicalAddress, range);
+                final TLBEntry entry = updateTLB(storeTLB, address, dataTLBTag, physicalAddress, range);
                 final int offset = (int) (address + entry.toOffset);
                 entry.device.store(offset, value, sizeLog2);
                 physicalMemory.setDirty(range, offset);
             } else {
-                updateMMIOTLB(mmioEntry, address, physicalAddress, range);
+                updateMMIOTLB(mmioEntry, address, dataTLBTag, physicalAddress, range);
                 range.device.store((int) (physicalAddress - range.start), value, sizeLog2);
             }
         } catch (final MemoryAccessException e) {
@@ -1426,13 +1451,13 @@ public abstract class R5CPUBase implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // TLB
 
-    private static TLBEntry updateTLB(final TLBEntry[] tlb, final long address, final long physicalAddress, final MappedMemoryRange range) {
+    private static TLBEntry updateTLB(final TLBEntry[] tlb, final long address, final long tag, final long physicalAddress, final MappedMemoryRange range) {
         final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
-        return updateTLBEntry(tlb[index], address, physicalAddress, range);
+        return updateTLBEntry(tlb[index], address, tag, physicalAddress, range);
     }
 
-    private static TLBEntry updateTLBEntry(final TLBEntry tlb, final long address, final long physicalAddress, final MappedMemoryRange range) {
-        tlb.hash = address & ~R5.PAGE_ADDRESS_MASK;
+    private static TLBEntry updateTLBEntry(final TLBEntry tlb, final long address, final long tag, final long physicalAddress, final MappedMemoryRange range) {
+        tlb.hash = (address & ~R5.PAGE_ADDRESS_MASK) | tag;
         tlb.toOffset = physicalAddress - address - range.start;
         tlb.device = range.device;
 
@@ -1443,11 +1468,11 @@ public abstract class R5CPUBase implements R5CPU {
         return (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (MMIO_TLB_SIZE - 1));
     }
 
-    private static void updateMMIOTLB(final MMIOTLBEntry entry, final long address, final long physicalAddress, final MappedMemoryRange range) {
+    private static void updateMMIOTLB(final MMIOTLBEntry entry, final long address, final long tag, final long physicalAddress, final MappedMemoryRange range) {
         final long virtualPage = address & ~R5.PAGE_ADDRESS_MASK;
         final long physicalPage = physicalAddress & ~R5.PAGE_ADDRESS_MASK;
 
-        entry.hash = virtualPage;
+        entry.hash = virtualPage | tag;
         entry.toOffset = physicalAddress - address - range.start;
         entry.device = range.device;
 
@@ -1486,21 +1511,23 @@ public abstract class R5CPUBase implements R5CPU {
         final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
         final long hash = address & ~R5.PAGE_ADDRESS_MASK;
 
-        if (fetchTLB[index].hash == hash) {
+        // Compare the address bits only: an entry for this page made under any privilege level is
+        // stale once the guest asks for it to be flushed.
+        if ((fetchTLB[index].hash & ~R5.PAGE_ADDRESS_MASK) == hash) {
             fetchTLB[index].hash = -1;
         }
-        if (loadTLB[index].hash == hash) {
+        if ((loadTLB[index].hash & ~R5.PAGE_ADDRESS_MASK) == hash) {
             loadTLB[index].hash = -1;
         }
-        if (storeTLB[index].hash == hash) {
+        if ((storeTLB[index].hash & ~R5.PAGE_ADDRESS_MASK) == hash) {
             storeTLB[index].hash = -1;
         }
 
         final int mmioIndex = mmioIndex(address);
-        if (mmioLoadTLB[mmioIndex].hash == hash) {
+        if ((mmioLoadTLB[mmioIndex].hash & ~R5.PAGE_ADDRESS_MASK) == hash) {
             mmioLoadTLB[mmioIndex].hash = -1;
         }
-        if (mmioStoreTLB[mmioIndex].hash == hash) {
+        if ((mmioStoreTLB[mmioIndex].hash & ~R5.PAGE_ADDRESS_MASK) == hash) {
             mmioStoreTLB[mmioIndex].hash = -1;
         }
     }
@@ -3413,8 +3440,8 @@ public abstract class R5CPUBase implements R5CPU {
         public long windowStart;
         public long windowEnd;
 
-        public boolean matches(final long address, final int sizeLog2) {
-            return hash == (address & ~R5.PAGE_ADDRESS_MASK)
+        public boolean matches(final long address, final long tag, final int sizeLog2) {
+            return hash == ((address & ~R5.PAGE_ADDRESS_MASK) | tag)
                 && Long.compareUnsigned(address, windowStart) >= 0
                 && Long.compareUnsigned(address + (1 << sizeLog2) - 1, windowEnd) <= 0;
         }
@@ -3537,7 +3564,7 @@ public abstract class R5CPUBase implements R5CPU {
                 }
 
                 // We return a fake TLB entry to avoid modifying the TLB
-                return updateTLBEntry(new TLBEntry(), address, physicalAddress, range);
+                return updateTLBEntry(new TLBEntry(), address, tagFor(accessType), physicalAddress, range);
             }
         }
 
@@ -3549,13 +3576,17 @@ public abstract class R5CPUBase implements R5CPU {
                 case FETCH -> fetchTLB;
             };
             final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
-            final long hash = address & ~R5.PAGE_ADDRESS_MASK;
+            final long hash = (address & ~R5.PAGE_ADDRESS_MASK) | tagFor(accessType);
             final TLBEntry entry = tlb[index];
             if (entry.hash == hash) {
                 return entry;
             } else {
                 return null;
             }
+        }
+
+        private long tagFor(final MemoryAccessType accessType) {
+            return accessType == MemoryAccessType.FETCH ? fetchTLBTag : dataTLBTag;
         }
 
         void handleBreakpoint(final long pc) {

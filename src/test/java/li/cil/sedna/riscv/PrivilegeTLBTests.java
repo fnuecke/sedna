@@ -94,6 +94,31 @@ public final class PrivilegeTLBTests {
     }
 
     @Test
+    public void mretStayingInMachineModeRetagsDataAccesses() throws MemoryAccessException {
+        // The OpenSBI pattern: machine mode uses MPRV to access memory with a lower privilege
+        // level's translation. An MRET whose MPP is M stays in machine mode; but it still clears
+        // MPP, which moves the effective privilege of data accesses when MPRV remains set. The TLB
+        // must not keep serving machine-mode entries after that.
+        writeCSR(CSR_SATP, R5.SATP_MODE_SV39 | (ROOT_TABLE >>> R5.PAGE_ADDRESS_SHIFT));
+
+        // Make the shared page's mapping accessible to effective user-mode accesses.
+        memoryMap.store(LEVEL1_TABLE + index(SHARED_ADDRESS, 1) * 8L,
+            leafPTE(SUPERVISOR_TARGET) | R5.PTE_U_MASK, Sizes.SIZE_64_LOG2);
+
+        // MPP = M, MPRV = 1: data accesses are effectively machine mode, i.e. untranslated.
+        setCSRBits(CSR_MSTATUS, R5.STATUS_MPP_MASK | R5.STATUS_MPRV_MASK);
+        assertEquals(MARKER_MACHINE, readSharedAddress(), "MPRV with MPP=M must not translate");
+
+        // MRET with MPP = M: privilege stays M (so no flush happens on that path), MPP becomes U,
+        // MPRV stays set, so data accesses are now effectively user mode and must translate.
+        writeCSR(CSR_MEPC, CODE);
+        execute(MRET);
+
+        assertEquals(MARKER_SUPERVISOR, readSharedAddress(),
+            "after MRET, MPRV data accesses must use the new MPP privilege, not stale TLB entries");
+    }
+
+    @Test
     public void flushingAPageInvalidatesEveryPrivilegeVariant() throws MemoryAccessException {
         assertEquals(MARKER_MACHINE, readSharedAddress());
         enterSupervisor();

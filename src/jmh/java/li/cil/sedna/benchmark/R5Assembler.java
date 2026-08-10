@@ -113,6 +113,10 @@ public final class R5Assembler {
         return iType(csr, rs1, 0b010, rd, SYSTEM);
     }
 
+    public static int csrrc(final int rd, final int csr, final int rs1) {
+        return iType(csr, rs1, 0b011, rd, SYSTEM);
+    }
+
     private static int rType(final int funct7, final int rs2, final int rs1, final int funct3, final int rd, final int opcode) {
         return (funct7 << 25) | (rs2 << 20) | (rs1 << 15) | (funct3 << 12) | (rd << 7) | opcode;
     }
