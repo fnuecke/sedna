@@ -2816,7 +2816,7 @@ public abstract class R5CPUBase implements R5CPU {
                           @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu32.neg(fpu32.mulsub(checkFloat(f[rs1]), checkFloat(f[rs2]), checkFloat(f[rs3]), rm)) | R5.NAN_BOXING_MASK;
+        f[rd] = fpu32.muladd(fpu32.neg(checkFloat(f[rs1])), checkFloat(f[rs2]), checkFloat(f[rs3]), rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -2828,7 +2828,7 @@ public abstract class R5CPUBase implements R5CPU {
                           @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu32.neg(fpu32.muladd(checkFloat(f[rs1]), checkFloat(f[rs2]), checkFloat(f[rs3]), rm)) | R5.NAN_BOXING_MASK;
+        f[rd] = fpu32.mulsub(fpu32.neg(checkFloat(f[rs1])), checkFloat(f[rs2]), checkFloat(f[rs3]), rm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
     }
 
@@ -3135,7 +3135,7 @@ public abstract class R5CPUBase implements R5CPU {
                           @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu64.neg(fpu64.mulsub(f[rs1], f[rs2], f[rs3], rm));
+        f[rd] = fpu64.muladd(fpu64.neg(f[rs1]), f[rs2], f[rs3], rm);
         fs = R5.FS_DIRTY;
     }
 
@@ -3147,7 +3147,7 @@ public abstract class R5CPUBase implements R5CPU {
                           @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
-        f[rd] = fpu64.neg(fpu64.muladd(f[rs1], f[rs2], f[rs3], rm));
+        f[rd] = fpu64.mulsub(fpu64.neg(f[rs1]), f[rs2], f[rs3], rm);
         fs = R5.FS_DIRTY;
     }
 
