@@ -8,20 +8,14 @@ import li.cil.sedna.memory.SimpleMemoryMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static li.cil.sedna.riscv.R5Assembler.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public final class TrapStatusTests {
     private static final long PHYSICAL_MEMORY_START = 0x80000000L;
     private static final int PHYSICAL_MEMORY_LENGTH = 4 * 1024;
 
-    private static final int CSR_MSTATUS = 0x300;
-    private static final int CSR_SSTATUS = 0x100;
-
     private static final long TRAP_VECTOR = PHYSICAL_MEMORY_START + 0x800;
-
-    private static final int MRET = 0x30200073;
-    private static final int SRET = 0x10200073;
-    private static final int ECALL = 0x00000073;
 
     // WPRI bits adjacent to the IE/PIE bits, which the broken restore polluted.
     private static final long WPRI_BITS = (1L << 2) | (1L << 6);
@@ -42,7 +36,7 @@ public final class TrapStatusTests {
 
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[1] = TRAP_VECTOR;
-        execute(csrrw(0, 0x305 /* mtvec */, 1));
+        execute(csrrw(0, R5.CSR_MTVEC, 1));
     }
 
     @Test
@@ -112,15 +106,15 @@ public final class TrapStatusTests {
     private void writeMSTATUS(final long value) {
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[1] = value;
-        execute(csrrw(0, CSR_MSTATUS, 1));
+        execute(csrrw(0, R5.CSR_MSTATUS, 1));
     }
 
     private long readMSTATUS() {
-        return readCSR(CSR_MSTATUS);
+        return readCSR(R5.CSR_MSTATUS);
     }
 
     private long readSSTATUS() {
-        return readCSR(CSR_SSTATUS);
+        return readCSR(R5.CSR_SSTATUS);
     }
 
     private long readCSR(final int csr) {
@@ -139,17 +133,5 @@ public final class TrapStatusTests {
 
         cpu.getDebugInterface().setProgramCounter(PHYSICAL_MEMORY_START);
         cpu.getDebugInterface().step();
-    }
-
-    private static int csrrw(final int rd, final int csr, final int rs1) {
-        return csr(rd, csr, rs1, 0b001);
-    }
-
-    private static int csrrs(final int rd, final int csr, final int rs1) {
-        return csr(rd, csr, rs1, 0b010);
-    }
-
-    private static int csr(final int rd, final int csr, final int rs1, final int funct3) {
-        return (csr << 20) | (rs1 << 15) | (funct3 << 12) | (rd << 7) | 0b1110011;
     }
 }

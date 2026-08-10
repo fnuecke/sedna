@@ -8,6 +8,7 @@ import li.cil.sedna.memory.SimpleMemoryMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static li.cil.sedna.riscv.R5Assembler.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public final class PrivilegeTLBTests {
@@ -30,11 +31,6 @@ public final class PrivilegeTLBTests {
     private static final long MARKER_MACHINE = 0x1111222233334444L;
     private static final long MARKER_SUPERVISOR = 0x5555666677778888L;
     private static final long MARKER_REMAPPED = 0x99AABBCCDDEEFF00L;
-
-    private static final int CSR_SATP = 0x180;
-    private static final int CSR_MSTATUS = 0x300;
-    private static final int CSR_MEPC = 0x341;
-    private static final int CSR_MTVEC = 0x305;
 
     private MemoryMap memoryMap;
     private R5CPU cpu;
@@ -59,7 +55,7 @@ public final class PrivilegeTLBTests {
         cpu.setXLEN(R5.XLEN_64);
 
         // Setup in machine mode; supervisor mode is not allowed to write mtvec.
-        writeCSR(CSR_MTVEC, CODE);
+        writeCSR(R5.CSR_MTVEC, CODE);
     }
 
     @Test
@@ -99,19 +95,19 @@ public final class PrivilegeTLBTests {
         // level's translation. An MRET whose MPP is M stays in machine mode; but it still clears
         // MPP, which moves the effective privilege of data accesses when MPRV remains set. The TLB
         // must not keep serving machine-mode entries after that.
-        writeCSR(CSR_SATP, R5.SATP_MODE_SV39 | (ROOT_TABLE >>> R5.PAGE_ADDRESS_SHIFT));
+        writeCSR(R5.CSR_SATP, R5.SATP_MODE_SV39 | (ROOT_TABLE >>> R5.PAGE_ADDRESS_SHIFT));
 
         // Make the shared page's mapping accessible to effective user-mode accesses.
         memoryMap.store(LEVEL1_TABLE + index(SHARED_ADDRESS, 1) * 8L,
             leafPTE(SUPERVISOR_TARGET) | R5.PTE_U_MASK, Sizes.SIZE_64_LOG2);
 
         // MPP = M, MPRV = 1: data accesses are effectively machine mode, i.e. untranslated.
-        setCSRBits(CSR_MSTATUS, R5.STATUS_MPP_MASK | R5.STATUS_MPRV_MASK);
+        setCSRBits(R5.CSR_MSTATUS, R5.STATUS_MPP_MASK | R5.STATUS_MPRV_MASK);
         assertEquals(MARKER_MACHINE, readSharedAddress(), "MPRV with MPP=M must not translate");
 
         // MRET with MPP = M: privilege stays M (so no flush happens on that path), MPP becomes U,
         // MPRV stays set, so data accesses are now effectively user mode and must translate.
-        writeCSR(CSR_MEPC, CODE);
+        writeCSR(R5.CSR_MEPC, CODE);
         execute(MRET);
 
         assertEquals(MARKER_SUPERVISOR, readSharedAddress(),
@@ -146,9 +142,9 @@ public final class PrivilegeTLBTests {
     }
 
     private void enterSupervisor() throws MemoryAccessException {
-        writeCSR(CSR_SATP, R5.SATP_MODE_SV39 | (ROOT_TABLE >>> R5.PAGE_ADDRESS_SHIFT));
-        setCSRBits(CSR_MSTATUS, (long) R5.PRIVILEGE_S << R5.STATUS_MPP_SHIFT);
-        writeCSR(CSR_MEPC, CODE);
+        writeCSR(R5.CSR_SATP, R5.SATP_MODE_SV39 | (ROOT_TABLE >>> R5.PAGE_ADDRESS_SHIFT));
+        setCSRBits(R5.CSR_MSTATUS, (long) R5.PRIVILEGE_S << R5.STATUS_MPP_SHIFT);
+        writeCSR(R5.CSR_MEPC, CODE);
         execute(MRET);
     }
 
@@ -184,24 +180,5 @@ public final class PrivilegeTLBTests {
         return ((page >>> R5.PAGE_ADDRESS_SHIFT) << R5.PTE_DATA_BITS)
             | R5.PTE_V_MASK | R5.PTE_R_MASK | R5.PTE_W_MASK | R5.PTE_X_MASK
             | R5.PTE_A_MASK | R5.PTE_D_MASK;
-    }
-
-    private static final int MRET = (0b0011000 << 25) | (0b00010 << 20) | 0b1110011;
-    private static final int ECALL = 0b1110011;
-
-    private static int ld(final int rd, final int rs1, final int imm) {
-        return (imm << 20) | (rs1 << 15) | (0b011 << 12) | (rd << 7) | 0b0000011;
-    }
-
-    private static int csrrw(final int rd, final int csr, final int rs1) {
-        return (csr << 20) | (rs1 << 15) | (0b001 << 12) | (rd << 7) | 0b1110011;
-    }
-
-    private static int sfenceVma(final int rs1) {
-        return (0b0001001 << 25) | (rs1 << 15) | 0b1110011;
-    }
-
-    private static int csrrs(final int rd, final int csr, final int rs1) {
-        return (csr << 20) | (rs1 << 15) | (0b010 << 12) | (rd << 7) | 0b1110011;
     }
 }

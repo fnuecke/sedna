@@ -8,13 +8,12 @@ import li.cil.sedna.memory.SimpleMemoryMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static li.cil.sedna.riscv.R5Assembler.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public final class SATPTests {
     private static final long PHYSICAL_MEMORY_START = 0x80000000L;
     private static final int PHYSICAL_MEMORY_LENGTH = 4 * 1024;
-
-    private static final int CSR_SATP = 0x180;
 
     private static final long PPN = 0x80000L;
 
@@ -67,8 +66,8 @@ public final class SATPTests {
     }
 
     private long writeThenReadSatp(final long value) throws MemoryAccessException {
-        store(PHYSICAL_MEMORY_START, csrrw(0, CSR_SATP, 1));
-        store(PHYSICAL_MEMORY_START + 4, csrrs(2, CSR_SATP, 0));
+        store(PHYSICAL_MEMORY_START, csrrw(0, R5.CSR_SATP, 1));
+        store(PHYSICAL_MEMORY_START + 4, csrrs(2, R5.CSR_SATP, 0));
 
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[1] = value;
@@ -83,17 +82,5 @@ public final class SATPTests {
 
     private void store(final long address, final int instruction) throws MemoryAccessException {
         memoryMap.store(address, instruction, Sizes.SIZE_32_LOG2);
-    }
-
-    private static int csrrw(final int rd, final int csr, final int rs1) {
-        return csr(rd, csr, rs1, 0b001);
-    }
-
-    private static int csrrs(final int rd, final int csr, final int rs1) {
-        return csr(rd, csr, rs1, 0b010);
-    }
-
-    private static int csr(final int rd, final int csr, final int rs1, final int funct3) {
-        return (csr << 20) | (rs1 << 15) | (funct3 << 12) | (rd << 7) | 0b1110011;
     }
 }

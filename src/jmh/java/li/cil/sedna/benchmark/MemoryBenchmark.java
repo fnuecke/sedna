@@ -1,5 +1,6 @@
 package li.cil.sedna.benchmark;
 
+import li.cil.sedna.riscv.R5Assembler;
 import li.cil.sedna.riscv.R5CPU;
 import org.openjdk.jmh.annotations.*;
 

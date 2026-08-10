@@ -8,6 +8,7 @@ import li.cil.sedna.memory.SimpleMemoryMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static li.cil.sedna.riscv.R5Assembler.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public final class CanonicalAddressTests {
@@ -24,15 +25,9 @@ public final class CanonicalAddressTests {
 
     private static final long TRAP_VECTOR = PHYSICAL_MEMORY_START + 0x800;
 
-    private static final int CSR_MSTATUS = 0x300;
-    private static final int CSR_SATP = 0x180;
-    private static final int CSR_MCAUSE = 0x342;
-    private static final int CSR_MTVAL = 0x343;
-
-    private static final int SRET = 0x10200073;
-
-    // V | R | W | X | A | D, U clear so S-mode can access without SUM.
-    private static final long PTE_FLAGS = 0b11001111;
+    // U clear so S-mode can access without SUM.
+    private static final long PTE_FLAGS = R5.PTE_V_MASK | R5.PTE_R_MASK | R5.PTE_W_MASK
+        | R5.PTE_X_MASK | R5.PTE_A_MASK | R5.PTE_D_MASK;
 
     private MemoryMap memoryMap;
     private R5CPU cpu;
@@ -48,7 +43,7 @@ public final class CanonicalAddressTests {
 
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[1] = TRAP_VECTOR;
-        execute(csrrw(0, 0x305 /* mtvec */, 1));
+        execute(csrrw(0, R5.CSR_MTVEC, 1));
 
         memoryMap.store(DATA_ADDRESS, SENTINEL, Sizes.SIZE_64_LOG2);
     }
@@ -81,8 +76,8 @@ public final class CanonicalAddressTests {
         cpu.getDebugInterface().setProgramCounter(NON_CANONICAL_DATA_ADDRESS);
         cpu.getDebugInterface().step();
 
-        assertEquals(R5.EXCEPTION_FETCH_PAGE_FAULT, readCSR(CSR_MCAUSE));
-        assertEquals(NON_CANONICAL_DATA_ADDRESS, readCSR(CSR_MTVAL));
+        assertEquals(R5.EXCEPTION_FETCH_PAGE_FAULT, readCSR(R5.CSR_MCAUSE));
+        assertEquals(NON_CANONICAL_DATA_ADDRESS, readCSR(R5.CSR_MTVAL));
     }
 
     /**
@@ -90,7 +85,8 @@ public final class CanonicalAddressTests {
      * 0x80000000 is 2, so leaf PTE index 2 in the root table.
      */
     private void enterSupervisorModeWithSv39() throws MemoryAccessException {
-        memoryMap.store(ROOT_PAGE_TABLE + 2 * 8, ((PHYSICAL_MEMORY_START >>> 12) << 10) | PTE_FLAGS, Sizes.SIZE_64_LOG2);
+        memoryMap.store(ROOT_PAGE_TABLE + 2 * 8,
+            ((PHYSICAL_MEMORY_START >>> R5.PAGE_ADDRESS_SHIFT) << R5.PTE_DATA_BITS) | PTE_FLAGS, Sizes.SIZE_64_LOG2);
         enterSupervisorMode(R5.SATP_MODE_SV39);
     }
 
@@ -105,11 +101,11 @@ public final class CanonicalAddressTests {
 
     private void enterSupervisorMode(final long satpMode) {
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
-        registers[1] = satpMode | (ROOT_PAGE_TABLE >>> 12);
-        execute(csrrw(0, CSR_SATP, 1));
+        registers[1] = satpMode | (ROOT_PAGE_TABLE >>> R5.PAGE_ADDRESS_SHIFT);
+        execute(csrrw(0, R5.CSR_SATP, 1));
 
         registers[1] = R5.STATUS_SPP_MASK; // SPP = S.
-        execute(csrrw(0, CSR_MSTATUS, 1));
+        execute(csrrw(0, R5.CSR_MSTATUS, 1));
         execute(SRET);
     }
 
@@ -128,8 +124,8 @@ public final class CanonicalAddressTests {
         execute(instruction);
 
         // The fault trapped to M-mode, where mcause/mtval are readable again.
-        assertEquals(cause, readCSR(CSR_MCAUSE));
-        assertEquals(NON_CANONICAL_DATA_ADDRESS, readCSR(CSR_MTVAL));
+        assertEquals(cause, readCSR(R5.CSR_MCAUSE));
+        assertEquals(NON_CANONICAL_DATA_ADDRESS, readCSR(R5.CSR_MTVAL));
     }
 
     private long readCSR(final int csr) {
@@ -148,26 +144,5 @@ public final class CanonicalAddressTests {
 
         cpu.getDebugInterface().setProgramCounter(PHYSICAL_MEMORY_START);
         cpu.getDebugInterface().step();
-    }
-
-    private static int ld(final int rd, final int rs1, final int offset) {
-        return (offset << 20) | (rs1 << 15) | (0b011 << 12) | (rd << 7) | 0b0000011;
-    }
-
-    private static int sd(final int rs2, final int rs1, final int offset) {
-        return (((offset >> 5) & 0b1111111) << 25) | (rs2 << 20) | (rs1 << 15) | (0b011 << 12)
-            | ((offset & 0b11111) << 7) | 0b0100011;
-    }
-
-    private static int csrrw(final int rd, final int csr, final int rs1) {
-        return csr(rd, csr, rs1, 0b001);
-    }
-
-    private static int csrrs(final int rd, final int csr, final int rs1) {
-        return csr(rd, csr, rs1, 0b010);
-    }
-
-    private static int csr(final int rd, final int csr, final int rs1, final int funct3) {
-        return (csr << 20) | (rs1 << 15) | (funct3 << 12) | (rd << 7) | 0b1110011;
     }
 }

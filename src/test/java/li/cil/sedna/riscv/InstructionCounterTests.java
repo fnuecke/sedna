@@ -8,22 +8,13 @@ import li.cil.sedna.memory.SimpleMemoryMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static li.cil.sedna.riscv.R5Assembler.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public final class InstructionCounterTests {
     private static final long PHYSICAL_MEMORY_START = 0x80000000L;
     private static final int PHYSICAL_MEMORY_LENGTH = 64 * 1024;
-
-    private static final int NOP = 0x00000013; // addi x0, x0, 0
-    private static final int WFI = 0x10500073;
-
-    private static final int CSR_MCYCLE = 0xB00;
-    private static final int CSR_MINSTRET = 0xB02;
-    private static final int CSR_MIE = 0x304;
-    private static final int CSR_MTVEC = 0x305;
-
-    private static final int MACHINE_SOFTWARE_INTERRUPT = 1 << 3;
 
     private static final int IDLE_CYCLES = 10 * 10_000;
 
@@ -74,10 +65,10 @@ public final class InstructionCounterTests {
     @Test
     public void wakingResumesRetiringInstructions() throws MemoryAccessException {
         // Point the trap vector at the field of NOPs, so a taken interrupt lands on valid code.
-        writeCSR(CSR_MTVEC, PHYSICAL_MEMORY_START + 0x2000);
+        writeCSR(R5.CSR_MTVEC, PHYSICAL_MEMORY_START + 0x2000);
         // WFI only parks the hart while no enabled interrupt is pending, and raising one only wakes
         // it if that interrupt is enabled, so mie has to be set up before the WFI executes.
-        writeCSR(CSR_MIE, MACHINE_SOFTWARE_INTERRUPT);
+        writeCSR(R5.CSR_MIE, R5.MSIP_MASK);
 
         memoryMap.store(PHYSICAL_MEMORY_START, WFI, Sizes.SIZE_32_LOG2);
         cpu.getDebugInterface().setProgramCounter(PHYSICAL_MEMORY_START);
@@ -86,7 +77,7 @@ public final class InstructionCounterTests {
         cpu.step(10_000);
         final long retiredWhileParked = cpu.getInstructionsRetired();
 
-        cpu.raiseInterrupts(MACHINE_SOFTWARE_INTERRUPT);
+        cpu.raiseInterrupts(R5.MSIP_MASK);
         cpu.step(10_000);
 
         assertTrue(cpu.getInstructionsRetired() > retiredWhileParked,
@@ -125,8 +116,8 @@ public final class InstructionCounterTests {
             cpu.step(IDLE_CYCLES / 10);
         }
 
-        final long cycle = readCSR(CSR_MCYCLE);
-        final long instret = readCSR(CSR_MINSTRET);
+        final long cycle = readCSR(R5.CSR_MCYCLE);
+        final long instret = readCSR(R5.CSR_MINSTRET);
 
         assertTrue(cycle - instret > IDLE_CYCLES / 2,
             String.format("after idling for ~%d cycles, cycles (%d) must have run far ahead of instructions retired (%d)",
@@ -152,17 +143,5 @@ public final class InstructionCounterTests {
         cpu.getDebugInterface().getGeneralRegisters()[1] = value;
         cpu.getDebugInterface().setProgramCounter(address);
         cpu.getDebugInterface().step();
-    }
-
-    private static int csrrs(final int rd, final int csr, final int rs1) {
-        return csr(rd, csr, rs1, 0b010);
-    }
-
-    private static int csrrw(final int rd, final int csr, final int rs1) {
-        return csr(rd, csr, rs1, 0b001);
-    }
-
-    private static int csr(final int rd, final int csr, final int rs1, final int funct3) {
-        return (csr << 20) | (rs1 << 15) | (funct3 << 12) | (rd << 7) | 0b1110011;
     }
 }

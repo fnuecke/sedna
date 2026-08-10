@@ -1,6 +1,7 @@
 package li.cil.sedna.benchmark;
 
 import li.cil.sedna.riscv.R5;
+import li.cil.sedna.riscv.R5Assembler;
 import li.cil.sedna.riscv.R5CPU;
 import org.openjdk.jmh.annotations.*;
 
@@ -38,7 +39,7 @@ public class DispatchBenchmark {
         vm.store64(dataAddress, 0x0123456789ABCDEFL);
 
         // Floating point instructions trap while mstatus.FS is Off, so turn the FPU on.
-        vm.setCSRBits(R5Assembler.CSR_MSTATUS, (long) R5.FS_INITIAL << R5.STATUS_FS_SHIFT);
+        vm.setCSRBits(R5.CSR_MSTATUS, (long) R5.FS_INITIAL << R5.STATUS_FS_SHIFT);
 
         final long[] registers = vm.registers();
         registers[3] = 0x0123456789ABCDEFL;

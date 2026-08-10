@@ -9,6 +9,7 @@ import li.cil.sedna.memory.SimpleMemoryMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static li.cil.sedna.riscv.R5Assembler.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public final class MMIOTLBTests {
@@ -32,12 +33,6 @@ public final class MMIOTLBTests {
 
     private static final long ROOT_TABLE = PHYSICAL_MEMORY_START + 3 * MEGAPAGE;
     private static final long LEVEL1_TABLE = ROOT_TABLE + 0x1000;
-
-    private static final int CSR_SATP = 0x180;
-    private static final int CSR_MSTATUS = 0x300;
-    private static final int CSR_MEPC = 0x341;
-    private static final int CSR_MTVEC = 0x305;
-    private static final int CSR_MCAUSE = 0x342;
 
     private MemoryMap memoryMap;
     private R5CPU cpu;
@@ -86,7 +81,7 @@ public final class MMIOTLBTests {
         cpu.reset(true, CODE);
         cpu.setXLEN(R5.XLEN_64);
 
-        writeCSR(CSR_MTVEC, CODE);
+        writeCSR(R5.CSR_MTVEC, CODE);
     }
 
     @Test
@@ -113,7 +108,7 @@ public final class MMIOTLBTests {
 
         read(HOLE_ADDRESS);
 
-        assertEquals(R5.EXCEPTION_FAULT_LOAD, readCSR(CSR_MCAUSE),
+        assertEquals(R5.EXCEPTION_FAULT_LOAD, readCSR(R5.CSR_MCAUSE),
             "an access outside the device but inside its cached page must still fault");
     }
 
@@ -169,9 +164,9 @@ public final class MMIOTLBTests {
     }
 
     private void enterSupervisor() throws MemoryAccessException {
-        writeCSR(CSR_SATP, R5.SATP_MODE_SV39 | (ROOT_TABLE >>> R5.PAGE_ADDRESS_SHIFT));
-        setCSRBits(CSR_MSTATUS, (long) R5.PRIVILEGE_S << R5.STATUS_MPP_SHIFT);
-        writeCSR(CSR_MEPC, CODE);
+        writeCSR(R5.CSR_SATP, R5.SATP_MODE_SV39 | (ROOT_TABLE >>> R5.PAGE_ADDRESS_SHIFT));
+        setCSRBits(R5.CSR_MSTATUS, (long) R5.PRIVILEGE_S << R5.STATUS_MPP_SHIFT);
+        writeCSR(R5.CSR_MEPC, CODE);
         execute(MRET);
     }
 
@@ -216,27 +211,5 @@ public final class MMIOTLBTests {
         return ((page >>> R5.PAGE_ADDRESS_SHIFT) << R5.PTE_DATA_BITS)
             | R5.PTE_V_MASK | R5.PTE_R_MASK | R5.PTE_W_MASK | R5.PTE_X_MASK
             | R5.PTE_A_MASK | R5.PTE_D_MASK;
-    }
-
-    private static final int MRET = (0b0011000 << 25) | (0b00010 << 20) | 0b1110011;
-
-    private static int ld(final int rd, final int rs1, final int imm) {
-        return (imm << 20) | (rs1 << 15) | (0b011 << 12) | (rd << 7) | 0b0000011;
-    }
-
-    private static int sd(final int rs2, final int rs1, final int imm) {
-        return (((imm >> 5) & 0x7F) << 25) | (rs2 << 20) | (rs1 << 15) | (0b011 << 12) | ((imm & 0x1F) << 7) | 0b0100011;
-    }
-
-    private static int csrrw(final int rd, final int csr, final int rs1) {
-        return (csr << 20) | (rs1 << 15) | (0b001 << 12) | (rd << 7) | 0b1110011;
-    }
-
-    private static int csrrs(final int rd, final int csr, final int rs1) {
-        return (csr << 20) | (rs1 << 15) | (0b010 << 12) | (rd << 7) | 0b1110011;
-    }
-
-    private static int sfenceVma(final int rs1) {
-        return (0b0001001 << 25) | (rs1 << 15) | 0b1110011;
     }
 }

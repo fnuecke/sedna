@@ -8,6 +8,7 @@ import li.cil.sedna.memory.SimpleMemoryMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static li.cil.sedna.riscv.R5Assembler.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public final class DivRemWTests {
@@ -81,25 +82,5 @@ public final class DivRemWTests {
         cpu.getDebugInterface().step();
 
         return registers[3];
-    }
-
-    private static int divw(final int rd, final int rs1, final int rs2) {
-        return op(rs2, rs1, 0b100, rd);
-    }
-
-    private static int divuw(final int rd, final int rs1, final int rs2) {
-        return op(rs2, rs1, 0b101, rd);
-    }
-
-    private static int remw(final int rd, final int rs1, final int rs2) {
-        return op(rs2, rs1, 0b110, rd);
-    }
-
-    private static int remuw(final int rd, final int rs1, final int rs2) {
-        return op(rs2, rs1, 0b111, rd);
-    }
-
-    private static int op(final int rs2, final int rs1, final int funct3, final int rd) {
-        return (0b0000001 << 25) | (rs2 << 20) | (rs1 << 15) | (funct3 << 12) | (rd << 7) | 0b0111011;
     }
 }

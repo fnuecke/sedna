@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 
+import static li.cil.sedna.riscv.R5Assembler.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public final class TLBSerializationTests {
@@ -34,9 +35,6 @@ public final class TLBSerializationTests {
     private static final long MARKER_A = 0x1111222233334444L;
     private static final long MARKER_B = 0x5555666677778888L;
 
-    private static final int CSR_SATP = 0x180;
-    private static final int CSR_MSTATUS = 0x300;
-
     private static final long MSTATUS_TRANSLATE_DATA_AS_SUPERVISOR =
         R5.STATUS_MPRV_MASK | ((long) R5.PRIVILEGE_S << R5.STATUS_MPP_SHIFT);
 
@@ -55,8 +53,8 @@ public final class TLBSerializationTests {
         // csrrw x0, satp, x1     ; switch address space to the one described by x1
         // csrrs x0, mstatus, x2  ; translate data accesses as supervisor
         // ld    x4, 0(x3)        ; x4 = *x3, translated
-        memoryMap.store(PROGRAM, csrrw(0, CSR_SATP, 1), Sizes.SIZE_32_LOG2);
-        memoryMap.store(PROGRAM + 4, csrrs(0, CSR_MSTATUS, 2), Sizes.SIZE_32_LOG2);
+        memoryMap.store(PROGRAM, csrrw(0, R5.CSR_SATP, 1), Sizes.SIZE_32_LOG2);
+        memoryMap.store(PROGRAM + 4, csrrs(0, R5.CSR_MSTATUS, 2), Sizes.SIZE_32_LOG2);
         memoryMap.store(PROGRAM + 8, ld(4, 3, 0), Sizes.SIZE_32_LOG2);
 
         mapMegapage(ROOT_TABLE_A, LEVEL1_TABLE_A, TARGET_A);
@@ -135,21 +133,5 @@ public final class TLBSerializationTests {
     private static long leafPTE(final long physicalAddress) {
         return ((physicalAddress >>> R5.PAGE_ADDRESS_SHIFT) << R5.PTE_DATA_BITS)
             | R5.PTE_V_MASK | R5.PTE_R_MASK | R5.PTE_W_MASK | R5.PTE_A_MASK | R5.PTE_D_MASK;
-    }
-
-    private static int ld(final int rd, final int rs1, final int offset) {
-        return (offset << 20) | (rs1 << 15) | (0b011 << 12) | (rd << 7) | 0b0000011;
-    }
-
-    private static int csrrw(final int rd, final int csr, final int rs1) {
-        return csr(rd, csr, rs1, 0b001);
-    }
-
-    private static int csrrs(final int rd, final int csr, final int rs1) {
-        return csr(rd, csr, rs1, 0b010);
-    }
-
-    private static int csr(final int rd, final int csr, final int rs1, final int funct3) {
-        return (csr << 20) | (rs1 << 15) | (funct3 << 12) | (rd << 7) | 0b1110011;
     }
 }

@@ -8,6 +8,7 @@ import li.cil.sedna.memory.SimpleMemoryMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static li.cil.sedna.riscv.R5Assembler.*;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public final class StepTests {
@@ -22,7 +23,6 @@ public final class StepTests {
     private static final int CYCLES_PER_STEP = 100;
     private static final int STEP_COUNT = 100;
     private static final int PHYSICAL_MEMORY_LENGTH = 1024 * 1024;
-    private static final int NOP = 0x00000013; // ADDI x0, x0, 0
 
     private MemoryMap memoryMap;
     private R5CPU cpu;
@@ -75,10 +75,10 @@ public final class StepTests {
 
     @Test
     public void tightGuestLoopRespectsTheCycleBudget() throws MemoryAccessException {
-        // An infinite two-instruction loop: addi x5, x5, 1; bne x5, x0, -4.
+        // An infinite two-instruction loop.
         final long loop = PHYSICAL_MEMORY_START + 0x1000;
-        memoryMap.store(loop, 0x00128293, Sizes.SIZE_32_LOG2); // addi x5, x5, 1
-        memoryMap.store(loop + 4, 0xfe029ee3L, Sizes.SIZE_32_LOG2); // bne x5, x0, -4
+        memoryMap.store(loop, addi(5, 5, 1), Sizes.SIZE_32_LOG2);
+        memoryMap.store(loop + 4, bne(5, 0, -4), Sizes.SIZE_32_LOG2);
         cpu.reset(true, loop);
         cpu.setXLEN(R5.XLEN_64);
 

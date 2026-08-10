@@ -8,17 +8,13 @@ import li.cil.sedna.memory.SimpleMemoryMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static li.cil.sedna.riscv.R5Assembler.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 public final class FloatingPointStatusTests {
     private static final long PHYSICAL_MEMORY_START = 0x80000000L;
     private static final int PHYSICAL_MEMORY_LENGTH = 4 * 1024;
-
-    private static final int CSR_MSTATUS = 0x300;
-    private static final int CSR_FFLAGS = 0x001;
-    private static final int CSR_FRM = 0x002;
-    private static final int CSR_FCSR = 0x003;
 
     private static final long TRAP_VECTOR = PHYSICAL_MEMORY_START + 0x800;
 
@@ -71,12 +67,12 @@ public final class FloatingPointStatusTests {
 
     @Test
     public void floatingPointCSRsTrapWhileFSIsOff() {
-        assertTrapped(csrrs(1, CSR_FFLAGS, 0));
-        assertTrapped(csrrs(1, CSR_FRM, 0));
-        assertTrapped(csrrs(1, CSR_FCSR, 0));
-        assertTrapped(csrrw(0, CSR_FFLAGS, 1));
-        assertTrapped(csrrw(0, CSR_FRM, 1));
-        assertTrapped(csrrw(0, CSR_FCSR, 1));
+        assertTrapped(csrrs(1, R5.CSR_FFLAGS, 0));
+        assertTrapped(csrrs(1, R5.CSR_FRM, 0));
+        assertTrapped(csrrs(1, R5.CSR_FCSR, 0));
+        assertTrapped(csrrw(0, R5.CSR_FFLAGS, 1));
+        assertTrapped(csrrw(0, R5.CSR_FRM, 1));
+        assertTrapped(csrrw(0, R5.CSR_FCSR, 1));
     }
 
     @Test
@@ -92,9 +88,9 @@ public final class FloatingPointStatusTests {
         assertCompleted(FMV_X_W);
         assertCompleted(FSW);
         assertCompleted(FSD);
-        assertCompleted(csrrs(1, CSR_FFLAGS, 0));
-        assertCompleted(csrrs(1, CSR_FRM, 0));
-        assertCompleted(csrrs(1, CSR_FCSR, 0));
+        assertCompleted(csrrs(1, R5.CSR_FFLAGS, 0));
+        assertCompleted(csrrs(1, R5.CSR_FRM, 0));
+        assertCompleted(csrrs(1, R5.CSR_FCSR, 0));
     }
 
     @Test
@@ -117,7 +113,7 @@ public final class FloatingPointStatusTests {
         // Reset FS to Initial via a full mstatus write; csrrs cannot lower a Dirty FS.
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[1] = (long) R5.FS_INITIAL << R5.STATUS_FS_SHIFT;
-        execute(csrrw(0, CSR_MSTATUS, 1));
+        execute(csrrw(0, R5.CSR_MSTATUS, 1));
 
         assertCompleted(instruction);
         assertEquals(R5.FS_DIRTY, (readMSTATUS() & R5.STATUS_FS_MASK) >> R5.STATUS_FS_SHIFT,
@@ -128,7 +124,7 @@ public final class FloatingPointStatusTests {
         // csrrs x0, mstatus, x1 with x1 selecting FS=Initial.
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[1] = (long) R5.FS_INITIAL << R5.STATUS_FS_SHIFT;
-        execute(csrrs(0, CSR_MSTATUS, 1));
+        execute(csrrs(0, R5.CSR_MSTATUS, 1));
 
         assertNotEquals(R5.FS_OFF, (readMSTATUS() & R5.STATUS_FS_MASK) >> R5.STATUS_FS_SHIFT);
     }
@@ -136,13 +132,13 @@ public final class FloatingPointStatusTests {
     private void setMTVEC(final long value) {
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[1] = value;
-        execute(csrrw(0, 0x305 /* mtvec */, 1));
+        execute(csrrw(0, R5.CSR_MTVEC, 1));
     }
 
     private long readMSTATUS() {
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[2] = 0;
-        execute(csrrs(2, CSR_MSTATUS, 0));
+        execute(csrrs(2, R5.CSR_MSTATUS, 0));
         return registers[2];
     }
 
@@ -168,44 +164,19 @@ public final class FloatingPointStatusTests {
             String.format("expected instruction %08x to complete while mstatus.FS is on", instruction));
     }
 
-    // Encoded operands are all register 0/1, which keeps the encodings simple; which registers are
-    // used does not matter, only whether the instruction is allowed to run at all.
-    private static final int FADD_S = fp(0b0000000, 1, 1, 0b000, 1, 0b1010011);
-    private static final int FADD_D = fp(0b0000001, 1, 1, 0b000, 1, 0b1010011);
-    private static final int FSQRT_S = fp(0b0101100, 0, 1, 0b000, 1, 0b1010011);
-    private static final int FMV_W_X = fp(0b1111000, 0, 1, 0b000, 1, 0b1010011);
-    private static final int FMV_X_W = fp(0b1110000, 0, 1, 0b000, 1, 0b1010011);
-    private static final int FEQ_S = fp(0b1010000, 1, 1, 0b010, 1, 0b1010011);
-    private static final int FEQ_D = fp(0b1010001, 1, 1, 0b010, 1, 0b1010011);
-    private static final int FCVT_W_S = fp(0b1100000, 0, 1, 0b000, 1, 0b1010011);
-    private static final int FCVT_L_D = fp(0b1100001, 0b00010, 1, 0b000, 1, 0b1010011);
-    private static final int FLW = load(1, ADDRESS_REGISTER, 0, 0b010);
-    private static final int FLD = load(1, ADDRESS_REGISTER, 0, 0b011);
-    private static final int FSW = store(1, ADDRESS_REGISTER, 0, 0b010);
-    private static final int FSD = store(1, ADDRESS_REGISTER, 0, 0b011);
-
-    private static int fp(final int funct7, final int rs2, final int rs1, final int rm, final int rd, final int opcode) {
-        return (funct7 << 25) | (rs2 << 20) | (rs1 << 15) | (rm << 12) | (rd << 7) | opcode;
-    }
-
-    private static int load(final int rd, final int rs1, final int offset, final int width) {
-        return (offset << 20) | (rs1 << 15) | (width << 12) | (rd << 7) | 0b0000111;
-    }
-
-    private static int store(final int rs2, final int rs1, final int offset, final int width) {
-        return (((offset >> 5) & 0b1111111) << 25) | (rs2 << 20) | (rs1 << 15) | (width << 12)
-            | ((offset & 0b11111) << 7) | 0b0100111;
-    }
-
-    private static int csrrw(final int rd, final int csr, final int rs1) {
-        return csr(rd, csr, rs1, 0b001);
-    }
-
-    private static int csrrs(final int rd, final int csr, final int rs1) {
-        return csr(rd, csr, rs1, 0b010);
-    }
-
-    private static int csr(final int rd, final int csr, final int rs1, final int funct3) {
-        return (csr << 20) | (rs1 << 15) | (funct3 << 12) | (rd << 7) | 0b1110011;
-    }
+    // The operands are all register 0/1; which registers are used does not matter, only whether the
+    // instruction is allowed to run at all.
+    private static final int FADD_S = faddS(1, 1, 1, R5.FCSR_FRM_RNE);
+    private static final int FADD_D = faddD(1, 1, 1, R5.FCSR_FRM_RNE);
+    private static final int FSQRT_S = fsqrtS(1, 1, R5.FCSR_FRM_RNE);
+    private static final int FMV_W_X = fmvWX(1, 1);
+    private static final int FMV_X_W = fmvXW(1, 1);
+    private static final int FEQ_S = feqS(1, 1, 1);
+    private static final int FEQ_D = feqD(1, 1, 1);
+    private static final int FCVT_W_S = fcvtWS(1, 1, R5.FCSR_FRM_RNE);
+    private static final int FCVT_L_D = fcvtLD(1, 1, R5.FCSR_FRM_RNE);
+    private static final int FLW = flw(1, ADDRESS_REGISTER, 0);
+    private static final int FLD = fld(1, ADDRESS_REGISTER, 0);
+    private static final int FSW = fsw(1, ADDRESS_REGISTER, 0);
+    private static final int FSD = fsd(1, ADDRESS_REGISTER, 0);
 }
