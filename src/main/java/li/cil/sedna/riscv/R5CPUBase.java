@@ -53,9 +53,9 @@ public abstract class R5CPUBase implements R5CPU {
     // No time and no high perf counters.
     private static final int COUNTEREN_MASK = R5.MCOUNTERN_CY | R5.MCOUNTERN_IR;
 
-    // Supervisor status (sstatus) CSR mask over mstatus.
-    private static final long SSTATUS_MASK = (R5.STATUS_UIE_MASK | R5.STATUS_SIE_MASK |
-        R5.STATUS_UPIE_MASK | R5.STATUS_SPIE_MASK |
+    // Supervisor status (sstatus) CSR mask over mstatus. UIE/UPIE are hardwired to zero since
+    // we do not implement the N (user-level interrupts) extension.
+    private static final long SSTATUS_MASK = (R5.STATUS_SIE_MASK | R5.STATUS_SPIE_MASK |
         R5.STATUS_SPP_MASK | R5.STATUS_FS_MASK |
         R5.STATUS_XS_MASK | R5.STATUS_SUM_MASK |
         R5.STATUS_MXR_MASK | R5.STATUS_UXL_MASK);
@@ -1045,19 +1045,17 @@ public abstract class R5CPUBase implements R5CPU {
         final long cause = exception & ~interruptMask;
         final long deleg = async ? mideleg : medeleg;
 
-        // Was interrupt for current priv level enabled? There are cases we can
-        // get here even for interrupts! Specifically when an M level interrupt
-        // is raised while in S mode. This will get here even if M level interrupt
-        // enabled bit is zero, as per spec (Volume 2 p21).
-        final int oldIE = (int) ((mstatus >>> priv) & 0b1);
-
+        // xPIE holds the interrupt-enable bit of the *target* mode from before the trap; the
+        // interrupted mode's privilege goes into xPP. Note we can get here even for interrupts
+        // whose global enable is off: an M level interrupt raised while in S mode is taken
+        // regardless of the M level interrupt enabled bit, as per spec (Volume 2 p21).
         final long vec;
         if (priv <= R5.PRIVILEGE_S && ((deleg >>> cause) & 0b1) != 0) {
             scause = exception;
             sepc = pc;
             stval = value;
             mstatus = (mstatus & ~R5.STATUS_SPIE_MASK) |
-                (oldIE << R5.STATUS_SPIE_SHIFT);
+                (((mstatus & R5.STATUS_SIE_MASK) >>> R5.STATUS_SIE_SHIFT) << R5.STATUS_SPIE_SHIFT);
             mstatus = (mstatus & ~R5.STATUS_SPP_MASK) |
                 (((long) priv) << R5.STATUS_SPP_SHIFT);
             mstatus &= ~R5.STATUS_SIE_MASK;
@@ -1068,7 +1066,7 @@ public abstract class R5CPUBase implements R5CPU {
             mepc = pc;
             mtval = value;
             mstatus = (mstatus & ~R5.STATUS_MPIE_MASK) |
-                (oldIE << R5.STATUS_MPIE_SHIFT);
+                (((mstatus & R5.STATUS_MIE_MASK) >>> R5.STATUS_MIE_SHIFT) << R5.STATUS_MPIE_SHIFT);
             mstatus = (mstatus & ~R5.STATUS_MPP_MASK) |
                 (((long) priv) << R5.STATUS_MPP_SHIFT);
             mstatus &= ~R5.STATUS_MIE_MASK;
@@ -2684,9 +2682,7 @@ public abstract class R5CPUBase implements R5CPU {
 
         final int spp = (int) ((mstatus & R5.STATUS_SPP_MASK) >>> R5.STATUS_SPP_SHIFT); // Previous privilege level.
         final int spie = (int) ((mstatus & R5.STATUS_SPIE_MASK) >>> R5.STATUS_SPIE_SHIFT); // Previous interrupt-enable state.
-        mstatus = (mstatus & ~R5.STATUS_SIE_MASK) | ((R5.STATUS_SIE_MASK * spie) << R5.STATUS_SIE_SHIFT);
-        mstatus = (mstatus & ~(1 << spp)) |
-            (spie << spp);
+        mstatus = (mstatus & ~R5.STATUS_SIE_MASK) | ((long) spie << R5.STATUS_SIE_SHIFT);
         mstatus |= R5.STATUS_SPIE_MASK;
         mstatus &= ~R5.STATUS_SPP_MASK;
         mstatus &= ~R5.STATUS_MPRV_MASK;
@@ -2705,7 +2701,7 @@ public abstract class R5CPUBase implements R5CPU {
 
         final int mpp = (int) ((mstatus & R5.STATUS_MPP_MASK) >>> R5.STATUS_MPP_SHIFT); // Previous privilege level.
         final int mpie = (int) ((mstatus & R5.STATUS_MPIE_MASK) >>> R5.STATUS_MPIE_SHIFT); // Previous interrupt-enable state.
-        mstatus = (mstatus & ~R5.STATUS_MIE_MASK) | ((R5.STATUS_MIE_MASK * mpie) << R5.STATUS_MIE_SHIFT);
+        mstatus = (mstatus & ~R5.STATUS_MIE_MASK) | ((long) mpie << R5.STATUS_MIE_SHIFT);
         mstatus |= R5.STATUS_MPIE_MASK;
         mstatus &= ~R5.STATUS_MPP_MASK;
         if (mpp != R5.PRIVILEGE_M) {
