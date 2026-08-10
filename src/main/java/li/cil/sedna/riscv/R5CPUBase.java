@@ -1376,6 +1376,16 @@ public abstract class R5CPUBase implements R5CPU {
         final int xpnSize = R5.PAGE_ADDRESS_SHIFT - pteSizeLog2;
         final int xpnMask = (1 << xpnSize) - 1;
 
+        // V2, 4.5.1:
+        // "Instruction fetch addresses and load and store effective addresses, which are 64 bits,
+        // must have bits 63–48 all equal to bit 47, or else a page-fault exception will occur."
+        if (xlen == R5.XLEN_64) {
+            final int shift = Long.SIZE - (levels * xpnSize + R5.PAGE_ADDRESS_SHIFT);
+            if ((virtualAddress << shift >> shift) != virtualAddress) {
+                throw getPageFaultException(accessType, virtualAddress);
+            }
+        }
+
         // Virtual address translation, V2p75f.
         long pteAddress = (satp & ppnMask) << R5.PAGE_ADDRESS_SHIFT; // 1.
         for (int i = levels - 1; i >= 0; i--) {
