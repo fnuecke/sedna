@@ -70,7 +70,7 @@ public final class P9Server {
                 // P9.MSG_TREMOVE
 
                 case P9.MSG_TATTACH -> attach(request, reply);
-                case P9.MSG_TSTATFS -> statfs(reply);
+                case P9.MSG_TSTATFS -> statfs(request, reply);
                 case P9.MSG_TLOPEN -> open(request, reply);
                 case P9.MSG_TLCREATE -> create(request, reply);
 
@@ -265,10 +265,15 @@ public final class P9Server {
         putQID(reply, getQID(file));
     }
 
-    private void statfs(final ByteBuffer reply) throws IOException {
+    private void statfs(final ByteBuffer request, final ByteBuffer reply) throws IOException {
         // size[4] Tstatfs tag[2] fid[4]
         // size[4] Rstatfs tag[2] type[4] bsize[4] blocks[8] bfree[8] bavail[8]
         //                        files[8] ffree[8] fsid[8] namelen[4]
+        final int fid = request.getInt();
+
+        // The reply describes the whole file system rather than this fid, but the request is still
+        // only meaningful for a fid we handed out.
+        getFile(fid);
 
         final FileSystemStats stats = fileSystem.statfs();
         reply.putInt(0); // type
