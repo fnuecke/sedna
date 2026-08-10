@@ -2277,7 +2277,7 @@ public abstract class R5CPUBase implements R5CPU {
                       @Field("rs1") final int rs1,
                       @Field("rs2") final int rs2) {
         if (rd != 0) {
-            if (x[rs2] == 0) {
+            if ((int) x[rs2] == 0) {
                 x[rd] = -1;
             } else if ((int) x[rs1] == Integer.MIN_VALUE && (int) x[rs2] == -1) {
                 x[rd] = (int) x[rs1];
@@ -2292,7 +2292,7 @@ public abstract class R5CPUBase implements R5CPU {
                        @Field("rs1") final int rs1,
                        @Field("rs2") final int rs2) {
         if (rd != 0) {
-            if (x[rs2] == 0) {
+            if ((int) x[rs2] == 0) {
                 x[rd] = -1;
             } else {
                 x[rd] = Integer.divideUnsigned((int) x[rs1], (int) x[rs2]);
@@ -2305,9 +2305,9 @@ public abstract class R5CPUBase implements R5CPU {
                       @Field("rs1") final int rs1,
                       @Field("rs2") final int rs2) {
         if (rd != 0) {
-            if (x[rs2] == 0) {
+            if ((int) x[rs2] == 0) {
                 x[rd] = (int) x[rs1];
-            } else if (x[rs1] == Integer.MIN_VALUE && x[rs2] == -1) {
+            } else if ((int) x[rs1] == Integer.MIN_VALUE && (int) x[rs2] == -1) {
                 x[rd] = 0;
             } else {
                 x[rd] = (int) x[rs1] % (int) x[rs2];
@@ -2320,7 +2320,7 @@ public abstract class R5CPUBase implements R5CPU {
                        @Field("rs1") final int rs1,
                        @Field("rs2") final int rs2) {
         if (rd != 0) {
-            if (x[rs2] == 0) {
+            if ((int) x[rs2] == 0) {
                 x[rd] = (int) x[rs1];
             } else {
                 x[rd] = Integer.remainderUnsigned((int) x[rs1], (int) x[rs2]);
