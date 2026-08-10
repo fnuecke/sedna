@@ -1114,23 +1114,23 @@ public abstract class R5CPUBase implements R5CPU {
             if (customInterrupts != 0) {
                 final int interrupt = Long.numberOfTrailingZeros(customInterrupts) + R5.MEIP_SHIFT + 1;
                 raiseException(interrupt | R5.interrupt(xlen));
-            } else if ((pending & R5.MEIP_MASK) != 0) {
+            } else if ((interrupts & R5.MEIP_MASK) != 0) {
                 raiseException(R5.MEIP_SHIFT | R5.interrupt(xlen));
-            } else if ((pending & R5.MSIP_MASK) != 0) {
+            } else if ((interrupts & R5.MSIP_MASK) != 0) {
                 raiseException(R5.MSIP_SHIFT | R5.interrupt(xlen));
-            } else if ((pending & R5.MTIP_MASK) != 0) {
+            } else if ((interrupts & R5.MTIP_MASK) != 0) {
                 raiseException(R5.MTIP_SHIFT | R5.interrupt(xlen));
-            } else if ((pending & R5.SEIP_MASK) != 0) {
+            } else if ((interrupts & R5.SEIP_MASK) != 0) {
                 raiseException(R5.SEIP_SHIFT | R5.interrupt(xlen));
-            } else if ((pending & R5.SSIP_MASK) != 0) {
+            } else if ((interrupts & R5.SSIP_MASK) != 0) {
                 raiseException(R5.SSIP_SHIFT | R5.interrupt(xlen));
-            } else if ((pending & R5.STIP_MASK) != 0) {
+            } else if ((interrupts & R5.STIP_MASK) != 0) {
                 raiseException(R5.STIP_SHIFT | R5.interrupt(xlen));
-            } else if ((pending & R5.UEIP_MASK) != 0) {
+            } else if ((interrupts & R5.UEIP_MASK) != 0) {
                 raiseException(R5.UEIP_SHIFT | R5.interrupt(xlen));
-            } else if ((pending & R5.USIP_MASK) != 0) {
+            } else if ((interrupts & R5.USIP_MASK) != 0) {
                 raiseException(R5.USIP_SHIFT | R5.interrupt(xlen));
-            } else if ((pending & R5.UTIP_MASK) != 0) {
+            } else if ((interrupts & R5.UTIP_MASK) != 0) {
                 raiseException(R5.UTIP_SHIFT | R5.interrupt(xlen));
             }
         }
