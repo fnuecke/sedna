@@ -14,58 +14,6 @@ public final class R5 {
     public static final int PRIVILEGE_H = 2; // Hypervisor
     public static final int PRIVILEGE_M = 3; // Machine
 
-    // CSR addresses. Only the ones we implement, see R5CPUBase#readCSR.
-    public static final int CSR_FFLAGS = 0x001; // Floating-point accrued exceptions.
-    public static final int CSR_FRM = 0x002; // Floating-point dynamic rounding mode.
-    public static final int CSR_FCSR = 0x003; // Floating-point control and status (frm + fflags).
-
-    public static final int CSR_SSTATUS = 0x100; // Supervisor status.
-    public static final int CSR_SIE = 0x104; // Supervisor interrupt-enable.
-    public static final int CSR_STVEC = 0x105; // Supervisor trap handler base address.
-    public static final int CSR_SCOUNTEREN = 0x106; // Supervisor counter enable.
-    public static final int CSR_SSCRATCH = 0x140; // Scratch register for supervisor trap handlers.
-    public static final int CSR_SEPC = 0x141; // Supervisor exception program counter.
-    public static final int CSR_SCAUSE = 0x142; // Supervisor trap cause.
-    public static final int CSR_STVAL = 0x143; // Supervisor bad address or instruction.
-    public static final int CSR_SIP = 0x144; // Supervisor interrupt pending.
-    public static final int CSR_SATP = 0x180; // Supervisor address translation and protection.
-
-    public static final int CSR_MSTATUS = 0x300; // Machine status.
-    public static final int CSR_MISA = 0x301; // ISA and extensions.
-    public static final int CSR_MEDELEG = 0x302; // Machine exception delegation.
-    public static final int CSR_MIDELEG = 0x303; // Machine interrupt delegation.
-    public static final int CSR_MIE = 0x304; // Machine interrupt-enable.
-    public static final int CSR_MTVEC = 0x305; // Machine trap handler base address.
-    public static final int CSR_MCOUNTEREN = 0x306; // Machine counter enable.
-    public static final int CSR_MSTATUSH = 0x310; // Additional machine status, RV32 only.
-    public static final int CSR_MSCRATCH = 0x340; // Scratch register for machine trap handlers.
-    public static final int CSR_MEPC = 0x341; // Machine exception program counter.
-    public static final int CSR_MCAUSE = 0x342; // Machine trap cause.
-    public static final int CSR_MTVAL = 0x343; // Machine bad address or instruction.
-    public static final int CSR_MIP = 0x344; // Machine interrupt pending.
-
-    public static final int CSR_TSELECT = 0x7A0; // Debug/trace trigger select.
-    public static final int CSR_TDATA1 = 0x7A1;
-    public static final int CSR_TDATA2 = 0x7A2;
-    public static final int CSR_TDATA3 = 0x7A3;
-
-    public static final int CSR_MCYCLE = 0xB00; // Machine cycle counter.
-    public static final int CSR_MINSTRET = 0xB02; // Machine instructions-retired counter.
-    public static final int CSR_MCYCLEH = 0xB80; // Upper 32 bits of mcycle, RV32 only.
-    public static final int CSR_MINSTRETH = 0xB82; // Upper 32 bits of minstret, RV32 only.
-
-    public static final int CSR_CYCLE = 0xC00; // Cycle counter for RDCYCLE.
-    public static final int CSR_TIME = 0xC01; // Timer for RDTIME.
-    public static final int CSR_INSTRET = 0xC02; // Instructions-retired counter for RDINSTRET.
-    public static final int CSR_CYCLEH = 0xC80; // Upper 32 bits of cycle, RV32 only.
-    public static final int CSR_TIMEH = 0xC81; // Upper 32 bits of time, RV32 only.
-    public static final int CSR_INSTRETH = 0xC82; // Upper 32 bits of instret, RV32 only.
-
-    public static final int CSR_MVENDORID = 0xF11; // Vendor ID.
-    public static final int CSR_MARCHID = 0xF12; // Architecture ID.
-    public static final int CSR_MIMPID = 0xF13; // Implementation ID.
-    public static final int CSR_MHARTID = 0xF14; // Hardware thread ID.
-
     // Software interrupts.
     public static final int USIP_SHIFT = 0; // User
     public static final int SSIP_SHIFT = 1; // Supervisor

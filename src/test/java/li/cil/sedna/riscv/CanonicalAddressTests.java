@@ -43,7 +43,7 @@ public final class CanonicalAddressTests {
 
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[1] = TRAP_VECTOR;
-        execute(csrrw(0, R5.CSR_MTVEC, 1));
+        execute(csrrw(0, R5CSR.MTVEC, 1));
 
         memoryMap.store(DATA_ADDRESS, SENTINEL, Sizes.SIZE_64_LOG2);
     }
@@ -76,8 +76,8 @@ public final class CanonicalAddressTests {
         cpu.getDebugInterface().setProgramCounter(NON_CANONICAL_DATA_ADDRESS);
         cpu.getDebugInterface().step();
 
-        assertEquals(R5.EXCEPTION_FETCH_PAGE_FAULT, readCSR(R5.CSR_MCAUSE));
-        assertEquals(NON_CANONICAL_DATA_ADDRESS, readCSR(R5.CSR_MTVAL));
+        assertEquals(R5.EXCEPTION_FETCH_PAGE_FAULT, readCSR(R5CSR.MCAUSE));
+        assertEquals(NON_CANONICAL_DATA_ADDRESS, readCSR(R5CSR.MTVAL));
     }
 
     /**
@@ -102,10 +102,10 @@ public final class CanonicalAddressTests {
     private void enterSupervisorMode(final long satpMode) {
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[1] = satpMode | (ROOT_PAGE_TABLE >>> R5.PAGE_ADDRESS_SHIFT);
-        execute(csrrw(0, R5.CSR_SATP, 1));
+        execute(csrrw(0, R5CSR.SATP, 1));
 
         registers[1] = R5.STATUS_SPP_MASK; // SPP = S.
-        execute(csrrw(0, R5.CSR_MSTATUS, 1));
+        execute(csrrw(0, R5CSR.MSTATUS, 1));
         execute(SRET);
     }
 
@@ -124,8 +124,8 @@ public final class CanonicalAddressTests {
         execute(instruction);
 
         // The fault trapped to M-mode, where mcause/mtval are readable again.
-        assertEquals(cause, readCSR(R5.CSR_MCAUSE));
-        assertEquals(NON_CANONICAL_DATA_ADDRESS, readCSR(R5.CSR_MTVAL));
+        assertEquals(cause, readCSR(R5CSR.MCAUSE));
+        assertEquals(NON_CANONICAL_DATA_ADDRESS, readCSR(R5CSR.MTVAL));
     }
 
     private long readCSR(final int csr) {

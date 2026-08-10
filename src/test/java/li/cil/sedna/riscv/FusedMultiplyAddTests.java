@@ -37,7 +37,7 @@ public final class FusedMultiplyAddTests {
         // csrrs x0, mstatus, x1 with x1 selecting FS=Initial.
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[1] = (long) R5.FS_INITIAL << R5.STATUS_FS_SHIFT;
-        execute(csrrs(0, R5.CSR_MSTATUS, 1));
+        execute(csrrs(0, R5CSR.MSTATUS, 1));
     }
 
     @Test

@@ -66,8 +66,8 @@ public final class SATPTests {
     }
 
     private long writeThenReadSatp(final long value) throws MemoryAccessException {
-        store(PHYSICAL_MEMORY_START, csrrw(0, R5.CSR_SATP, 1));
-        store(PHYSICAL_MEMORY_START + 4, csrrs(2, R5.CSR_SATP, 0));
+        store(PHYSICAL_MEMORY_START, csrrw(0, R5CSR.SATP, 1));
+        store(PHYSICAL_MEMORY_START + 4, csrrs(2, R5CSR.SATP, 0));
 
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[1] = value;

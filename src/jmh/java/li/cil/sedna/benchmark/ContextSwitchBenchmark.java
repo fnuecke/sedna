@@ -1,8 +1,8 @@
 package li.cil.sedna.benchmark;
 
-import li.cil.sedna.riscv.R5;
 import li.cil.sedna.riscv.R5Assembler;
 import li.cil.sedna.riscv.R5CPU;
+import li.cil.sedna.riscv.R5CSR;
 import org.openjdk.jmh.annotations.*;
 
 import java.util.concurrent.TimeUnit;
@@ -43,11 +43,11 @@ public class ContextSwitchBenchmark {
         // Machine mode trap handler: step the saved program counter past the ecall and return. This
         // is the smallest thing that behaves like a system call return.
         vm.write(handler,
-            R5Assembler.csrrs(5, R5.CSR_MEPC, 0),
+            R5Assembler.csrrs(5, R5CSR.MEPC, 0),
             R5Assembler.addi(5, 5, 4),
-            R5Assembler.csrrw(0, R5.CSR_MEPC, 5),
+            R5Assembler.csrrw(0, R5CSR.MEPC, 5),
             R5Assembler.MRET);
-        vm.writeCSR(R5.CSR_MTVEC, handler);
+        vm.writeCSR(R5CSR.MTVEC, handler);
 
         if ("syscall".equals(workload)) {
             // Alternate touching a page with a system call, so every load meets a TLB that the two

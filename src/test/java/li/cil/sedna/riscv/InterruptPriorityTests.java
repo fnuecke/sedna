@@ -39,63 +39,63 @@ public final class InterruptPriorityTests {
         // step() after the trap of interest do not execute garbage.
         memoryMap.store(TRAP_VECTOR, LOOP, Sizes.SIZE_32_LOG2);
         memoryMap.store(STRAP_VECTOR, LOOP, Sizes.SIZE_32_LOG2);
-        writeCSR(R5.CSR_MTVEC, TRAP_VECTOR);
-        writeCSR(R5.CSR_STVEC, STRAP_VECTOR);
+        writeCSR(R5CSR.MTVEC, TRAP_VECTOR);
+        writeCSR(R5CSR.STVEC, STRAP_VECTOR);
     }
 
     @Test
     public void maskedDelegatedInterruptDoesNotShadowDeliverableOne() {
         // SSIP is delegated to S, STIP is not. Both pending and enabled in mie. In S-mode with
         // SIE=0 the delegated SSIP is masked, while the non-delegated STIP always fires (to M).
-        writeCSR(R5.CSR_MIDELEG, R5.SSIP_MASK);
-        writeCSR(R5.CSR_MIE, R5.SSIP_MASK | R5.STIP_MASK);
-        writeCSR(R5.CSR_MIP, R5.SSIP_MASK | R5.STIP_MASK);
+        writeCSR(R5CSR.MIDELEG, R5.SSIP_MASK);
+        writeCSR(R5CSR.MIE, R5.SSIP_MASK | R5.STIP_MASK);
+        writeCSR(R5CSR.MIP, R5.SSIP_MASK | R5.STIP_MASK);
 
-        writeCSR(R5.CSR_MSTATUS, R5.STATUS_SPP_MASK); // SPP = S, SPIE = 0 -> SIE = 0 after SRET.
+        writeCSR(R5CSR.MSTATUS, R5.STATUS_SPP_MASK); // SPP = S, SPIE = 0 -> SIE = 0 after SRET.
         execute(SRET);
         cpu.step(1);
 
-        assertEquals(INTERRUPT | R5.STIP_SHIFT, readCSR(R5.CSR_MCAUSE), "the deliverable STIP must fire, not the masked SSIP");
-        assertEquals(0, readCSR(R5.CSR_SCAUSE), "the delegated, masked SSIP must not have been delivered");
+        assertEquals(INTERRUPT | R5.STIP_SHIFT, readCSR(R5CSR.MCAUSE), "the deliverable STIP must fire, not the masked SSIP");
+        assertEquals(0, readCSR(R5CSR.SCAUSE), "the delegated, masked SSIP must not have been delivered");
     }
 
     @Test
     public void delegatedInterruptIsNotTakenInMachineMode() {
         // In M-mode with MIE=1, the delegated SSIP belongs to S and must not be taken; the
         // non-delegated STIP must be.
-        writeCSR(R5.CSR_MIDELEG, R5.SSIP_MASK);
-        writeCSR(R5.CSR_MIE, R5.SSIP_MASK | R5.STIP_MASK);
-        writeCSR(R5.CSR_MIP, R5.SSIP_MASK | R5.STIP_MASK);
-        writeCSR(R5.CSR_MSTATUS, R5.STATUS_MIE_MASK);
+        writeCSR(R5CSR.MIDELEG, R5.SSIP_MASK);
+        writeCSR(R5CSR.MIE, R5.SSIP_MASK | R5.STIP_MASK);
+        writeCSR(R5CSR.MIP, R5.SSIP_MASK | R5.STIP_MASK);
+        writeCSR(R5CSR.MSTATUS, R5.STATUS_MIE_MASK);
         cpu.step(1);
 
-        assertEquals(INTERRUPT | R5.STIP_SHIFT, readCSR(R5.CSR_MCAUSE), "the non-delegated STIP must fire in M-mode");
+        assertEquals(INTERRUPT | R5.STIP_SHIFT, readCSR(R5CSR.MCAUSE), "the non-delegated STIP must fire in M-mode");
     }
 
     @Test
     public void machineExternalInterruptCanBeEnabledAndFires() {
-        writeCSR(R5.CSR_MIE, R5.MEIP_MASK | R5.STIP_MASK);
-        writeCSR(R5.CSR_MIP, R5.STIP_MASK);
+        writeCSR(R5CSR.MIE, R5.MEIP_MASK | R5.STIP_MASK);
+        writeCSR(R5CSR.MIP, R5.STIP_MASK);
         cpu.raiseInterrupts((int) R5.MEIP_MASK); // MEIP is read-only in mip; raised by the PLIC.
-        writeCSR(R5.CSR_MSTATUS, R5.STATUS_MIE_MASK);
+        writeCSR(R5CSR.MSTATUS, R5.STATUS_MIE_MASK);
         cpu.step(1);
 
-        assertEquals(INTERRUPT | R5.MEIP_SHIFT, readCSR(R5.CSR_MCAUSE), "MEIP must be deliverable and outrank STIP");
+        assertEquals(INTERRUPT | R5.MEIP_SHIFT, readCSR(R5CSR.MCAUSE), "MEIP must be deliverable and outrank STIP");
     }
 
     @Test
     public void delegatedInterruptFiresInSupervisorMode() {
         // Sanity check: with only the delegated SSIP pending and SIE=1, it must be delivered
         // to the S handler.
-        writeCSR(R5.CSR_MIDELEG, R5.SSIP_MASK);
-        writeCSR(R5.CSR_MIE, R5.SSIP_MASK);
-        writeCSR(R5.CSR_MIP, R5.SSIP_MASK);
+        writeCSR(R5CSR.MIDELEG, R5.SSIP_MASK);
+        writeCSR(R5CSR.MIE, R5.SSIP_MASK);
+        writeCSR(R5CSR.MIP, R5.SSIP_MASK);
 
-        writeCSR(R5.CSR_MSTATUS, R5.STATUS_SPP_MASK | R5.STATUS_SPIE_MASK); // SIE = 1 after SRET.
+        writeCSR(R5CSR.MSTATUS, R5.STATUS_SPP_MASK | R5.STATUS_SPIE_MASK); // SIE = 1 after SRET.
         execute(SRET);
         cpu.step(1);
 
-        assertEquals(INTERRUPT | R5.SSIP_SHIFT, readCSR(R5.CSR_SCAUSE), "the delegated SSIP must be delivered to S");
+        assertEquals(INTERRUPT | R5.SSIP_SHIFT, readCSR(R5CSR.SCAUSE), "the delegated SSIP must be delivered to S");
     }
 
     private void writeCSR(final int csr, final long value) {

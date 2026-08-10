@@ -459,7 +459,8 @@ public abstract class R5CPUBase implements R5CPU {
     }
 
     private void checkCSR(final int csr, final boolean throwIfReadonly) throws R5IllegalInstructionException {
-        if (throwIfReadonly && ((csr >= 0xC00 && csr <= 0xC1F) || (csr >= 0xC80 && csr <= 0xC9F)))
+        if (throwIfReadonly && ((csr >= R5CSR.CYCLE && csr <= R5CSR.HPMCOUNTER31) ||
+            (csr >= R5CSR.CYCLEH && csr <= R5CSR.HPMCOUNTER31H)))
             throw new R5IllegalInstructionException();
 
         // Topmost bits, i.e. csr[11:8], encode access rights for CSR by convention. Of these, the top-most two bits,
@@ -475,15 +476,15 @@ public abstract class R5CPUBase implements R5CPU {
     private long readCSR(final int csr) throws R5IllegalInstructionException {
         switch (csr) {
             // Floating-Point Control and Status Registers
-            case 0x001 -> { // fflags, Floating-Point Accrued Exceptions.
+            case R5CSR.FFLAGS -> {
                 checkFPUEnabled();
                 return fpu32.flags.value;
             }
-            case 0x002 -> { // frm, Floating-Point Dynamic Rounding Mode.
+            case R5CSR.FRM -> {
                 checkFPUEnabled();
                 return frm;
             }
-            case 0x003 -> { // fcsr, Floating-Point Control and Status Register (frm + fflags).
+            case R5CSR.FCSR -> {
                 checkFPUEnabled();
                 return (frm << 5) | fpu32.flags.value;
             }
@@ -501,40 +502,40 @@ public abstract class R5CPUBase implements R5CPU {
             // 0x044: uip, User interrupt pending.
 
             // Supervisor Trap Setup
-            case 0x100 -> { // sstatus, Supervisor status register.
+            case R5CSR.SSTATUS -> {
                 return getStatus(getSupervisorStatusMask());
             }
             // 0x102: sedeleg, Supervisor exception delegation register.
             // 0x103: sideleg, Supervisor interrupt delegation register.
-            case 0x104 -> { // sie, Supervisor interrupt-enable register.
+            case R5CSR.SIE -> {
                 return mie & mideleg; // Effectively read-only because we don't implement N.
             }
-            case 0x105 -> { // stvec, Supervisor trap handler base address.
+            case R5CSR.STVEC -> {
                 return stvec;
             }
-            case 0x106 -> { // scounteren, Supervisor counter enable.
+            case R5CSR.SCOUNTEREN -> {
                 return scounteren;
             }
 
             // Supervisor Trap Handling
-            case 0x140 -> { // sscratch Scratch register for supervisor trap handlers.
+            case R5CSR.SSCRATCH -> {
                 return sscratch;
             }
-            case 0x141 -> { // sepc Supervisor exception program counter.
+            case R5CSR.SEPC -> {
                 return sepc;
             }
-            case 0x142 -> { // scause Supervisor trap cause.
+            case R5CSR.SCAUSE -> {
                 return scause;
             }
-            case 0x143 -> { // stval Supervisor bad address or instruction.
+            case R5CSR.STVAL -> {
                 return stval;
             }
-            case 0x144 -> { // sip Supervisor interrupt pending.
+            case R5CSR.SIP -> {
                 return mip.get() & mideleg; // Effectively read-only because we don't implement N.
             }
 
             // Supervisor Protection and Translation
-            case 0x180 -> { // satp Supervisor address translation and protection.
+            case R5CSR.SATP -> {
                 if (priv == R5.PRIVILEGE_S && (mstatus & R5.STATUS_TVM_MASK) != 0) {
                     throw new R5IllegalInstructionException();
                 }
@@ -553,60 +554,60 @@ public abstract class R5CPUBase implements R5CPU {
             // 0x280: vsatp, Virtual supervisor address translation and protection
 
             // Machine Trap Setup
-            case 0x300 -> { // mstatus Machine status register.
+            case R5CSR.MSTATUS -> {
                 return getStatus(MSTATUS_MASK);
             }
-            case 0x301 -> { // misa ISA and extensions
+            case R5CSR.MISA -> {
                 return misa();
             }
-            case 0x302 -> { // medeleg Machine exception delegation register.
+            case R5CSR.MEDELEG -> {
                 return medeleg;
             }
-            case 0x303 -> { // mideleg Machine interrupt delegation register.
+            case R5CSR.MIDELEG -> {
                 return mideleg;
             }
-            case 0x304 -> { // mie Machine interrupt-enable register.
+            case R5CSR.MIE -> {
                 return mie;
             }
-            case 0x305 -> { // mtvec Machine trap-handler base address.
+            case R5CSR.MTVEC -> {
                 return mtvec;
             }
-            case 0x306 -> { // mcounteren Machine counter enable.
+            case R5CSR.MCOUNTEREN -> {
                 return mcounteren;
             }
-            case 0x310 -> { // mstatush, Additional machine status register, RV32 only.
+            case R5CSR.MSTATUSH -> {
                 if (xlen != R5.XLEN_32) throw new R5IllegalInstructionException();
                 return getStatus(MSTATUS_MASK) >>> 32;
             }
 
             // Debug/Trace Registers
-            case 0x7A0 -> { // tselect
+            case R5CSR.TSELECT -> {
                 return 0;
             }
-            case 0x7A1 -> { // tdata1
+            case R5CSR.TDATA1 -> {
                 return 0;
             }
-            case 0x7A2 -> { // tdata2
+            case R5CSR.TDATA2 -> {
                 return 0;
             }
-            case 0x7A3 -> { // tdata3
+            case R5CSR.TDATA3 -> {
                 return 0;
             }
 
             // Machine Trap Handling
-            case 0x340 -> { // mscratch Scratch register for machine trap handlers.
+            case R5CSR.MSCRATCH -> {
                 return mscratch;
             }
-            case 0x341 -> { // mepc Machine exception program counter.
+            case R5CSR.MEPC -> {
                 return mepc;
             }
-            case 0x342 -> { // mcause Machine trap cause.
+            case R5CSR.MCAUSE -> {
                 return mcause;
             }
-            case 0x343 -> { // mtval Machine bad address or instruction.
+            case R5CSR.MTVAL -> {
                 return mtval;
             }
-            case 0x344 -> { // mip Machine interrupt pending.
+            case R5CSR.MIP -> {
                 return mip.get();
             }
             // 0x34A: mtinst, Machine trap instruction (transformed).
@@ -644,19 +645,19 @@ public abstract class R5CPUBase implements R5CPU {
             // 0x615: htimedeltah, Upper 32 bits of htimedelta, RV32 only.
 
             //Machine Counter/Timers
-            case 0xB00 -> { // mcycle, Machine cycle counter.
+            case R5CSR.MCYCLE -> {
                 return mcycle;
             }
-            case 0xB02 -> { // minstret, Machine instructions-retired counter.
+            case R5CSR.MINSTRET -> {
                 return minstret;
             }
             // 0xB03: mhpmcounter3, Machine performance-monitoring counter.
             // 0xB04...0xB1F: mhpmcounter4...mhpmcounter31, Machine performance-monitoring counter.
-            case 0xB80 -> { // mcycleh, Upper 32 bits of mcycle, RV32 only.
+            case R5CSR.MCYCLEH -> {
                 if (xlen != R5.XLEN_32) throw new R5IllegalInstructionException();
                 return mcycle >>> 32;
             }
-            case 0xB82 -> { // minstreth, Upper 32 bits of minstret, RV32 only.
+            case R5CSR.MINSTRETH -> {
                 if (xlen != R5.XLEN_32) throw new R5IllegalInstructionException();
                 return minstret >>> 32;
             }
@@ -664,28 +665,28 @@ public abstract class R5CPUBase implements R5CPU {
             // 0xB84...0xB9F: mhpmcounter4h...mhpmcounter31h, Upper 32 bits of mhpmcounter4, RV32 only.
 
             // Counters and Timers
-            case 0xC00 -> { // cycle
+            case R5CSR.CYCLE -> {
                 // counteren[2:0] is IR, TM, CY. As such the bit index matches the masked csr value.
                 checkCounterAccess(csr & 0b11);
                 return mcycle;
             }
-            case 0xC01 -> { // time
+            case R5CSR.TIME -> {
                 return rtc.getTime();
             }
-            case 0xC02 -> { // instret
+            case R5CSR.INSTRET -> {
                 // counteren[2:0] is IR, TM, CY. As such the bit index matches the masked csr value.
                 checkCounterAccess(csr & 0b11);
                 return minstret;
             }
             // 0xC03 ... 0xC1F: hpmcounter3 ... hpmcounter31
-            case 0xC80 -> { // cycleh
+            case R5CSR.CYCLEH -> {
                 if (xlen != R5.XLEN_32) throw new R5IllegalInstructionException();
 
                 // counteren[2:0] is IR, TM, CY. As such the bit index matches the masked csr value.
                 checkCounterAccess(csr & 0b11);
                 return mcycle >>> 32;
             }
-            case 0xC82 -> { // instreth
+            case R5CSR.INSTRETH -> {
                 if (xlen != R5.XLEN_32) throw new R5IllegalInstructionException();
 
                 // counteren[2:0] is IR, TM, CY. As such the bit index matches the masked csr value.
@@ -696,16 +697,16 @@ public abstract class R5CPUBase implements R5CPU {
             // 0xC83 ... 0xC9F: hpmcounter3h ... hpmcounter31h
 
             // Machine Information Registers
-            case 0xF11 -> { // mvendorid, Vendor ID.
+            case R5CSR.MVENDORID -> {
                 return 0; // Not implemented.
             }
-            case 0xF12 -> { // marchid, Architecture ID.
+            case R5CSR.MARCHID -> {
                 return 0; // Not implemented.
             }
-            case 0xF13 -> { // mimpid, Implementation ID.
+            case R5CSR.MIMPID -> {
                 return 0; // Not implemented.
             }
-            case 0xF14 -> { // mhartid, Hardware thread ID.
+            case R5CSR.MHARTID -> {
                 return 0; // Single, primary hart.
             }
             default -> throw new R5IllegalInstructionException();
@@ -715,17 +716,17 @@ public abstract class R5CPUBase implements R5CPU {
     private boolean writeCSR(final int csr, final long value) throws R5IllegalInstructionException {
         switch (csr) {
             // Floating-Point Control and Status Registers
-            case 0x001 -> { // fflags, Floating-Point Accrued Exceptions.
+            case R5CSR.FFLAGS -> {
                 checkFPUEnabled();
                 fpu32.flags.value = (byte) (value & 0b11111);
                 fs = R5.FS_DIRTY;
             }
-            case 0x002 -> { // frm, Floating-Point Dynamic Rounding Mode.
+            case R5CSR.FRM -> {
                 checkFPUEnabled();
                 frm = (byte) (value & 0b111);
                 fs = R5.FS_DIRTY;
             }
-            case 0x003 -> { // fcsr, Floating-Point Control and Status Register (frm + fflags).
+            case R5CSR.FCSR -> {
                 checkFPUEnabled();
                 frm = (byte) ((value >>> 5) & 0b111);
                 fpu32.flags.value = (byte) (value & 0b11111);
@@ -745,40 +746,40 @@ public abstract class R5CPUBase implements R5CPU {
             // 0x044: uip, User interrupt pending.
 
             // Supervisor Trap Setup
-            case 0x100 -> { // sstatus, Supervisor status register.
+            case R5CSR.SSTATUS -> {
                 final long supervisorStatusMask = getSupervisorStatusMask();
                 setStatus((mstatus & ~supervisorStatusMask) | (value & supervisorStatusMask));
             }
             // 0x102: sedeleg, Supervisor exception delegation register.
             // 0x103: sideleg, Supervisor interrupt delegation register.
-            case 0x104 -> { // sie, Supervisor interrupt-enable register.
+            case R5CSR.SIE -> {
                 final long mask = mideleg; // Can only set stuff that's delegated to S mode.
                 mie = (mie & ~mask) | (value & mask);
             }
-            case 0x105 -> { // stvec, Supervisor trap handler base address.
+            case R5CSR.STVEC -> {
                 if ((value & 0b11) < 2) { // Don't allow reserved modes.
                     stvec = value;
                 }
             }
-            case 0x106 -> // scounteren, Supervisor counter enable.
+            case R5CSR.SCOUNTEREN ->
                 scounteren = (int) (value & COUNTEREN_MASK);
 
             // Supervisor Trap Handling
-            case 0x140 -> // sscratch Scratch register for supervisor trap handlers.
+            case R5CSR.SSCRATCH ->
                 sscratch = value;
-            case 0x141 -> // sepc Supervisor exception program counter.
+            case R5CSR.SEPC ->
                 sepc = value & ~0b1;
-            case 0x142 -> // scause Supervisor trap cause.
+            case R5CSR.SCAUSE ->
                 scause = value;
-            case 0x143 -> // stval Supervisor bad address or instruction.
+            case R5CSR.STVAL ->
                 stval = value;
-            case 0x144 -> { // sip Supervisor interrupt pending.
+            case R5CSR.SIP -> {
                 final long mask = mideleg; // Can only set stuff that's delegated to S mode.
                 mip.updateAndGet(operand -> (operand & ~mask) | (value & mask));
             }
 
             // Supervisor Protection and Translation
-            case 0x180 -> { // satp Supervisor address translation and protection.
+            case R5CSR.SATP -> {
                 // Say no to ASID (not implemented).
                 final long validatedValue;
                 if (xlen == R5.XLEN_32) {
@@ -834,55 +835,55 @@ public abstract class R5CPUBase implements R5CPU {
             // 0x280: vsatp, Virtual supervisor address translation and protection
 
             // Machine Trap Setup
-            case 0x300 -> // mstatus Machine status register.
+            case R5CSR.MSTATUS ->
                 setStatus(value & MSTATUS_MASK);
-            case 0x301 -> { // misa ISA and extensions
+            case R5CSR.MISA -> {
                 // We do not support changing feature sets dynamically.
             }
-            case 0x302 -> // medeleg Machine exception delegation register.
+            case R5CSR.MEDELEG ->
                 // From Volume 2 p31: For exceptions that cannot occur in less privileged modes, the corresponding
                 // medeleg bits should be hardwired to zero. In particular, medeleg[11] is hardwired to zero.
                 medeleg = value & ~(1 << R5.EXCEPTION_MACHINE_ECALL);
-            case 0x303 -> { // mideleg Machine interrupt delegation register.
+            case R5CSR.MIDELEG -> {
                 final int mask = R5.SSIP_MASK | R5.STIP_MASK | R5.SEIP_MASK;
                 mideleg = (mideleg & ~mask) | (value & mask);
             }
-            case 0x304 -> { // mie Machine interrupt-enable register.
+            case R5CSR.MIE -> {
                 final int mask = R5.MEIP_MASK | R5.MTIP_MASK | R5.MSIP_MASK | R5.SEIP_MASK | R5.STIP_MASK | R5.SSIP_MASK;
                 mie = (mie & ~mask) | (value & mask);
             }
-            case 0x305 -> { // mtvec Machine trap-handler base address.
+            case R5CSR.MTVEC -> {
                 if ((value & 0b11) < 2) { // Don't allow reserved modes.
                     mtvec = value;
                 }
             }
-            case 0x306 -> // mcounteren Machine counter enable.
+            case R5CSR.MCOUNTEREN ->
                 mcounteren = (int) (value & COUNTEREN_MASK);
-            case 0x310 -> { // mstatush Additional machine status register, RV32 only.
+            case R5CSR.MSTATUSH -> {
                 if (xlen != R5.XLEN_32) throw new R5IllegalInstructionException();
                 setStatus((value << 32) & MSTATUS_MASK);
             }
 
             // Debug/Trace Registers
-            case 0x7A0 -> { // tselect
+            case R5CSR.TSELECT -> {
             }
-            case 0x7A1 -> { // tdata1
+            case R5CSR.TDATA1 -> {
             }
-            case 0x7A2 -> { // tdata2
+            case R5CSR.TDATA2 -> {
             }
-            case 0x7A3 -> { // tdata3
+            case R5CSR.TDATA3 -> {
             }
 
             // Machine Trap Handling
-            case 0x340 -> // mscratch Scratch register for machine trap handlers.
+            case R5CSR.MSCRATCH ->
                 mscratch = value;
-            case 0x341 -> // mepc Machine exception program counter.
+            case R5CSR.MEPC ->
                 mepc = value & ~0b1; // p38: Lowest bit must always be zero.
-            case 0x342 -> // mcause Machine trap cause.
+            case R5CSR.MCAUSE ->
                 mcause = value;
-            case 0x343 -> // mtval Machine bad address or instruction.
+            case R5CSR.MTVAL ->
                 mtval = value;
-            case 0x344 -> { // mip Machine interrupt pending.
+            case R5CSR.MIP -> {
                 // p32: MEIP, MTIP, MSIP are readonly in mip.
                 // Additionally, SEIP is controlled by a PLIC in our case, so we must not allow
                 // software to reset it, as this could lead to lost interrupts.
@@ -923,7 +924,7 @@ public abstract class R5CPUBase implements R5CPU {
             // 0x615: htimedeltah, Upper 32 bits of htimedelta, RV32 only.
 
             // Sedna proprietary CSRs.
-            case 0xBC0 -> { // Switch to 32 bit XLEN.
+            case R5CSR.SEDNA_SWITCH_TO_XLEN32 -> {
                 // This CSR exists purely to allow switching the CPU to 32 bit mode from programs
                 // that were compiled for 32 bit. Since those cannot set the MXL bits of the misa
                 // CSR when the machine is currently in 64 bit mode.

@@ -162,14 +162,14 @@ public final class R5AssemblerTests {
 
     @Test
     public void csrInstructions() {
-        assertInstruction(csrrw(1, R5.CSR_MSTATUS, 2), "CSRRW", "rd", 1, "rs1", 2, "csr", R5.CSR_MSTATUS);
-        assertInstruction(csrrs(1, R5.CSR_SATP, 2), "CSRRS", "rd", 1, "rs1", 2, "csr", R5.CSR_SATP);
-        assertInstruction(csrrc(1, R5.CSR_MIE, 2), "CSRRC", "rd", 1, "rs1", 2, "csr", R5.CSR_MIE);
+        assertInstruction(csrrw(1, R5CSR.MSTATUS, 2), "CSRRW", "rd", 1, "rs1", 2, "csr", R5CSR.MSTATUS);
+        assertInstruction(csrrs(1, R5CSR.SATP, 2), "CSRRS", "rd", 1, "rs1", 2, "csr", R5CSR.SATP);
+        assertInstruction(csrrc(1, R5CSR.MIE, 2), "CSRRC", "rd", 1, "rs1", 2, "csr", R5CSR.MIE);
 
         // The immediate forms put the immediate where the source register otherwise goes.
-        assertInstruction(csrrwi(1, R5.CSR_MTVEC, 31), "CSRRWI", "rd", 1, "rs1", 31, "csr", R5.CSR_MTVEC);
-        assertInstruction(csrrsi(1, R5.CSR_MTVEC, 31), "CSRRSI", "rd", 1, "rs1", 31, "csr", R5.CSR_MTVEC);
-        assertInstruction(csrrci(1, R5.CSR_MTVEC, 31), "CSRRCI", "rd", 1, "rs1", 31, "csr", R5.CSR_MTVEC);
+        assertInstruction(csrrwi(1, R5CSR.MTVEC, 31), "CSRRWI", "rd", 1, "rs1", 31, "csr", R5CSR.MTVEC);
+        assertInstruction(csrrsi(1, R5CSR.MTVEC, 31), "CSRRSI", "rd", 1, "rs1", 31, "csr", R5CSR.MTVEC);
+        assertInstruction(csrrci(1, R5CSR.MTVEC, 31), "CSRRCI", "rd", 1, "rs1", 31, "csr", R5CSR.MTVEC);
 
         // The highest CSR address must not bleed into the funct3 field.
         assertInstruction(csrrs(1, 0xFFF, 0), "CSRRS", "csr", 0xFFF);
@@ -217,7 +217,7 @@ public final class R5AssemblerTests {
         assertThrows(IllegalArgumentException.class, () -> csrrs(1, 0x1000, 0), "csr address too large");
         assertThrows(IllegalArgumentException.class, () -> slli(1, 2, 64), "shift amount too large");
         assertThrows(IllegalArgumentException.class, () -> slliw(1, 2, 32), "word shift amount too large");
-        assertThrows(IllegalArgumentException.class, () -> csrrwi(1, R5.CSR_MTVEC, 32), "csr immediate too large");
+        assertThrows(IllegalArgumentException.class, () -> csrrwi(1, R5CSR.MTVEC, 32), "csr immediate too large");
         assertThrows(IllegalArgumentException.class, () -> lui(1, 0x100000), "upper immediate too large");
         assertThrows(IllegalArgumentException.class, () -> lui(1, -1), "upper immediate is a raw field, not a value");
     }

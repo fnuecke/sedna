@@ -1,8 +1,8 @@
 package li.cil.sedna.benchmark;
 
-import li.cil.sedna.riscv.R5;
 import li.cil.sedna.riscv.R5Assembler;
 import li.cil.sedna.riscv.R5CPU;
+import li.cil.sedna.riscv.R5CSR;
 import org.openjdk.jmh.annotations.*;
 
 import java.util.concurrent.TimeUnit;
@@ -34,7 +34,7 @@ public class TrapBenchmark {
 
         // Trap straight back to the faulting instruction: the handler is the instruction itself, so
         // the machine does nothing but take traps.
-        vm.writeCSR(R5.CSR_MTVEC, codeStart);
+        vm.writeCSR(R5CSR.MTVEC, codeStart);
         vm.fill(codeStart, Vm.PAGE_SIZE, trapInstruction());
         vm.setProgramCounter(codeStart);
 

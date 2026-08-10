@@ -55,7 +55,7 @@ public final class PrivilegeTLBTests {
         cpu.setXLEN(R5.XLEN_64);
 
         // Setup in machine mode; supervisor mode is not allowed to write mtvec.
-        writeCSR(R5.CSR_MTVEC, CODE);
+        writeCSR(R5CSR.MTVEC, CODE);
     }
 
     @Test
@@ -95,19 +95,19 @@ public final class PrivilegeTLBTests {
         // level's translation. An MRET whose MPP is M stays in machine mode; but it still clears
         // MPP, which moves the effective privilege of data accesses when MPRV remains set. The TLB
         // must not keep serving machine-mode entries after that.
-        writeCSR(R5.CSR_SATP, R5.SATP_MODE_SV39 | (ROOT_TABLE >>> R5.PAGE_ADDRESS_SHIFT));
+        writeCSR(R5CSR.SATP, R5.SATP_MODE_SV39 | (ROOT_TABLE >>> R5.PAGE_ADDRESS_SHIFT));
 
         // Make the shared page's mapping accessible to effective user-mode accesses.
         memoryMap.store(LEVEL1_TABLE + index(SHARED_ADDRESS, 1) * 8L,
             leafPTE(SUPERVISOR_TARGET) | R5.PTE_U_MASK, Sizes.SIZE_64_LOG2);
 
         // MPP = M, MPRV = 1: data accesses are effectively machine mode, i.e. untranslated.
-        setCSRBits(R5.CSR_MSTATUS, R5.STATUS_MPP_MASK | R5.STATUS_MPRV_MASK);
+        setCSRBits(R5CSR.MSTATUS, R5.STATUS_MPP_MASK | R5.STATUS_MPRV_MASK);
         assertEquals(MARKER_MACHINE, readSharedAddress(), "MPRV with MPP=M must not translate");
 
         // MRET with MPP = M: privilege stays M (so no flush happens on that path), MPP becomes U,
         // MPRV stays set, so data accesses are now effectively user mode and must translate.
-        writeCSR(R5.CSR_MEPC, CODE);
+        writeCSR(R5CSR.MEPC, CODE);
         execute(MRET);
 
         assertEquals(MARKER_SUPERVISOR, readSharedAddress(),
@@ -142,9 +142,9 @@ public final class PrivilegeTLBTests {
     }
 
     private void enterSupervisor() throws MemoryAccessException {
-        writeCSR(R5.CSR_SATP, R5.SATP_MODE_SV39 | (ROOT_TABLE >>> R5.PAGE_ADDRESS_SHIFT));
-        setCSRBits(R5.CSR_MSTATUS, (long) R5.PRIVILEGE_S << R5.STATUS_MPP_SHIFT);
-        writeCSR(R5.CSR_MEPC, CODE);
+        writeCSR(R5CSR.SATP, R5.SATP_MODE_SV39 | (ROOT_TABLE >>> R5.PAGE_ADDRESS_SHIFT));
+        setCSRBits(R5CSR.MSTATUS, (long) R5.PRIVILEGE_S << R5.STATUS_MPP_SHIFT);
+        writeCSR(R5CSR.MEPC, CODE);
         execute(MRET);
     }
 

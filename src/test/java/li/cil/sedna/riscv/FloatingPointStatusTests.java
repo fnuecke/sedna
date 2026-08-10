@@ -67,12 +67,12 @@ public final class FloatingPointStatusTests {
 
     @Test
     public void floatingPointCSRsTrapWhileFSIsOff() {
-        assertTrapped(csrrs(1, R5.CSR_FFLAGS, 0));
-        assertTrapped(csrrs(1, R5.CSR_FRM, 0));
-        assertTrapped(csrrs(1, R5.CSR_FCSR, 0));
-        assertTrapped(csrrw(0, R5.CSR_FFLAGS, 1));
-        assertTrapped(csrrw(0, R5.CSR_FRM, 1));
-        assertTrapped(csrrw(0, R5.CSR_FCSR, 1));
+        assertTrapped(csrrs(1, R5CSR.FFLAGS, 0));
+        assertTrapped(csrrs(1, R5CSR.FRM, 0));
+        assertTrapped(csrrs(1, R5CSR.FCSR, 0));
+        assertTrapped(csrrw(0, R5CSR.FFLAGS, 1));
+        assertTrapped(csrrw(0, R5CSR.FRM, 1));
+        assertTrapped(csrrw(0, R5CSR.FCSR, 1));
     }
 
     @Test
@@ -88,9 +88,9 @@ public final class FloatingPointStatusTests {
         assertCompleted(FMV_X_W);
         assertCompleted(FSW);
         assertCompleted(FSD);
-        assertCompleted(csrrs(1, R5.CSR_FFLAGS, 0));
-        assertCompleted(csrrs(1, R5.CSR_FRM, 0));
-        assertCompleted(csrrs(1, R5.CSR_FCSR, 0));
+        assertCompleted(csrrs(1, R5CSR.FFLAGS, 0));
+        assertCompleted(csrrs(1, R5CSR.FRM, 0));
+        assertCompleted(csrrs(1, R5CSR.FCSR, 0));
     }
 
     @Test
@@ -113,7 +113,7 @@ public final class FloatingPointStatusTests {
         // Reset FS to Initial via a full mstatus write; csrrs cannot lower a Dirty FS.
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[1] = (long) R5.FS_INITIAL << R5.STATUS_FS_SHIFT;
-        execute(csrrw(0, R5.CSR_MSTATUS, 1));
+        execute(csrrw(0, R5CSR.MSTATUS, 1));
 
         assertCompleted(instruction);
         assertEquals(R5.FS_DIRTY, (readMSTATUS() & R5.STATUS_FS_MASK) >> R5.STATUS_FS_SHIFT,
@@ -124,7 +124,7 @@ public final class FloatingPointStatusTests {
         // csrrs x0, mstatus, x1 with x1 selecting FS=Initial.
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[1] = (long) R5.FS_INITIAL << R5.STATUS_FS_SHIFT;
-        execute(csrrs(0, R5.CSR_MSTATUS, 1));
+        execute(csrrs(0, R5CSR.MSTATUS, 1));
 
         assertNotEquals(R5.FS_OFF, (readMSTATUS() & R5.STATUS_FS_MASK) >> R5.STATUS_FS_SHIFT);
     }
@@ -132,13 +132,13 @@ public final class FloatingPointStatusTests {
     private void setMTVEC(final long value) {
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[1] = value;
-        execute(csrrw(0, R5.CSR_MTVEC, 1));
+        execute(csrrw(0, R5CSR.MTVEC, 1));
     }
 
     private long readMSTATUS() {
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[2] = 0;
-        execute(csrrs(2, R5.CSR_MSTATUS, 0));
+        execute(csrrs(2, R5CSR.MSTATUS, 0));
         return registers[2];
     }
 

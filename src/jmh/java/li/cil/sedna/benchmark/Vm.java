@@ -9,6 +9,7 @@ import li.cil.sedna.memory.SimpleMemoryMap;
 import li.cil.sedna.riscv.R5;
 import li.cil.sedna.riscv.R5Assembler;
 import li.cil.sedna.riscv.R5CPU;
+import li.cil.sedna.riscv.R5CSR;
 
 public final class Vm {
     public static final long RAM_START = 0x80000000L;
@@ -161,13 +162,13 @@ public final class Vm {
     }
 
     public void enterSupervisor(final long pc) {
-        writeCSR(R5.CSR_SATP, satpFor(rootTable));
+        writeCSR(R5CSR.SATP, satpFor(rootTable));
         // MPP must be cleared before setting it: it is a two-bit field, and a trap taken from
         // machine mode leaves it holding M (0b11), which OR-ing S (0b01) into does not change --
         // the MRET below would then silently stay in machine mode.
-        clearCSRBits(R5.CSR_MSTATUS, R5.STATUS_MPP_MASK);
-        setCSRBits(R5.CSR_MSTATUS, (long) R5.PRIVILEGE_S << R5.STATUS_MPP_SHIFT);
-        writeCSR(R5.CSR_MEPC, pc);
+        clearCSRBits(R5CSR.MSTATUS, R5.STATUS_MPP_MASK);
+        setCSRBits(R5CSR.MSTATUS, (long) R5.PRIVILEGE_S << R5.STATUS_MPP_SHIFT);
+        writeCSR(R5CSR.MEPC, pc);
         execute(R5Assembler.MRET);
     }
 

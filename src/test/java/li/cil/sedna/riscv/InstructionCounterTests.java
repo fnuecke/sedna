@@ -65,10 +65,10 @@ public final class InstructionCounterTests {
     @Test
     public void wakingResumesRetiringInstructions() throws MemoryAccessException {
         // Point the trap vector at the field of NOPs, so a taken interrupt lands on valid code.
-        writeCSR(R5.CSR_MTVEC, PHYSICAL_MEMORY_START + 0x2000);
+        writeCSR(R5CSR.MTVEC, PHYSICAL_MEMORY_START + 0x2000);
         // WFI only parks the hart while no enabled interrupt is pending, and raising one only wakes
         // it if that interrupt is enabled, so mie has to be set up before the WFI executes.
-        writeCSR(R5.CSR_MIE, R5.MSIP_MASK);
+        writeCSR(R5CSR.MIE, R5.MSIP_MASK);
 
         memoryMap.store(PHYSICAL_MEMORY_START, WFI, Sizes.SIZE_32_LOG2);
         cpu.getDebugInterface().setProgramCounter(PHYSICAL_MEMORY_START);
@@ -116,8 +116,8 @@ public final class InstructionCounterTests {
             cpu.step(IDLE_CYCLES / 10);
         }
 
-        final long cycle = readCSR(R5.CSR_MCYCLE);
-        final long instret = readCSR(R5.CSR_MINSTRET);
+        final long cycle = readCSR(R5CSR.MCYCLE);
+        final long instret = readCSR(R5CSR.MINSTRET);
 
         assertTrue(cycle - instret > IDLE_CYCLES / 2,
             String.format("after idling for ~%d cycles, cycles (%d) must have run far ahead of instructions retired (%d)",

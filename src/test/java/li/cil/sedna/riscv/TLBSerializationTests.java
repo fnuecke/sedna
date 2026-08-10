@@ -53,8 +53,8 @@ public final class TLBSerializationTests {
         // csrrw x0, satp, x1     ; switch address space to the one described by x1
         // csrrs x0, mstatus, x2  ; translate data accesses as supervisor
         // ld    x4, 0(x3)        ; x4 = *x3, translated
-        memoryMap.store(PROGRAM, csrrw(0, R5.CSR_SATP, 1), Sizes.SIZE_32_LOG2);
-        memoryMap.store(PROGRAM + 4, csrrs(0, R5.CSR_MSTATUS, 2), Sizes.SIZE_32_LOG2);
+        memoryMap.store(PROGRAM, csrrw(0, R5CSR.SATP, 1), Sizes.SIZE_32_LOG2);
+        memoryMap.store(PROGRAM + 4, csrrs(0, R5CSR.MSTATUS, 2), Sizes.SIZE_32_LOG2);
         memoryMap.store(PROGRAM + 8, ld(4, 3, 0), Sizes.SIZE_32_LOG2);
 
         mapMegapage(ROOT_TABLE_A, LEVEL1_TABLE_A, TARGET_A);

@@ -36,7 +36,7 @@ public final class TrapStatusTests {
 
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[1] = TRAP_VECTOR;
-        execute(csrrw(0, R5.CSR_MTVEC, 1));
+        execute(csrrw(0, R5CSR.MTVEC, 1));
     }
 
     @Test
@@ -106,15 +106,15 @@ public final class TrapStatusTests {
     private void writeMSTATUS(final long value) {
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
         registers[1] = value;
-        execute(csrrw(0, R5.CSR_MSTATUS, 1));
+        execute(csrrw(0, R5CSR.MSTATUS, 1));
     }
 
     private long readMSTATUS() {
-        return readCSR(R5.CSR_MSTATUS);
+        return readCSR(R5CSR.MSTATUS);
     }
 
     private long readSSTATUS() {
-        return readCSR(R5.CSR_SSTATUS);
+        return readCSR(R5CSR.SSTATUS);
     }
 
     private long readCSR(final int csr) {
