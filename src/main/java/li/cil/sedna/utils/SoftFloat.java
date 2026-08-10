@@ -351,23 +351,23 @@ public final class SoftFloat {
             mantissaC0 = (mantissaC0 | mantissaC1) != 0 ? 1 : 0;
             mantissaC1 = 0;
         } else if (shift >= SIZE + 1) {
-            mantissaC0 = shiftRightAndJam(mantissaC1, shift - SIZE);
+            mantissaC0 = shiftRightAndJam(mantissaC1, shift - SIZE) | (mantissaC0 != 0 ? 1 : 0);
             mantissaC1 = 0;
         } else if (shift == SIZE) {
             mantissaC0 = mantissaC1 | (mantissaC0 != 0 ? 1 : 0);
             mantissaC1 = 0;
         } else if (shift != 0) {
-            mantissaC0 = (mantissaC1 << (SIZE - shift)) | (mantissaC0 >> shift) | ((mantissaC0 & ((1 << shift) - 1)) != 0 ? 1 : 0);
+            mantissaC0 = (mantissaC1 << (SIZE - shift)) | (mantissaC0 >>> shift) | ((mantissaC0 & ((1 << shift) - 1)) != 0 ? 1 : 0);
             mantissaC1 = mantissaC1 >>> shift;
         }
 
         if (sign == signC) {
             mantissa0 += mantissaC0;
-            mantissa1 += mantissaC1 + (mantissa0 < mantissaC0 ? 1 : 0);
+            mantissa1 += mantissaC1 + (Integer.compareUnsigned(mantissa0, mantissaC0) < 0 ? 1 : 0);
         } else {
             final int tmp = mantissa0;
             mantissa0 -= mantissaC0;
-            mantissa1 = mantissa1 - mantissaC1 - (mantissa0 > tmp ? 1 : 0);
+            mantissa1 = mantissa1 - mantissaC1 - (Integer.compareUnsigned(mantissa0, tmp) > 0 ? 1 : 0);
             if ((mantissa0 | mantissa1) == 0) {
                 sign = (rm == RM_RDN) ? 1 : 0;
             }
@@ -745,7 +745,7 @@ public final class SoftFloat {
                 case RM_RNE, RM_RMM -> addend = 1 << (RND_SIZE - 1);
                 case RM_RTZ -> addend = 0;
                 case RM_RDN, RM_RUP -> {
-                    if (sign == 0 ? (rm == RM_RDN) : (rm == RM_RUP)) {
+                    if (sign == 0 ? (rm == RM_RUP) : (rm == RM_RDN)) {
                         addend = (1 << RND_SIZE) - 1;
                     } else {
                         addend = 0;
@@ -880,7 +880,7 @@ public final class SoftFloat {
             case RM_RNE, RM_RMM -> addend = 1 << (RND_SIZE - 1);
             case RM_RTZ -> addend = 0;
             case RM_RDN, RM_RUP -> {
-                if (sign == 0 ? (rm == RM_RDN) : (rm == RM_RUP)) {
+                if (sign == 0 ? (rm == RM_RUP) : (rm == RM_RDN)) {
                     addend = (1 << RND_SIZE) - 1;
                 } else {
                     addend = 0;
