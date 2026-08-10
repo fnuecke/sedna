@@ -105,6 +105,25 @@ public final class FloatingPointStatusTests {
         assertEquals(R5.FS_DIRTY, (readMSTATUS() & R5.STATUS_FS_MASK) >> R5.STATUS_FS_SHIFT);
     }
 
+    @Test
+    public void comparesAndConversionsMarkStateDirty() {
+        assertMarksStateDirty(FEQ_S);
+        assertMarksStateDirty(FEQ_D);
+        assertMarksStateDirty(FCVT_W_S);
+        assertMarksStateDirty(FCVT_L_D);
+    }
+
+    private void assertMarksStateDirty(final int instruction) {
+        // Reset FS to Initial via a full mstatus write; csrrs cannot lower a Dirty FS.
+        final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
+        registers[1] = (long) R5.FS_INITIAL << R5.STATUS_FS_SHIFT;
+        execute(csrrw(0, CSR_MSTATUS, 1));
+
+        assertCompleted(instruction);
+        assertEquals(R5.FS_DIRTY, (readMSTATUS() & R5.STATUS_FS_MASK) >> R5.STATUS_FS_SHIFT,
+            String.format("expected instruction %08x to mark floating point state dirty", instruction));
+    }
+
     private void enableFPU() {
         // csrrs x0, mstatus, x1 with x1 selecting FS=Initial.
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
@@ -156,6 +175,10 @@ public final class FloatingPointStatusTests {
     private static final int FSQRT_S = fp(0b0101100, 0, 1, 0b000, 1, 0b1010011);
     private static final int FMV_W_X = fp(0b1111000, 0, 1, 0b000, 1, 0b1010011);
     private static final int FMV_X_W = fp(0b1110000, 0, 1, 0b000, 1, 0b1010011);
+    private static final int FEQ_S = fp(0b1010000, 1, 1, 0b010, 1, 0b1010011);
+    private static final int FEQ_D = fp(0b1010001, 1, 1, 0b010, 1, 0b1010011);
+    private static final int FCVT_W_S = fp(0b1100000, 0, 1, 0b000, 1, 0b1010011);
+    private static final int FCVT_L_D = fp(0b1100001, 0b00010, 1, 0b000, 1, 0b1010011);
     private static final int FLW = load(1, ADDRESS_REGISTER, 0, 0b010);
     private static final int FLD = load(1, ADDRESS_REGISTER, 0, 0b011);
     private static final int FSW = store(1, ADDRESS_REGISTER, 0, 0b010);

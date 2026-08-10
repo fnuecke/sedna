@@ -2946,6 +2946,7 @@ public abstract class R5CPUBase implements R5CPU {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final int value = fpu32.floatToInt(checkFloat(f[rs1]), rm);
+        fs = R5.FS_DIRTY;
         if (rd != 0) {
             x[rd] = value;
         }
@@ -2958,6 +2959,7 @@ public abstract class R5CPUBase implements R5CPU {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final int value = fpu32.floatToUnsignedInt(checkFloat(f[rs1]), rm);
+        fs = R5.FS_DIRTY;
         if (rd != 0) {
             x[rd] = value;
         }
@@ -2978,6 +2980,7 @@ public abstract class R5CPUBase implements R5CPU {
                        @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         final boolean areEqual = fpu32.equals(checkFloat(f[rs1]), checkFloat(f[rs2]));
+        fs = R5.FS_DIRTY;
         if (rd != 0) {
             x[rd] = areEqual ? 1 : 0;
         }
@@ -2989,6 +2992,7 @@ public abstract class R5CPUBase implements R5CPU {
                        @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         final boolean isLessThan = fpu32.lessThan(checkFloat(f[rs1]), checkFloat(f[rs2]));
+        fs = R5.FS_DIRTY;
         if (rd != 0) {
             x[rd] = isLessThan ? 1 : 0;
         }
@@ -3000,6 +3004,7 @@ public abstract class R5CPUBase implements R5CPU {
                        @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         final boolean isLessOrEqual = fpu32.lessOrEqual(checkFloat(f[rs1]), checkFloat(f[rs2]));
+        fs = R5.FS_DIRTY;
         if (rd != 0) {
             x[rd] = isLessOrEqual ? 1 : 0;
         }
@@ -3052,6 +3057,7 @@ public abstract class R5CPUBase implements R5CPU {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final long value = fpu32.floatToLong((int) f[rs1], rm);
+        fs = R5.FS_DIRTY;
         if (rd != 0) {
             x[rd] = value;
         }
@@ -3064,6 +3070,7 @@ public abstract class R5CPUBase implements R5CPU {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final long value = fpu32.floatToUnsignedLong((int) f[rs1], rm);
+        fs = R5.FS_DIRTY;
         if (rd != 0) {
             x[rd] = value;
         }
@@ -3284,6 +3291,7 @@ public abstract class R5CPUBase implements R5CPU {
                        @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         final boolean areEqual = fpu64.equals(f[rs1], f[rs2]);
+        fs = R5.FS_DIRTY;
         if (rd != 0) {
             x[rd] = areEqual ? 1 : 0;
         }
@@ -3295,6 +3303,7 @@ public abstract class R5CPUBase implements R5CPU {
                        @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         final boolean isLessThan = fpu64.lessThan(f[rs1], f[rs2]);
+        fs = R5.FS_DIRTY;
         if (rd != 0) {
             x[rd] = isLessThan ? 1 : 0;
         }
@@ -3306,6 +3315,7 @@ public abstract class R5CPUBase implements R5CPU {
                        @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         final boolean isLessOrEqual = fpu64.lessOrEqual(f[rs1], f[rs2]);
+        fs = R5.FS_DIRTY;
         if (rd != 0) {
             x[rd] = isLessOrEqual ? 1 : 0;
         }
@@ -3327,6 +3337,7 @@ public abstract class R5CPUBase implements R5CPU {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final int value = fpu64.doubleToInt(f[rs1], rm);
+        fs = R5.FS_DIRTY;
         if (rd != 0) {
             x[rd] = value;
         }
@@ -3339,6 +3350,7 @@ public abstract class R5CPUBase implements R5CPU {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final int value = fpu64.doubleToUnsignedInt(f[rs1], rm);
+        fs = R5.FS_DIRTY;
         if (rd != 0) {
             x[rd] = value;
         }
@@ -3374,6 +3386,7 @@ public abstract class R5CPUBase implements R5CPU {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final long value = fpu64.doubleToLong(f[rs1], rm);
+        fs = R5.FS_DIRTY;
         if (rd != 0) {
             x[rd] = value;
         }
@@ -3386,6 +3399,7 @@ public abstract class R5CPUBase implements R5CPU {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final long value = fpu64.doubleToUnsignedLong(f[rs1], rm);
+        fs = R5.FS_DIRTY;
         if (rd != 0) {
             x[rd] = value;
         }
