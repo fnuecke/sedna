@@ -848,7 +848,7 @@ public abstract class R5CPUBase implements R5CPU {
                 mideleg = (mideleg & ~mask) | (value & mask);
             }
             case 0x304 -> { // mie Machine interrupt-enable register.
-                final int mask = R5.MTIP_MASK | R5.MSIP_MASK | R5.SEIP_MASK | R5.STIP_MASK | R5.SSIP_MASK;
+                final int mask = R5.MEIP_MASK | R5.MTIP_MASK | R5.MSIP_MASK | R5.SEIP_MASK | R5.STIP_MASK | R5.SSIP_MASK;
                 mie = (mie & ~mask) | (value & mask);
             }
             case 0x305 -> { // mtvec Machine trap-handler base address.

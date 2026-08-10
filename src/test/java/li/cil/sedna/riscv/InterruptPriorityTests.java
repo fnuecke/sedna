@@ -80,6 +80,17 @@ public final class InterruptPriorityTests {
     }
 
     @Test
+    public void machineExternalInterruptCanBeEnabledAndFires() {
+        writeCSR(CSR_MIE, R5.MEIP_MASK | R5.STIP_MASK);
+        writeCSR(0x344 /* mip */, R5.STIP_MASK);
+        cpu.raiseInterrupts((int) R5.MEIP_MASK); // MEIP is read-only in mip; raised by the PLIC.
+        writeCSR(CSR_MSTATUS, R5.STATUS_MIE_MASK);
+        cpu.step(1);
+
+        assertEquals(INTERRUPT | R5.MEIP_SHIFT, readCSR(CSR_MCAUSE), "MEIP must be deliverable and outrank STIP");
+    }
+
+    @Test
     public void delegatedInterruptFiresInSupervisorMode() {
         // Sanity check: with only the delegated SSIP pending and SIE=1, it must be delivered
         // to the S handler.
