@@ -71,6 +71,21 @@ final class R5CPUImpl extends R5CPUBase {
                                     instOffset += (int) jumpDelta;
                                     break decode;
                                 }
+                                case 4 -> {
+                                    final long jumpTarget = this.pc;
+                                    if (Long.compareUnsigned(pc, jumpTarget) >= 0) {
+                                        if (mcycle >= cycleLimit || ((jumpTarget ^ pc) & ~(long) R5.PAGE_ADDRESS_MASK) != 0) {
+                                            return;
+                                        }
+                                    }
+                                    final long jumpDelta = jumpTarget - pc;
+                                    pc = jumpTarget;
+                                    if ((long) (int) jumpDelta != jumpDelta) {
+                                        return;
+                                    }
+                                    instOffset += (int) jumpDelta;
+                                    break decode;
+                                }
                                 default -> throw illegalInstruction();
                             }
                         }
@@ -103,6 +118,21 @@ final class R5CPUImpl extends R5CPUBase {
                                     instOffset += (int) jumpDelta;
                                     break decode;
                                 }
+                                case 4 -> {
+                                    final long jumpTarget = this.pc;
+                                    if (Long.compareUnsigned(pc, jumpTarget) >= 0) {
+                                        if (mcycle >= cycleLimit || ((jumpTarget ^ pc) & ~(long) R5.PAGE_ADDRESS_MASK) != 0) {
+                                            return;
+                                        }
+                                    }
+                                    final long jumpDelta = jumpTarget - pc;
+                                    pc = jumpTarget;
+                                    if ((long) (int) jumpDelta != jumpDelta) {
+                                        return;
+                                    }
+                                    instOffset += (int) jumpDelta;
+                                    break decode;
+                                }
                                 default -> throw illegalInstruction();
                             }
                         }
@@ -126,6 +156,21 @@ final class R5CPUImpl extends R5CPUBase {
                                     final long jumpTarget = this.pc;
                                     if (Long.compareUnsigned(pc, jumpTarget) >= 0) {
                                         return;
+                                    }
+                                    final long jumpDelta = jumpTarget - pc;
+                                    pc = jumpTarget;
+                                    if ((long) (int) jumpDelta != jumpDelta) {
+                                        return;
+                                    }
+                                    instOffset += (int) jumpDelta;
+                                    break decode;
+                                }
+                                case 4 -> {
+                                    final long jumpTarget = this.pc;
+                                    if (Long.compareUnsigned(pc, jumpTarget) >= 0) {
+                                        if (mcycle >= cycleLimit || ((jumpTarget ^ pc) & ~(long) R5.PAGE_ADDRESS_MASK) != 0) {
+                                            return;
+                                        }
                                     }
                                     final long jumpDelta = jumpTarget - pc;
                                     pc = jumpTarget;
@@ -236,13 +281,13 @@ final class R5CPUImpl extends R5CPUBase {
             }
             case 6: {
                 if (beq((((inst >>> 7) & 0x7)) + 8, 0, ((inst << 3) & 0x20) | ((inst >>> 2) & 0x6) | ((inst << 1) & 0xc0) | ((inst >>> 7) & 0x18) | BitUtils.extendSign(((inst >>> 4) & 0x100), 9), pc)) {
-                    return 2;
+                    return 4;
                 }
                 return 0;
             }
             case 7: {
                 if (bne((((inst >>> 7) & 0x7)) + 8, 0, ((inst << 3) & 0x20) | ((inst >>> 2) & 0x6) | ((inst << 1) & 0xc0) | ((inst >>> 7) & 0x18) | BitUtils.extendSign(((inst >>> 4) & 0x100), 9), pc)) {
-                    return 2;
+                    return 4;
                 }
                 return 0;
             }
@@ -1199,37 +1244,37 @@ final class R5CPUImpl extends R5CPUBase {
         switch (((inst & 0x7000) >>> 12)) {
             case 0: {
                 if (beq(rs1, rs2, imm, pc)) {
-                    return 2;
+                    return 4;
                 }
                 return 0;
             }
             case 1: {
                 if (bne(rs1, rs2, imm, pc)) {
-                    return 2;
+                    return 4;
                 }
                 return 0;
             }
             case 4: {
                 if (blt(rs1, rs2, imm, pc)) {
-                    return 2;
+                    return 4;
                 }
                 return 0;
             }
             case 5: {
                 if (bge(rs1, rs2, imm, pc)) {
-                    return 2;
+                    return 4;
                 }
                 return 0;
             }
             case 6: {
                 if (bltu(rs1, rs2, imm, pc)) {
-                    return 2;
+                    return 4;
                 }
                 return 0;
             }
             case 7: {
                 if (bgeu(rs1, rs2, imm, pc)) {
-                    return 2;
+                    return 4;
                 }
                 return 0;
             }
@@ -1392,6 +1437,21 @@ final class R5CPUImpl extends R5CPUBase {
                                     instOffset += (int) jumpDelta;
                                     break decode;
                                 }
+                                case 4 -> {
+                                    final long jumpTarget = this.pc;
+                                    if (Long.compareUnsigned(pc, jumpTarget) >= 0) {
+                                        if (mcycle >= cycleLimit || ((jumpTarget ^ pc) & ~(long) R5.PAGE_ADDRESS_MASK) != 0) {
+                                            return;
+                                        }
+                                    }
+                                    final long jumpDelta = jumpTarget - pc;
+                                    pc = jumpTarget;
+                                    if ((long) (int) jumpDelta != jumpDelta) {
+                                        return;
+                                    }
+                                    instOffset += (int) jumpDelta;
+                                    break decode;
+                                }
                                 default -> throw illegalInstruction();
                             }
                         }
@@ -1424,6 +1484,21 @@ final class R5CPUImpl extends R5CPUBase {
                                     instOffset += (int) jumpDelta;
                                     break decode;
                                 }
+                                case 4 -> {
+                                    final long jumpTarget = this.pc;
+                                    if (Long.compareUnsigned(pc, jumpTarget) >= 0) {
+                                        if (mcycle >= cycleLimit || ((jumpTarget ^ pc) & ~(long) R5.PAGE_ADDRESS_MASK) != 0) {
+                                            return;
+                                        }
+                                    }
+                                    final long jumpDelta = jumpTarget - pc;
+                                    pc = jumpTarget;
+                                    if ((long) (int) jumpDelta != jumpDelta) {
+                                        return;
+                                    }
+                                    instOffset += (int) jumpDelta;
+                                    break decode;
+                                }
                                 default -> throw illegalInstruction();
                             }
                         }
@@ -1447,6 +1522,21 @@ final class R5CPUImpl extends R5CPUBase {
                                     final long jumpTarget = this.pc;
                                     if (Long.compareUnsigned(pc, jumpTarget) >= 0) {
                                         return;
+                                    }
+                                    final long jumpDelta = jumpTarget - pc;
+                                    pc = jumpTarget;
+                                    if ((long) (int) jumpDelta != jumpDelta) {
+                                        return;
+                                    }
+                                    instOffset += (int) jumpDelta;
+                                    break decode;
+                                }
+                                case 4 -> {
+                                    final long jumpTarget = this.pc;
+                                    if (Long.compareUnsigned(pc, jumpTarget) >= 0) {
+                                        if (mcycle >= cycleLimit || ((jumpTarget ^ pc) & ~(long) R5.PAGE_ADDRESS_MASK) != 0) {
+                                            return;
+                                        }
                                     }
                                     final long jumpDelta = jumpTarget - pc;
                                     pc = jumpTarget;
@@ -1553,17 +1643,17 @@ final class R5CPUImpl extends R5CPUBase {
             }
             case 5: {
                 jal(0, ((inst << 3) & 0x20) | ((inst >>> 2) & 0xe) | ((inst << 1) & 0x80) | ((inst >>> 1) & 0x40) | ((inst << 2) & 0x400) | ((inst >>> 1) & 0x300) | ((inst >>> 7) & 0x10) | BitUtils.extendSign(((inst >>> 1) & 0x800), 12), pc, 2);
-                return 3;
+                return 4;
             }
             case 6: {
                 if (beq((((inst >>> 7) & 0x7)) + 8, 0, ((inst << 3) & 0x20) | ((inst >>> 2) & 0x6) | ((inst << 1) & 0xc0) | ((inst >>> 7) & 0x18) | BitUtils.extendSign(((inst >>> 4) & 0x100), 9), pc)) {
-                    return 2;
+                    return 4;
                 }
                 return 0;
             }
             case 7: {
                 if (bne((((inst >>> 7) & 0x7)) + 8, 0, ((inst << 3) & 0x20) | ((inst >>> 2) & 0x6) | ((inst << 1) & 0xc0) | ((inst >>> 7) & 0x18) | BitUtils.extendSign(((inst >>> 4) & 0x100), 9), pc)) {
-                    return 2;
+                    return 4;
                 }
                 return 0;
             }
@@ -1751,7 +1841,7 @@ final class R5CPUImpl extends R5CPUBase {
         }
         if ((inst & 0x7c) == 0x0) {
             jalr(0, ((inst >>> 7) & 0x1f), 0, pc, 2);
-            return 3;
+            return 4;
         }
         if ((inst & 0xf80) == 0x0) {
             return 0;
@@ -1767,7 +1857,7 @@ final class R5CPUImpl extends R5CPUBase {
         }
         if ((inst & 0x7c) == 0x0) {
             jalr(1, ((inst >>> 7) & 0x1f), 0, pc, 2);
-            return 3;
+            return 4;
         }
         if ((inst & 0xf80) == 0x0) {
             return 0;
@@ -1852,13 +1942,13 @@ final class R5CPUImpl extends R5CPUBase {
             case 25: {
                 if ((inst & 0x7000) == 0x0) {
                     jalr(((inst >>> 7) & 0x1f), ((inst >>> 15) & 0x1f), BitUtils.extendSign(((inst >>> 20) & 0xfff), 12), pc, 4);
-                    return 3;
+                    return 4;
                 }
                 throw illegalInstruction();
             }
             case 27: {
                 jal(((inst >>> 7) & 0x1f), (inst & 0xff000) | ((inst >>> 9) & 0x800) | ((inst >>> 20) & 0x7fe) | BitUtils.extendSign(((inst >>> 11) & 0x100000), 21), pc, 4);
-                return 3;
+                return 4;
             }
             case 28: {
                 return interpretTrace64$instructionGroup47(inst, pc);
@@ -2735,37 +2825,37 @@ final class R5CPUImpl extends R5CPUBase {
         switch (((inst & 0x7000) >>> 12)) {
             case 0: {
                 if (beq(rs1, rs2, imm, pc)) {
-                    return 2;
+                    return 4;
                 }
                 return 0;
             }
             case 1: {
                 if (bne(rs1, rs2, imm, pc)) {
-                    return 2;
+                    return 4;
                 }
                 return 0;
             }
             case 4: {
                 if (blt(rs1, rs2, imm, pc)) {
-                    return 2;
+                    return 4;
                 }
                 return 0;
             }
             case 5: {
                 if (bge(rs1, rs2, imm, pc)) {
-                    return 2;
+                    return 4;
                 }
                 return 0;
             }
             case 6: {
                 if (bltu(rs1, rs2, imm, pc)) {
-                    return 2;
+                    return 4;
                 }
                 return 0;
             }
             case 7: {
                 if (bgeu(rs1, rs2, imm, pc)) {
-                    return 2;
+                    return 4;
                 }
                 return 0;
             }

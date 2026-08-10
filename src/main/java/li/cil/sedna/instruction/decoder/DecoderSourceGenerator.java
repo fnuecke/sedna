@@ -48,7 +48,8 @@ public final class DecoderSourceGenerator {
     private static final int RETURN_CONTINUE = 0; // update pc then keep going
     private static final int RETURN_EXIT_INC_PC = 1; // update pc then exit the decoder loop
     private static final int RETURN_EXIT = 2; // exit the decoder loop
-    private static final int RETURN_JUMP = 3; // check pc; if forward jump and in bounds, keep going
+    private static final int RETURN_JUMP = 3; // pc was written by a non-branch (trap): exit the decoder loop
+    private static final int RETURN_JUMP_BRANCH = 4; // pc was written by a pure branch; may continue in-page
 
     private static final float HOIST_THRESHOLD = 0.99f;
 
@@ -137,10 +138,18 @@ public final class DecoderSourceGenerator {
             out.line("this.pc = pc;");
         }
 
-        void emitJumpHandler() {
+        void emitJumpHandler(final boolean mayContinue) {
             out.line("final long jumpTarget = this.pc;");
             out.line("if (Long.compareUnsigned(pc, jumpTarget) >= 0) {");
-            out.indent(() -> out.line("return;"));
+            if (mayContinue) {
+                out.indent(() -> {
+                    out.line("if (mcycle >= cycleLimit || ((jumpTarget ^ pc) & ~(long) R5.PAGE_ADDRESS_MASK) != 0) {");
+                    out.indent(() -> out.line("return;"));
+                    out.line("}");
+                });
+            } else {
+                out.indent(() -> out.line("return;"));
+            }
             out.line("}");
             out.line("final long jumpDelta = jumpTarget - pc;");
             out.line("pc = jumpTarget;");
@@ -345,7 +354,10 @@ public final class DecoderSourceGenerator {
                         out.indent(() -> out.line("return;"));
                         out.line("}");
                         out.line("case " + RETURN_JUMP + " -> {");
-                        out.indent(context::emitJumpHandler);
+                        out.indent(() -> context.emitJumpHandler(false));
+                        out.line("}");
+                        out.line("case " + RETURN_JUMP_BRANCH + " -> {");
+                        out.indent(() -> context.emitJumpHandler(true));
                         out.line("}");
                         out.line("default -> throw illegalInstruction();");
                     });
@@ -638,14 +650,23 @@ public final class DecoderSourceGenerator {
                 context.out.indent(() -> {
                     switch (context.type) {
                         case TOP_LEVEL -> {
-                            if (!definition.writesPC) {
-                                context.emitIncrementPC(declaration.size);
-                                context.emitSavePC();
+                            if (definition.isBranch) {
+                                context.emitJumpHandler(true);
+                            } else {
+                                if (!definition.writesPC) {
+                                    context.emitIncrementPC(declaration.size);
+                                    context.emitSavePC();
+                                }
+                                context.out.line("return;");
                             }
-                            context.out.line("return;");
                         }
-                        case CONDITIONAL_METHOD ->
-                            context.out.line("return " + (definition.writesPC ? RETURN_EXIT : RETURN_EXIT_INC_PC) + ";");
+                        case CONDITIONAL_METHOD -> {
+                            if (definition.isBranch) {
+                                context.out.line("return " + RETURN_JUMP_BRANCH + ";");
+                            } else {
+                                context.out.line("return " + (definition.writesPC ? RETURN_EXIT : RETURN_EXIT_INC_PC) + ";");
+                            }
+                        }
                         default -> throw new IllegalStateException();
                     }
                 });
@@ -655,8 +676,9 @@ public final class DecoderSourceGenerator {
             } else if (definition.writesPC) {
                 context.out.line(call + ";");
                 switch (context.type) {
-                    case TOP_LEVEL -> context.emitJumpHandler();
-                    case CONDITIONAL_METHOD -> context.out.line("return " + RETURN_JUMP + ";");
+                    case TOP_LEVEL -> context.emitJumpHandler(definition.isBranch);
+                    case CONDITIONAL_METHOD ->
+                        context.out.line("return " + (definition.isBranch ? RETURN_JUMP_BRANCH : RETURN_JUMP) + ";");
                     default -> throw new IllegalStateException();
                 }
             } else {

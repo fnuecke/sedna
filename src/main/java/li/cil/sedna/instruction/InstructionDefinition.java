@@ -14,6 +14,11 @@ public final class InstructionDefinition {
         String value();
     }
 
+    @Target(ElementType.METHOD)
+    @Retention(RetentionPolicy.CLASS)
+    public @interface Branch {
+    }
+
     @Target(ElementType.PARAMETER)
     @Retention(RetentionPolicy.CLASS)
     public @interface Field {
@@ -33,6 +38,7 @@ public final class InstructionDefinition {
     public final String instructionName;
     public final String methodName;
     public final boolean writesPC;
+    public final boolean isBranch;
     public final boolean returnsBoolean;
     public final String[] thrownExceptions;
     public final InstructionArgument[] parameters;
@@ -41,6 +47,7 @@ public final class InstructionDefinition {
     InstructionDefinition(final String instructionName,
                           final String methodName,
                           final boolean writesPC,
+                          final boolean isBranch,
                           final boolean returnsBoolean,
                           final String[] thrownExceptions,
                           final InstructionArgument[] parameters,
@@ -48,6 +55,7 @@ public final class InstructionDefinition {
         this.instructionName = instructionName;
         this.methodName = methodName;
         this.writesPC = writesPC;
+        this.isBranch = isBranch;
         this.returnsBoolean = returnsBoolean;
         this.thrownExceptions = thrownExceptions;
         this.parameters = parameters;

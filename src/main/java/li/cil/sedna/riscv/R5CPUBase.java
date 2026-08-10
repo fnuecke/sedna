@@ -12,6 +12,7 @@ import li.cil.sedna.api.memory.MappedMemoryRange;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.gdbstub.CPUDebugInterface;
+import li.cil.sedna.instruction.InstructionDefinition.Branch;
 import li.cil.sedna.instruction.InstructionDefinition.Field;
 import li.cil.sedna.instruction.InstructionDefinition.Instruction;
 import li.cil.sedna.instruction.InstructionDefinition.InstructionSize;
@@ -173,6 +174,10 @@ public abstract class R5CPUBase implements R5CPU {
     // Stepping
     private int cycleDebt; // Traces may lead to us running more cycles than given, remember to pay it back.
 
+    // The current step() call's cycle budget end: a backward jump may continue in-trace only while mcycle
+    // is below this, which ensures guest loops still yield (allowing interrupts e.g.).
+    protected transient long cycleLimit;
+
     ///////////////////////////////////////////////////////////////////
     // Real time counter -- at least in RISC-V Linux 5.1 the mtime CSR is needed in add_device_randomness
     // where it doesn't use the SBI. Not implementing it would cause an illegal instruction exception
@@ -330,6 +335,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
 
         final long cycleLimit = mcycle + cycles;
+        this.cycleLimit = cycleLimit;
         while (!waitingForInterrupt && mcycle < cycleLimit) {
             final long pending = mip.get() & mie;
             if (pending != 0) {
@@ -1550,6 +1556,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
     }
 
+    @Branch
     @Instruction("JAL")
     protected void jal(@Field("rd") final int rd,
                      @Field("imm") final int imm,
@@ -1562,6 +1569,7 @@ public abstract class R5CPUBase implements R5CPU {
         this.pc = pc + imm;
     }
 
+    @Branch
     @Instruction("JALR")
     protected void jalr(@Field("rd") final int rd,
                       @Field("rs1") final int rs1,
@@ -1577,6 +1585,7 @@ public abstract class R5CPUBase implements R5CPU {
         this.pc = address;
     }
 
+    @Branch
     @Instruction("BEQ")
     protected boolean beq(@Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
@@ -1590,6 +1599,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
     }
 
+    @Branch
     @Instruction("BNE")
     protected boolean bne(@Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
@@ -1603,6 +1613,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
     }
 
+    @Branch
     @Instruction("BLT")
     protected boolean blt(@Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
@@ -1616,6 +1627,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
     }
 
+    @Branch
     @Instruction("BGE")
     protected boolean bge(@Field("rs1") final int rs1,
                         @Field("rs2") final int rs2,
@@ -1629,6 +1641,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
     }
 
+    @Branch
     @Instruction("BLTU")
     protected boolean bltu(@Field("rs1") final int rs1,
                          @Field("rs2") final int rs2,
@@ -1642,6 +1655,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
     }
 
+    @Branch
     @Instruction("BGEU")
     protected boolean bgeu(@Field("rs1") final int rs1,
                          @Field("rs2") final int rs2,

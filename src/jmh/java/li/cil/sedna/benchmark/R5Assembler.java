@@ -96,6 +96,10 @@ public final class R5Assembler {
         return bType(offset, rs2, rs1, 0b000, BRANCH);
     }
 
+    public static int bne(final int rs1, final int rs2, final int offset) {
+        return bType(offset, rs2, rs1, 0b001, BRANCH);
+    }
+
     /** {@code jal rd, offset} */
     public static int jal(final int rd, final int offset) {
         return (((offset >> 20) & 0b1) << 31)

@@ -147,6 +147,7 @@ public final class InstructionDefinitionLoader {
                 declaration.name,
                 visitor.name,
                 visitor.writesPC,
+                visitor.isBranch,
                 returnsBoolean,
                 visitor.thrownExceptions,
                 arguments,
@@ -167,6 +168,7 @@ public final class InstructionDefinitionLoader {
         private boolean isImplementation;
         private String instructionName;
         private boolean writesPC;
+        private boolean isBranch;
 
         public InstructionFunctionVisitor(final Class<?> implementation, final String name, final String descriptor, final String[] exceptions) {
             super(Opcodes.ASM7);
@@ -217,6 +219,8 @@ public final class InstructionDefinitionLoader {
                         }
                     }
                 };
+            } else if (Objects.equals(descriptor, Type.getDescriptor(InstructionDefinition.Branch.class))) {
+                isBranch = true;
             }
 
             return super.visitAnnotation(descriptor, visible);

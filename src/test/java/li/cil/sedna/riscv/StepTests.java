@@ -74,6 +74,27 @@ public final class StepTests {
     }
 
     @Test
+    public void tightGuestLoopRespectsTheCycleBudget() throws MemoryAccessException {
+        // An infinite two-instruction loop: addi x5, x5, 1; bne x5, x0, -4.
+        final long loop = PHYSICAL_MEMORY_START + 0x1000;
+        memoryMap.store(loop, 0x00128293, Sizes.SIZE_32_LOG2); // addi x5, x5, 1
+        memoryMap.store(loop + 4, 0xfe029ee3L, Sizes.SIZE_32_LOG2); // bne x5, x0, -4
+        cpu.reset(true, loop);
+        cpu.setXLEN(R5.XLEN_64);
+
+        final long start = cpu.getTime();
+        org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(java.time.Duration.ofSeconds(5),
+            () -> cpu.step(CYCLES_PER_STEP),
+            "the in-trace cycle budget check must bound guest loops");
+        final long executed = cpu.getTime() - start;
+
+        assertTrue(executed >= CYCLES_PER_STEP,
+            String.format("must not run fewer cycles than requested, but ran %d for %d requested", executed, CYCLES_PER_STEP));
+        assertTrue(executed <= CYCLES_PER_STEP + MAX_INSTRUCTIONS_PER_TRACE,
+            String.format("the in-trace budget check must bound the loop, but ran %d cycles for %d requested", executed, CYCLES_PER_STEP));
+    }
+
+    @Test
     public void budgetLargerThanATraceIsSpentInOneCall() {
         final int cycles = MAX_INSTRUCTIONS_PER_TRACE * 4;
 
