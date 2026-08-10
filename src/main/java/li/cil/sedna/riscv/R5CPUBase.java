@@ -1225,12 +1225,16 @@ public abstract class R5CPUBase implements R5CPU {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_FETCH);
         }
         final TLBEntry tlb = updateTLB(fetchTLB, address, fetchTLBTag, physicalAddress, range);
-        final var subset = debugInterface.breakpoints.subSet(address, address + (1 << R5.PAGE_ADDRESS_SHIFT));
-        if (subset.isEmpty()) {
+        if (debugInterface.breakpoints.isEmpty()) {
             tlb.breakpoints = null;
         } else {
-            tlb.breakpoints = new LongOpenHashSet(subset.size());
-            tlb.breakpoints.addAll(subset);
+            final var subset = debugInterface.breakpoints.subSet(address, address + (1 << R5.PAGE_ADDRESS_SHIFT));
+            if (subset.isEmpty()) {
+                tlb.breakpoints = null;
+            } else {
+                tlb.breakpoints = new LongOpenHashSet(subset.size());
+                tlb.breakpoints.addAll(subset);
+            }
         }
         return tlb;
     }
