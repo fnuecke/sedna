@@ -11,7 +11,7 @@ import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.memory.MappedMemoryRange;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.gdbstub.CPUDebugInterface;
+import li.cil.sedna.api.debug.CPUDebugInterface;
 import li.cil.sedna.instruction.InstructionDefinition.Branch;
 import li.cil.sedna.instruction.InstructionDefinition.Field;
 import li.cil.sedna.instruction.InstructionDefinition.Instruction;
@@ -3499,10 +3499,10 @@ public abstract class R5CPUBase implements R5CPU {
         }
 
         @Override
-        public byte[] loadDebug(final long address, final int size) throws R5MemoryAccessException {
+        public byte[] loadDebug(final long address, final int size) throws MemoryAccessException {
             final byte[] mem = new byte[size];
             if (size == 0) return mem;
-            PageAccess entry = getPageDebug(address, MemoryAccessType.LOAD);
+            PageAccess entry = getPageDebugChecked(address, MemoryAccessType.LOAD);
             int i = 0;
             while (true) {
                 try {
@@ -3514,15 +3514,15 @@ public abstract class R5CPUBase implements R5CPU {
                 i++;
                 if (i == size) break;
                 if (((address + i) & R5.PAGE_ADDRESS_MASK) == 0) {
-                    entry = getPageDebug(address + i, MemoryAccessType.LOAD);
+                    entry = getPageDebugChecked(address + i, MemoryAccessType.LOAD);
                 }
             }
             return mem;
         }
 
         @Override
-        public int storeDebug(final long address, final byte[] data) throws R5MemoryAccessException {
-            PageAccess entry = getPageDebug(address, MemoryAccessType.STORE);
+        public int storeDebug(final long address, final byte[] data) throws MemoryAccessException {
+            PageAccess entry = getPageDebugChecked(address, MemoryAccessType.STORE);
             int i = 0;
             while (true) {
                 try {
@@ -3533,7 +3533,7 @@ public abstract class R5CPUBase implements R5CPU {
                 i++;
                 if (i == data.length) break;
                 if (((address + i) & R5.PAGE_ADDRESS_MASK) == 0) {
-                    entry = getPageDebug(address + i, MemoryAccessType.STORE);
+                    entry = getPageDebugChecked(address + i, MemoryAccessType.STORE);
                 }
             }
             return i;
@@ -3575,11 +3575,14 @@ public abstract class R5CPUBase implements R5CPU {
             }
         }
 
-        /**
-         * Used by the GDB stub for debugging. We have special requirements compared to normal memory access.
-         * 1. Need to bypass access protection, particularly the R/W bits
-         * 2. Would like to avoid modifying CPU state as much as possible, including TLB entries.
-         */
+        private PageAccess getPageDebugChecked(final long address, final MemoryAccessType accessType) throws MemoryAccessException {
+            try {
+                return getPageDebug(address, accessType);
+            } catch (final R5MemoryAccessException e) {
+                throw new MemoryAccessException();
+            }
+        }
+
         private PageAccess getPageDebug(final long address, final MemoryAccessType accessType) throws R5MemoryAccessException {
             final PageAccess cached = tryGetPageAccess(address, accessType);
             if (cached != null) {
