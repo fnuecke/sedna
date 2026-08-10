@@ -131,10 +131,22 @@ public abstract class R5CPUBase implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // Memory access
 
-    // Translation look-aside buffers.
-    private final transient TLBEntry[] fetchTLB = new TLBEntry[TLB_SIZE];
-    private final transient TLBEntry[] loadTLB = new TLBEntry[TLB_SIZE];
-    private final transient TLBEntry[] storeTLB = new TLBEntry[TLB_SIZE];
+    // Translation look-aside buffers, stored as structure-of-arrays: a lookup reads one long from
+    // a dense 2 KiB hash array instead of resolving a separately-allocated entry object, the data
+    // arrays are only touched on a hit, and a flush is a plain array fill. The hash encodes page
+    // address plus privilege tag (see below); -1 marks an empty slot, which no valid combination
+    // can produce. Payload slots are only ever read after their hash matched, so stale values in
+    // them are harmless.
+    private final transient long[] fetchTLBHash = new long[TLB_SIZE];
+    private final transient long[] fetchTLBToOffset = new long[TLB_SIZE];
+    private final transient MemoryMappedDevice[] fetchTLBDevice = new MemoryMappedDevice[TLB_SIZE];
+    private final transient LongSet[] fetchTLBBreakpoints = new LongSet[TLB_SIZE];
+    private final transient long[] loadTLBHash = new long[TLB_SIZE];
+    private final transient long[] loadTLBToOffset = new long[TLB_SIZE];
+    private final transient MemoryMappedDevice[] loadTLBDevice = new MemoryMappedDevice[TLB_SIZE];
+    private final transient long[] storeTLBHash = new long[TLB_SIZE];
+    private final transient long[] storeTLBToOffset = new long[TLB_SIZE];
+    private final transient MemoryMappedDevice[] storeTLBDevice = new MemoryMappedDevice[TLB_SIZE];
 
     // Separate look-aside buffers for memory mapped devices, which the TLBs above deliberately
     // exclude: those cache whole pages, and devices are packed with only 8-byte alignment, so a
@@ -173,15 +185,7 @@ public abstract class R5CPUBase implements R5CPU {
         this.rtc = rtc != null ? rtc : this;
         this.physicalMemory = physicalMemory;
 
-        for (int i = 0; i < TLB_SIZE; i++) {
-            fetchTLB[i] = new TLBEntry();
-        }
-        for (int i = 0; i < TLB_SIZE; i++) {
-            loadTLB[i] = new TLBEntry();
-        }
-        for (int i = 0; i < TLB_SIZE; i++) {
-            storeTLB[i] = new TLBEntry();
-        }
+        // The TLB hash arrays are initialized by the flushTLB() in reset() below.
         for (int i = 0; i < MMIO_TLB_SIZE; i++) {
             mmioLoadTLB[i] = new MMIOTLBEntry();
         }
@@ -368,9 +372,9 @@ public abstract class R5CPUBase implements R5CPU {
         // instruction would fully fit a page. The last 16bit in a page may be the start of
         // a 32bit instruction spanning two pages, a special case we handle outside the loop.
         try {
-            final TLBEntry cache = fetchPage(pc);
-            final MemoryMappedDevice device = cache.device;
-            final int instOffset = (int) (pc + cache.toOffset);
+            final int cacheIndex = fetchPage(pc);
+            final MemoryMappedDevice device = fetchTLBDevice[cacheIndex];
+            final int instOffset = (int) (pc + fetchTLBToOffset[cacheIndex]);
             final int instEnd = instOffset - (int) (pc & R5.PAGE_ADDRESS_MASK) // Page start.
                 + ((1 << R5.PAGE_ADDRESS_SHIFT) - 2); // Page size minus 16bit.
 
@@ -381,9 +385,10 @@ public abstract class R5CPUBase implements R5CPU {
                 } else { // Unlikely case, instruction may leave page if it is 32bit.
                     inst = (short) device.load(instOffset, Sizes.SIZE_16_LOG2) & 0xFFFF;
                     if ((inst & 0b11) == 0b11) { // 32bit instruction.
-                        final TLBEntry highCache = fetchPage(pc + 2);
-                        final MemoryMappedDevice highDevice = highCache.device;
-                        inst |= (int) (highDevice.load((int) (pc + 2 + highCache.toOffset), Sizes.SIZE_16_LOG2) << 16);
+                        final int highIndex = fetchPage(pc + 2);
+                        final MemoryMappedDevice highDevice = fetchTLBDevice[highIndex];
+                        final long highOffset = fetchTLBToOffset[highIndex];
+                        inst |= (int) (highDevice.load((int) (pc + 2 + highOffset), Sizes.SIZE_16_LOG2) << 16);
                     }
                 }
             } catch (final MemoryAccessException e) {
@@ -392,9 +397,9 @@ public abstract class R5CPUBase implements R5CPU {
             }
 
             if (xlen == R5.XLEN_32) {
-                interpretTrace32(device, inst, pc, instOffset, singleStep ? 0 : instEnd, ignoreBreakpoints ? null : cache.breakpoints);
+                interpretTrace32(device, inst, pc, instOffset, singleStep ? 0 : instEnd, ignoreBreakpoints ? null : fetchTLBBreakpoints[cacheIndex]);
             } else {
-                interpretTrace64(device, inst, pc, instOffset, singleStep ? 0 : instEnd, ignoreBreakpoints ? null : cache.breakpoints);
+                interpretTrace64(device, inst, pc, instOffset, singleStep ? 0 : instEnd, ignoreBreakpoints ? null : fetchTLBBreakpoints[cacheIndex]);
             }
         } catch (final R5MemoryAccessException e) {
             raiseException(e.getType(), e.getAddress());
@@ -1130,16 +1135,15 @@ public abstract class R5CPUBase implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // MMU
 
-    private TLBEntry fetchPage(final long address) throws R5MemoryAccessException {
+    private int fetchPage(final long address) throws R5MemoryAccessException {
         if ((address & 1) != 0) {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_MISALIGNED_FETCH);
         }
 
-        final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
+        final int index = tlbIndex(address);
         final long hash = (address & ~R5.PAGE_ADDRESS_MASK) | fetchTLBTag;
-        final TLBEntry entry = fetchTLB[index];
-        if (entry.hash == hash) {
-            return entry;
+        if (fetchTLBHash[index] == hash) {
+            return index;
         } else {
             return fetchPageSlow(address);
         }
@@ -1183,12 +1187,11 @@ public abstract class R5CPUBase implements R5CPU {
             return loadxPageMisaligned(address, size);
         }
 
-        final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
+        final int index = tlbIndex(address);
         final long hash = (address & ~R5.PAGE_ADDRESS_MASK) | dataTLBTag;
-        final TLBEntry entry = loadTLB[index];
-        if (entry.hash == hash) {
+        if (loadTLBHash[index] == hash) {
             try {
-                return entry.device.load((int) (address + entry.toOffset), sizeLog2);
+                return loadTLBDevice[index].load((int) (address + loadTLBToOffset[index]), sizeLog2);
             } catch (final MemoryAccessException e) {
                 throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_LOAD);
             }
@@ -1204,12 +1207,11 @@ public abstract class R5CPUBase implements R5CPU {
             return;
         }
 
-        final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
+        final int index = tlbIndex(address);
         final long hash = (address & ~R5.PAGE_ADDRESS_MASK) | dataTLBTag;
-        final TLBEntry entry = storeTLB[index];
-        if (entry.hash == hash) {
+        if (storeTLBHash[index] == hash) {
             try {
-                entry.device.store((int) (address + entry.toOffset), value, sizeLog2);
+                storeTLBDevice[index].store((int) (address + storeTLBToOffset[index]), value, sizeLog2);
             } catch (final MemoryAccessException e) {
                 throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_STORE);
             }
@@ -1218,25 +1220,26 @@ public abstract class R5CPUBase implements R5CPU {
         }
     }
 
-    private TLBEntry fetchPageSlow(final long address) throws R5MemoryAccessException {
+    private int fetchPageSlow(final long address) throws R5MemoryAccessException {
         final long physicalAddress = getPhysicalAddress(address, MemoryAccessType.FETCH, false);
         final MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
         if (range == null || !range.device.supportsFetch()) {
             throw new R5MemoryAccessException(address, R5.EXCEPTION_FAULT_FETCH);
         }
-        final TLBEntry tlb = updateTLB(fetchTLB, address, fetchTLBTag, physicalAddress, range);
+        final int index = installTLB(fetchTLBHash, fetchTLBToOffset, fetchTLBDevice, address, fetchTLBTag, physicalAddress, range);
         if (debugInterface.breakpoints.isEmpty()) {
-            tlb.breakpoints = null;
+            fetchTLBBreakpoints[index] = null;
         } else {
             final var subset = debugInterface.breakpoints.subSet(address, address + (1 << R5.PAGE_ADDRESS_SHIFT));
             if (subset.isEmpty()) {
-                tlb.breakpoints = null;
+                fetchTLBBreakpoints[index] = null;
             } else {
-                tlb.breakpoints = new LongOpenHashSet(subset.size());
-                tlb.breakpoints.addAll(subset);
+                final LongSet pageBreakpoints = new LongOpenHashSet(subset.size());
+                pageBreakpoints.addAll(subset);
+                fetchTLBBreakpoints[index] = pageBreakpoints;
             }
         }
-        return tlb;
+        return index;
     }
 
     private long loadSlow(final long address, final int sizeLog2) throws R5MemoryAccessException {
@@ -1257,8 +1260,8 @@ public abstract class R5CPUBase implements R5CPU {
 
         try {
             if (range.device.supportsFetch()) {
-                final TLBEntry entry = updateTLB(loadTLB, address, dataTLBTag, physicalAddress, range);
-                return entry.device.load((int) (address + entry.toOffset), sizeLog2);
+                installTLB(loadTLBHash, loadTLBToOffset, loadTLBDevice, address, dataTLBTag, physicalAddress, range);
+                return range.device.load((int) (physicalAddress - range.start), sizeLog2);
             } else {
                 updateMMIOTLB(mmioEntry, address, dataTLBTag, physicalAddress, range);
                 return range.device.load((int) (physicalAddress - range.address()), sizeLog2);
@@ -1287,9 +1290,9 @@ public abstract class R5CPUBase implements R5CPU {
 
         try {
             if (range.device.supportsFetch()) {
-                final TLBEntry entry = updateTLB(storeTLB, address, dataTLBTag, physicalAddress, range);
-                final int offset = (int) (address + entry.toOffset);
-                entry.device.store(offset, value, sizeLog2);
+                installTLB(storeTLBHash, storeTLBToOffset, storeTLBDevice, address, dataTLBTag, physicalAddress, range);
+                final int offset = (int) (physicalAddress - range.start);
+                range.device.store(offset, value, sizeLog2);
                 physicalMemory.setDirty(range, offset);
             } else {
                 updateMMIOTLB(mmioEntry, address, dataTLBTag, physicalAddress, range);
@@ -1455,17 +1458,17 @@ public abstract class R5CPUBase implements R5CPU {
     ///////////////////////////////////////////////////////////////////
     // TLB
 
-    private static TLBEntry updateTLB(final TLBEntry[] tlb, final long address, final long tag, final long physicalAddress, final MappedMemoryRange range) {
-        final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
-        return updateTLBEntry(tlb[index], address, tag, physicalAddress, range);
+    private static int tlbIndex(final long address) {
+        return (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
     }
 
-    private static TLBEntry updateTLBEntry(final TLBEntry tlb, final long address, final long tag, final long physicalAddress, final MappedMemoryRange range) {
-        tlb.hash = (address & ~R5.PAGE_ADDRESS_MASK) | tag;
-        tlb.toOffset = physicalAddress - address - range.start;
-        tlb.device = range.device;
-
-        return tlb;
+    private static int installTLB(final long[] hashes, final long[] toOffsets, final MemoryMappedDevice[] devices,
+                                  final long address, final long tag, final long physicalAddress, final MappedMemoryRange range) {
+        final int index = tlbIndex(address);
+        hashes[index] = (address & ~R5.PAGE_ADDRESS_MASK) | tag;
+        toOffsets[index] = physicalAddress - address - range.start;
+        devices[index] = range.device;
+        return index;
     }
 
     private static int mmioIndex(final long address) {
@@ -1490,19 +1493,10 @@ public abstract class R5CPUBase implements R5CPU {
     }
 
     private void flushTLB() {
-        // Only reset the most necessary field, the hash (which we use to check if an entry is applicable).
-        // Reset per-array for *much* faster clears due to it being a faster memory access pattern/the
-        // hotspot optimizer being able to more efficiently handle it (probably the latter, I suspect this
-        // gets replaced by a memset with stride).
-        for (int i = 0; i < TLB_SIZE; i++) {
-            fetchTLB[i].hash = -1;
-        }
-        for (int i = 0; i < TLB_SIZE; i++) {
-            loadTLB[i].hash = -1;
-        }
-        for (int i = 0; i < TLB_SIZE; i++) {
-            storeTLB[i].hash = -1;
-        }
+        // Only the hashes: payload slots are never read without a valid hash.
+        Arrays.fill(fetchTLBHash, -1);
+        Arrays.fill(loadTLBHash, -1);
+        Arrays.fill(storeTLBHash, -1);
         for (int i = 0; i < MMIO_TLB_SIZE; i++) {
             mmioLoadTLB[i].hash = -1;
         }
@@ -1512,19 +1506,19 @@ public abstract class R5CPUBase implements R5CPU {
     }
 
     private void flushTLB(final long address) {
-        final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
+        final int index = tlbIndex(address);
         final long hash = address & ~R5.PAGE_ADDRESS_MASK;
 
         // Compare the address bits only: an entry for this page made under any privilege level is
         // stale once the guest asks for it to be flushed.
-        if ((fetchTLB[index].hash & ~R5.PAGE_ADDRESS_MASK) == hash) {
-            fetchTLB[index].hash = -1;
+        if ((fetchTLBHash[index] & ~R5.PAGE_ADDRESS_MASK) == hash) {
+            fetchTLBHash[index] = -1;
         }
-        if ((loadTLB[index].hash & ~R5.PAGE_ADDRESS_MASK) == hash) {
-            loadTLB[index].hash = -1;
+        if ((loadTLBHash[index] & ~R5.PAGE_ADDRESS_MASK) == hash) {
+            loadTLBHash[index] = -1;
         }
-        if ((storeTLB[index].hash & ~R5.PAGE_ADDRESS_MASK) == hash) {
-            storeTLB[index].hash = -1;
+        if ((storeTLBHash[index] & ~R5.PAGE_ADDRESS_MASK) == hash) {
+            storeTLBHash[index] = -1;
         }
 
         final int mmioIndex = mmioIndex(address);
@@ -3429,14 +3423,6 @@ public abstract class R5CPUBase implements R5CPU {
         }
     }
 
-    private static final class TLBEntry {
-        public long hash = -1;
-        public long toOffset;
-        public MemoryMappedDevice device;
-        //Subset of complete breakpoint set
-        public LongSet breakpoints;
-    }
-
     private static final class MMIOTLBEntry {
         public long hash = -1;
         public long toOffset;
@@ -3450,6 +3436,8 @@ public abstract class R5CPUBase implements R5CPU {
                 && Long.compareUnsigned(address + (1 << sizeLog2) - 1, windowEnd) <= 0;
         }
     }
+
+    private record PageAccess(MemoryMappedDevice device, long toOffset) {}
 
     final class DebugInterface implements CPUDebugInterface {
         private final Collection<LongConsumer> breakpointListeners = new ArrayList<>();
@@ -3479,11 +3467,11 @@ public abstract class R5CPUBase implements R5CPU {
         public byte[] loadDebug(final long address, final int size) throws R5MemoryAccessException {
             final byte[] mem = new byte[size];
             if (size == 0) return mem;
-            TLBEntry entry = getPageDebug(address, MemoryAccessType.LOAD);
+            PageAccess entry = getPageDebug(address, MemoryAccessType.LOAD);
             int i = 0;
             while (true) {
                 try {
-                    mem[i] = (byte) entry.device.load((int) (address + i + entry.toOffset), 0);
+                    mem[i] = (byte) entry.device().load((int) (address + i + entry.toOffset()), 0);
                 } catch (final MemoryAccessException e) {
                     // Partial reads are okay
                     return Arrays.copyOf(mem, i);
@@ -3499,11 +3487,11 @@ public abstract class R5CPUBase implements R5CPU {
 
         @Override
         public int storeDebug(final long address, final byte[] data) throws R5MemoryAccessException {
-            TLBEntry entry = getPageDebug(address, MemoryAccessType.STORE);
+            PageAccess entry = getPageDebug(address, MemoryAccessType.STORE);
             int i = 0;
             while (true) {
                 try {
-                    entry.device.store((int) (address + i + entry.toOffset), data[i], 0);
+                    entry.device().store((int) (address + i + entry.toOffset()), data[i], 0);
                 } catch (final MemoryAccessException e) {
                     return i;
                 }
@@ -3532,12 +3520,12 @@ public abstract class R5CPUBase implements R5CPU {
         public void addBreakpoint(final long address) {
             breakpoints.add(address);
 
-            final TLBEntry entry = tryGetTLBEntry(address, MemoryAccessType.FETCH);
-            if (entry != null) {
-                if (entry.breakpoints == null) {
-                    entry.breakpoints = new LongOpenHashSet();
+            final int index = tlbIndex(address);
+            if (fetchTLBHash[index] == ((address & ~R5.PAGE_ADDRESS_MASK) | fetchTLBTag)) {
+                if (fetchTLBBreakpoints[index] == null) {
+                    fetchTLBBreakpoints[index] = new LongOpenHashSet();
                 }
-                entry.breakpoints.add(address);
+                fetchTLBBreakpoints[index].add(address);
             }
         }
 
@@ -3545,9 +3533,10 @@ public abstract class R5CPUBase implements R5CPU {
         public void removeBreakpoint(final long address) {
             breakpoints.remove(address);
 
-            final TLBEntry entry = tryGetTLBEntry(address, MemoryAccessType.FETCH);
-            if (entry != null && entry.breakpoints != null) {
-                entry.breakpoints.remove(address);
+            final int index = tlbIndex(address);
+            if (fetchTLBHash[index] == ((address & ~R5.PAGE_ADDRESS_MASK) | fetchTLBTag)
+                && fetchTLBBreakpoints[index] != null) {
+                fetchTLBBreakpoints[index].remove(address);
             }
         }
 
@@ -3556,10 +3545,10 @@ public abstract class R5CPUBase implements R5CPU {
          * 1. Need to bypass access protection, particularly the R/W bits
          * 2. Would like to avoid modifying CPU state as much as possible, including TLB entries.
          */
-        private TLBEntry getPageDebug(final long address, final MemoryAccessType accessType) throws R5MemoryAccessException {
-            final TLBEntry entry = tryGetTLBEntry(address, accessType);
-            if (entry != null) {
-                return entry;
+        private PageAccess getPageDebug(final long address, final MemoryAccessType accessType) throws R5MemoryAccessException {
+            final PageAccess cached = tryGetPageAccess(address, accessType);
+            if (cached != null) {
+                return cached;
             } else {
                 final long physicalAddress = getPhysicalAddress(address, accessType, true);
                 final MappedMemoryRange range = physicalMemory.getMemoryRange(physicalAddress);
@@ -3567,26 +3556,23 @@ public abstract class R5CPUBase implements R5CPU {
                     throw getPageFaultException(accessType, address);
                 }
 
-                // We return a fake TLB entry to avoid modifying the TLB
-                return updateTLBEntry(new TLBEntry(), address, tagFor(accessType), physicalAddress, range);
+                // Resolved directly, to avoid modifying the TLB.
+                return new PageAccess(range.device, physicalAddress - address - range.start);
             }
         }
 
         @Nullable
-        private TLBEntry tryGetTLBEntry(final long address, final MemoryAccessType accessType) {
-            final TLBEntry[] tlb = switch (accessType) {
-                case LOAD -> loadTLB;
-                case STORE -> storeTLB;
-                case FETCH -> fetchTLB;
-            };
-            final int index = (int) ((address >>> R5.PAGE_ADDRESS_SHIFT) & (TLB_SIZE - 1));
+        private PageAccess tryGetPageAccess(final long address, final MemoryAccessType accessType) {
+            final int index = tlbIndex(address);
             final long hash = (address & ~R5.PAGE_ADDRESS_MASK) | tagFor(accessType);
-            final TLBEntry entry = tlb[index];
-            if (entry.hash == hash) {
-                return entry;
-            } else {
-                return null;
-            }
+            return switch (accessType) {
+                case LOAD -> loadTLBHash[index] == hash
+                    ? new PageAccess(loadTLBDevice[index], loadTLBToOffset[index]) : null;
+                case STORE -> storeTLBHash[index] == hash
+                    ? new PageAccess(storeTLBDevice[index], storeTLBToOffset[index]) : null;
+                case FETCH -> fetchTLBHash[index] == hash
+                    ? new PageAccess(fetchTLBDevice[index], fetchTLBToOffset[index]) : null;
+            };
         }
 
         private long tagFor(final MemoryAccessType accessType) {
