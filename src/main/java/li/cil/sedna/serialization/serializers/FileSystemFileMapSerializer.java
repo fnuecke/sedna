@@ -5,8 +5,8 @@ import li.cil.ceres.api.DeserializationVisitor;
 import li.cil.ceres.api.SerializationException;
 import li.cil.ceres.api.SerializationVisitor;
 import li.cil.ceres.api.Serializer;
-import li.cil.sedna.device.virtio.VirtIOFileSystemDevice.FileSystemFile;
-import li.cil.sedna.device.virtio.VirtIOFileSystemDevice.FileSystemFileMap;
+import li.cil.sedna.p9.FileSystemFile;
+import li.cil.sedna.p9.FileSystemFileMap;
 
 import javax.annotation.Nullable;
 

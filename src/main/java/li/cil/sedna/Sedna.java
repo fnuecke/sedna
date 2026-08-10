@@ -12,7 +12,7 @@ import li.cil.sedna.device.rtc.GoldfishRTC;
 import li.cil.sedna.device.serial.UART16550A;
 import li.cil.sedna.device.syscon.AbstractSystemController;
 import li.cil.sedna.device.virtio.AbstractVirtIODevice;
-import li.cil.sedna.device.virtio.VirtIOFileSystemDevice;
+import li.cil.sedna.p9.FileSystemFileMap;
 import li.cil.sedna.devicetree.DeviceTreeRegistry;
 import li.cil.sedna.devicetree.provider.*;
 import li.cil.sedna.riscv.R5CPU;
@@ -40,7 +40,7 @@ public final class Sedna {
 
         Ceres.putSerializer(BitSet.class, new BitSetSerializer());
         Ceres.putSerializer(ByteArrayFIFOQueue.class, new ByteArrayFIFOQueueSerializer());
-        Ceres.putSerializer(VirtIOFileSystemDevice.FileSystemFileMap.class, new FileSystemFileMapSerializer());
+        Ceres.putSerializer(FileSystemFileMap.class, new FileSystemFileMapSerializer());
         Ceres.putSerializer(Int2LongArrayMap.class, new Int2LongArrayMapSerializer());
         Ceres.putSerializer(R5CPU.class, new R5CPUSerializer());
         Ceres.putSerializer(SparseBlockDevice.SparseBlockMap.class, new SparseBlockMapSerializer());
