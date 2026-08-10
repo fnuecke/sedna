@@ -1,19 +1,15 @@
 package li.cil.sedna.riscv;
 
-import li.cil.sedna.api.Sizes;
-import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.device.memory.Memory;
-import li.cil.sedna.memory.SimpleMemoryMap;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.time.Duration;
 
 import static li.cil.sedna.riscv.R5Assembler.*;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public final class StepTests {
-    private static final long PHYSICAL_MEMORY_START = 0x80000000L;
-
     /**
      * Traces are bounded by the page they start in, so a page of straight-line code is the longest
      * a single trace can get, and therefore the largest overshoot a single step can produce.
@@ -22,23 +18,16 @@ public final class StepTests {
 
     private static final int CYCLES_PER_STEP = 100;
     private static final int STEP_COUNT = 100;
-    private static final int PHYSICAL_MEMORY_LENGTH = 1024 * 1024;
+    private static final int RAM_SIZE = 1024 * 1024;
 
-    private MemoryMap memoryMap;
+    private Vm vm;
     private R5CPU cpu;
 
     @BeforeEach
-    public void setUp() throws MemoryAccessException {
-        memoryMap = new SimpleMemoryMap();
-        memoryMap.addDevice(PHYSICAL_MEMORY_START, Memory.create(PHYSICAL_MEMORY_LENGTH));
-
-        for (int offset = 0; offset < PHYSICAL_MEMORY_LENGTH; offset += 4) {
-            memoryMap.store(PHYSICAL_MEMORY_START + offset, NOP, Sizes.SIZE_32_LOG2);
-        }
-
-        cpu = R5CPU.create(memoryMap);
-        cpu.reset(true, PHYSICAL_MEMORY_START);
-        cpu.setXLEN(R5.XLEN_64);
+    public void setUp() {
+        vm = Vm.create(RAM_SIZE);
+        vm.fill(Vm.RAM_START, RAM_SIZE, NOP);
+        cpu = vm.cpu();
     }
 
     @Test
@@ -74,16 +63,15 @@ public final class StepTests {
     }
 
     @Test
-    public void tightGuestLoopRespectsTheCycleBudget() throws MemoryAccessException {
+    public void tightGuestLoopRespectsTheCycleBudget() {
         // An infinite two-instruction loop.
-        final long loop = PHYSICAL_MEMORY_START + 0x1000;
-        memoryMap.store(loop, addi(5, 5, 1), Sizes.SIZE_32_LOG2);
-        memoryMap.store(loop + 4, bne(5, 0, -4), Sizes.SIZE_32_LOG2);
+        final long loop = Vm.RAM_START + 0x1000;
+        vm.write(loop, addi(5, 5, 1), bne(5, 0, -4));
         cpu.reset(true, loop);
         cpu.setXLEN(R5.XLEN_64);
 
         final long start = cpu.getTime();
-        org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(java.time.Duration.ofSeconds(5),
+        Assertions.assertTimeoutPreemptively(Duration.ofSeconds(5),
             () -> cpu.step(CYCLES_PER_STEP),
             "the in-trace cycle budget check must bound guest loops");
         final long executed = cpu.getTime() - start;

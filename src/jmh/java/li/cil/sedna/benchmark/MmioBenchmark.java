@@ -65,7 +65,7 @@ public class MmioBenchmark {
             vm.addDevice(DEVICE_ADDRESS, new NullDevice());
             address = DEVICE_ADDRESS;
         } else {
-            address = align(codeStart + CODE_SIZE, Vm.PAGE_SIZE);
+            address = Vm.align(codeStart + CODE_SIZE, Vm.PAGE_SIZE);
         }
 
         // Repeatedly load from the same address, so RAM is a guaranteed TLB hit and any difference
@@ -88,7 +88,4 @@ public class MmioBenchmark {
         return cpu.getInstructionsRetired();
     }
 
-    private static long align(final long value, final long alignment) {
-        return (value + alignment - 1) / alignment * alignment;
-    }
 }

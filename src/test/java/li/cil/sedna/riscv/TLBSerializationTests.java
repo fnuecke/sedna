@@ -2,11 +2,6 @@ package li.cil.sedna.riscv;
 
 import li.cil.ceres.BinarySerialization;
 import li.cil.sedna.Sedna;
-import li.cil.sedna.api.Sizes;
-import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.device.memory.Memory;
-import li.cil.sedna.memory.SimpleMemoryMap;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,18 +12,17 @@ import static li.cil.sedna.riscv.R5Assembler.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public final class TLBSerializationTests {
-    private static final long PHYSICAL_MEMORY_START = 0x80000000L;
-    private static final int PHYSICAL_MEMORY_LENGTH = 8 * 1024 * 1024;
+    private static final int RAM_SIZE = 8 * 1024 * 1024;
 
-    private static final long PROGRAM = PHYSICAL_MEMORY_START;
+    private static final long PROGRAM = Vm.RAM_START;
 
-    private static final long ROOT_TABLE_A = PHYSICAL_MEMORY_START + 0x1000;
-    private static final long LEVEL1_TABLE_A = PHYSICAL_MEMORY_START + 0x2000;
-    private static final long ROOT_TABLE_B = PHYSICAL_MEMORY_START + 0x3000;
-    private static final long LEVEL1_TABLE_B = PHYSICAL_MEMORY_START + 0x4000;
+    private static final long ROOT_TABLE_A = Vm.RAM_START + 0x1000;
+    private static final long LEVEL1_TABLE_A = Vm.RAM_START + 0x2000;
+    private static final long ROOT_TABLE_B = Vm.RAM_START + 0x3000;
+    private static final long LEVEL1_TABLE_B = Vm.RAM_START + 0x4000;
 
-    private static final long TARGET_A = PHYSICAL_MEMORY_START + 0x200000;
-    private static final long TARGET_B = PHYSICAL_MEMORY_START + 0x400000;
+    private static final long TARGET_A = Vm.RAM_START + 0x200000;
+    private static final long TARGET_B = Vm.RAM_START + 0x400000;
 
     private static final long VIRTUAL_ADDRESS = 0x1000;
 
@@ -38,7 +32,7 @@ public final class TLBSerializationTests {
     private static final long MSTATUS_TRANSLATE_DATA_AS_SUPERVISOR =
         R5.STATUS_MPRV_MASK | ((long) R5.PRIVILEGE_S << R5.STATUS_MPP_SHIFT);
 
-    private MemoryMap memoryMap;
+    private Vm vm;
 
     @BeforeAll
     public static void setupSedna() {
@@ -46,22 +40,22 @@ public final class TLBSerializationTests {
     }
 
     @BeforeEach
-    public void setUp() throws MemoryAccessException {
-        memoryMap = new SimpleMemoryMap();
-        memoryMap.addDevice(PHYSICAL_MEMORY_START, Memory.create(PHYSICAL_MEMORY_LENGTH));
+    public void setUp() {
+        vm = Vm.create(RAM_SIZE);
 
         // csrrw x0, satp, x1     ; switch address space to the one described by x1
         // csrrs x0, mstatus, x2  ; translate data accesses as supervisor
         // ld    x4, 0(x3)        ; x4 = *x3, translated
-        memoryMap.store(PROGRAM, csrrw(0, R5CSR.SATP, 1), Sizes.SIZE_32_LOG2);
-        memoryMap.store(PROGRAM + 4, csrrs(0, R5CSR.MSTATUS, 2), Sizes.SIZE_32_LOG2);
-        memoryMap.store(PROGRAM + 8, ld(4, 3, 0), Sizes.SIZE_32_LOG2);
+        vm.write(PROGRAM,
+            csrrw(0, R5CSR.SATP, 1),
+            csrrs(0, R5CSR.MSTATUS, 2),
+            ld(4, 3, 0));
 
         mapMegapage(ROOT_TABLE_A, LEVEL1_TABLE_A, TARGET_A);
         mapMegapage(ROOT_TABLE_B, LEVEL1_TABLE_B, TARGET_B);
 
-        memoryMap.store(TARGET_A + VIRTUAL_ADDRESS, MARKER_A, Sizes.SIZE_64_LOG2);
-        memoryMap.store(TARGET_B + VIRTUAL_ADDRESS, MARKER_B, Sizes.SIZE_64_LOG2);
+        vm.store64(TARGET_A + VIRTUAL_ADDRESS, MARKER_A);
+        vm.store64(TARGET_B + VIRTUAL_ADDRESS, MARKER_B);
     }
 
     @Test
@@ -89,15 +83,12 @@ public final class TLBSerializationTests {
     }
 
     private R5CPU newCPU() {
-        final R5CPU cpu = R5CPU.create(memoryMap);
-        cpu.reset(true, PROGRAM);
-        cpu.setXLEN(R5.XLEN_64);
-        return cpu;
+        return Vm.createCPU(vm.memoryMap(), PROGRAM);
     }
 
     private static long loadThroughAddressSpace(final R5CPU cpu, final long rootTable) {
         final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
-        registers[1] = R5.SATP_MODE_SV39 | (rootTable >>> R5.PAGE_ADDRESS_SHIFT);
+        registers[1] = Vm.satpSv39(rootTable);
         registers[2] = MSTATUS_TRANSLATE_DATA_AS_SUPERVISOR;
         registers[3] = VIRTUAL_ADDRESS;
         registers[4] = 0;
@@ -121,17 +112,8 @@ public final class TLBSerializationTests {
         return registers[4];
     }
 
-    private void mapMegapage(final long rootTable, final long level1Table, final long target) throws MemoryAccessException {
-        memoryMap.store(rootTable, pointerPTE(level1Table), Sizes.SIZE_64_LOG2);
-        memoryMap.store(level1Table, leafPTE(target), Sizes.SIZE_64_LOG2);
-    }
-
-    private static long pointerPTE(final long tableAddress) {
-        return ((tableAddress >>> R5.PAGE_ADDRESS_SHIFT) << R5.PTE_DATA_BITS) | R5.PTE_V_MASK;
-    }
-
-    private static long leafPTE(final long physicalAddress) {
-        return ((physicalAddress >>> R5.PAGE_ADDRESS_SHIFT) << R5.PTE_DATA_BITS)
-            | R5.PTE_V_MASK | R5.PTE_R_MASK | R5.PTE_W_MASK | R5.PTE_A_MASK | R5.PTE_D_MASK;
+    private void mapMegapage(final long rootTable, final long level1Table, final long target) {
+        vm.store64(rootTable, Vm.pointerPTE(level1Table));
+        vm.store64(level1Table, Vm.leafPTE(target, Vm.PTE_DATA));
     }
 }

@@ -23,6 +23,9 @@ public final class Vm {
 
     private static final int SPARE_TABLE_PAGES = 16;
 
+    /** Where in its page a pointer chain node sits. Anywhere but zero, so offsets are exercised. */
+    private static final int NODE_OFFSET = 64;
+
     private final MemoryMap memoryMap;
     private final R5CPU cpu;
     private final int ramSize;
@@ -232,5 +235,33 @@ public final class Vm {
 
     private static int ceilDiv(final int value, final int divisor) {
         return (value + divisor - 1) / divisor;
+    }
+
+    ///////////////////////////////////////////////////////////////////
+
+    /**
+     * Links one node per page into a single cycle, visiting the pages in a strided order so that
+     * consecutive accesses are never to adjacent pages.
+     *
+     * @return the address of the node to start from.
+     */
+    public long buildPointerChain(final long start, final int nodeCount) {
+        final int stride = Math.max(1, nodeCount / 3) | 1;
+
+        long current = start + NODE_OFFSET;
+        int index = 0;
+        for (int i = 0; i < nodeCount; i++) {
+            final int next = (index + stride) % nodeCount;
+            final long nextAddress = start + (long) next * PAGE_SIZE + NODE_OFFSET;
+            store64(current, nextAddress);
+            current = nextAddress;
+            index = next;
+        }
+
+        return start + NODE_OFFSET;
+    }
+
+    public static long align(final long value, final long alignment) {
+        return (value + alignment - 1) / alignment * alignment;
     }
 }

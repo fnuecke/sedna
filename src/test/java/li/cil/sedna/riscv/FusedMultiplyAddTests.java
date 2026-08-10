@@ -1,10 +1,5 @@
 package li.cil.sedna.riscv;
 
-import li.cil.sedna.api.Sizes;
-import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.device.memory.Memory;
-import li.cil.sedna.memory.SimpleMemoryMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -12,8 +7,7 @@ import static li.cil.sedna.riscv.R5Assembler.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public final class FusedMultiplyAddTests {
-    private static final long PHYSICAL_MEMORY_START = 0x80000000L;
-    private static final int PHYSICAL_MEMORY_LENGTH = 4 * 1024;
+    private static final int RAM_SIZE = 4 * 1024;
 
     private static final long ONE = 0x3ff0000000000000L;
     private static final long ONE_EPS = 0x3c30000000000000L; // 2^-60
@@ -22,22 +16,12 @@ public final class FusedMultiplyAddTests {
     private static final long FOUR = 0x4010000000000000L;
     private static final long SIGN = 0x8000000000000000L;
 
-    private MemoryMap memoryMap;
-    private R5CPU cpu;
+    private Vm vm;
 
     @BeforeEach
     public void setUp() {
-        memoryMap = new SimpleMemoryMap();
-        memoryMap.addDevice(PHYSICAL_MEMORY_START, Memory.create(PHYSICAL_MEMORY_LENGTH));
-
-        cpu = R5CPU.create(memoryMap);
-        cpu.reset(true, PHYSICAL_MEMORY_START);
-        cpu.setXLEN(R5.XLEN_64);
-
-        // csrrs x0, mstatus, x1 with x1 selecting FS=Initial.
-        final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
-        registers[1] = (long) R5.FS_INITIAL << R5.STATUS_FS_SHIFT;
-        execute(csrrs(0, R5CSR.MSTATUS, 1));
+        vm = Vm.create(RAM_SIZE);
+        vm.setCSRBits(R5CSR.MSTATUS, (long) R5.FS_INITIAL << R5.STATUS_FS_SHIFT);
     }
 
     @Test
@@ -80,30 +64,19 @@ public final class FusedMultiplyAddTests {
     }
 
     private long run(final int instruction, final long a, final long b, final long c) {
-        final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
+        final long[] registers = vm.registers();
 
         registers[1] = a;
-        execute(fmvDX(0, 1));
+        vm.execute(fmvDX(0, 1));
         registers[1] = b;
-        execute(fmvDX(1, 1));
+        vm.execute(fmvDX(1, 1));
         registers[1] = c;
-        execute(fmvDX(2, 1));
+        vm.execute(fmvDX(2, 1));
 
-        execute(instruction);
+        vm.execute(instruction);
 
         registers[4] = 0;
-        execute(fmvXD(4, 3));
+        vm.execute(fmvXD(4, 3));
         return registers[4];
-    }
-
-    private void execute(final int instruction) {
-        try {
-            memoryMap.store(PHYSICAL_MEMORY_START, instruction, Sizes.SIZE_32_LOG2);
-        } catch (final MemoryAccessException e) {
-            throw new AssertionError(e);
-        }
-
-        cpu.getDebugInterface().setProgramCounter(PHYSICAL_MEMORY_START);
-        cpu.getDebugInterface().step();
     }
 }

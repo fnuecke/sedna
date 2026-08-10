@@ -19,8 +19,6 @@ public class ContextSwitchBenchmark {
 
     private static final int WORKING_SET_PAGES = 128;
 
-    private static final int NODE_OFFSET = 64;
-
     @Param({"syscall", "loads_only"})
     public String workload;
 
@@ -36,9 +34,9 @@ public class ContextSwitchBenchmark {
 
         final long handler = vm.usableStart();
         codeStart = handler + Vm.PAGE_SIZE;
-        final long dataStart = align(codeStart + CODE_SIZE, Vm.PAGE_SIZE);
+        final long dataStart = Vm.align(codeStart + CODE_SIZE, Vm.PAGE_SIZE);
 
-        chainHead = buildPointerChain(dataStart);
+        chainHead = vm.buildPointerChain(dataStart, WORKING_SET_PAGES);
 
         // Machine mode trap handler: step the saved program counter past the ecall and return. This
         // is the smallest thing that behaves like a system call return.
@@ -62,22 +60,6 @@ public class ContextSwitchBenchmark {
         vm.enterSupervisor(codeStart);
     }
 
-    /** One node per page, linked in a strided order so consecutive loads land on different pages. */
-    private long buildPointerChain(final long start) {
-        final int stride = Math.max(1, WORKING_SET_PAGES / 3) | 1;
-
-        long current = start + NODE_OFFSET;
-        int index = 0;
-        for (int i = 0; i < WORKING_SET_PAGES; i++) {
-            final int next = (index + stride) % WORKING_SET_PAGES;
-            final long nextAddress = start + (long) next * Vm.PAGE_SIZE + NODE_OFFSET;
-            vm.store64(current, nextAddress);
-            current = nextAddress;
-            index = next;
-        }
-
-        return start + NODE_OFFSET;
-    }
 
     @Benchmark
     public long run() {
@@ -91,7 +73,4 @@ public class ContextSwitchBenchmark {
         return cpu.getInstructionsRetired();
     }
 
-    private static long align(final long value, final long alignment) {
-        return (value + alignment - 1) / alignment * alignment;
-    }
 }

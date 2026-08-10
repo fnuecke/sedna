@@ -1,10 +1,5 @@
 package li.cil.sedna.riscv;
 
-import li.cil.sedna.api.Sizes;
-import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.device.memory.Memory;
-import li.cil.sedna.memory.SimpleMemoryMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -13,28 +8,20 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 public final class FloatingPointStatusTests {
-    private static final long PHYSICAL_MEMORY_START = 0x80000000L;
-    private static final int PHYSICAL_MEMORY_LENGTH = 4 * 1024;
+    private static final int RAM_SIZE = 4 * 1024;
 
-    private static final long TRAP_VECTOR = PHYSICAL_MEMORY_START + 0x800;
+    private static final long TRAP_VECTOR = Vm.RAM_START + 0x800;
 
     private static final int ADDRESS_REGISTER = 5;
-    private static final long DATA_ADDRESS = PHYSICAL_MEMORY_START + 0x100;
+    private static final long DATA_ADDRESS = Vm.RAM_START + 0x100;
 
-    private MemoryMap memoryMap;
-    private R5CPU cpu;
+    private Vm vm;
 
     @BeforeEach
-    public void setUp() throws MemoryAccessException {
-        memoryMap = new SimpleMemoryMap();
-        memoryMap.addDevice(PHYSICAL_MEMORY_START, Memory.create(PHYSICAL_MEMORY_LENGTH));
-
-        cpu = R5CPU.create(memoryMap);
-        cpu.reset(true, PHYSICAL_MEMORY_START);
-        cpu.setXLEN(R5.XLEN_64);
-
-        setMTVEC(TRAP_VECTOR);
-        cpu.getDebugInterface().getGeneralRegisters()[ADDRESS_REGISTER] = DATA_ADDRESS;
+    public void setUp() {
+        vm = Vm.create(RAM_SIZE);
+        vm.writeCSR(R5CSR.MTVEC, TRAP_VECTOR);
+        vm.registers()[ADDRESS_REGISTER] = DATA_ADDRESS;
     }
 
     @Test
@@ -98,7 +85,7 @@ public final class FloatingPointStatusTests {
         enableFPU();
         assertCompleted(FADD_D);
 
-        assertEquals(R5.FS_DIRTY, (readMSTATUS() & R5.STATUS_FS_MASK) >> R5.STATUS_FS_SHIFT);
+        assertEquals(R5.FS_DIRTY, floatingPointState());
     }
 
     @Test
@@ -111,56 +98,29 @@ public final class FloatingPointStatusTests {
 
     private void assertMarksStateDirty(final int instruction) {
         // Reset FS to Initial via a full mstatus write; csrrs cannot lower a Dirty FS.
-        final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
-        registers[1] = (long) R5.FS_INITIAL << R5.STATUS_FS_SHIFT;
-        execute(csrrw(0, R5CSR.MSTATUS, 1));
+        vm.writeCSR(R5CSR.MSTATUS, (long) R5.FS_INITIAL << R5.STATUS_FS_SHIFT);
 
         assertCompleted(instruction);
-        assertEquals(R5.FS_DIRTY, (readMSTATUS() & R5.STATUS_FS_MASK) >> R5.STATUS_FS_SHIFT,
+        assertEquals(R5.FS_DIRTY, floatingPointState(),
             String.format("expected instruction %08x to mark floating point state dirty", instruction));
     }
 
     private void enableFPU() {
-        // csrrs x0, mstatus, x1 with x1 selecting FS=Initial.
-        final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
-        registers[1] = (long) R5.FS_INITIAL << R5.STATUS_FS_SHIFT;
-        execute(csrrs(0, R5CSR.MSTATUS, 1));
-
-        assertNotEquals(R5.FS_OFF, (readMSTATUS() & R5.STATUS_FS_MASK) >> R5.STATUS_FS_SHIFT);
+        vm.setCSRBits(R5CSR.MSTATUS, (long) R5.FS_INITIAL << R5.STATUS_FS_SHIFT);
+        assertNotEquals(R5.FS_OFF, floatingPointState());
     }
 
-    private void setMTVEC(final long value) {
-        final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
-        registers[1] = value;
-        execute(csrrw(0, R5CSR.MTVEC, 1));
-    }
-
-    private long readMSTATUS() {
-        final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
-        registers[2] = 0;
-        execute(csrrs(2, R5CSR.MSTATUS, 0));
-        return registers[2];
-    }
-
-    private long execute(final int instruction) {
-        try {
-            memoryMap.store(PHYSICAL_MEMORY_START, instruction, Sizes.SIZE_32_LOG2);
-        } catch (final MemoryAccessException e) {
-            throw new AssertionError(e);
-        }
-
-        cpu.getDebugInterface().setProgramCounter(PHYSICAL_MEMORY_START);
-        cpu.getDebugInterface().step();
-        return cpu.getDebugInterface().getProgramCounter();
+    private long floatingPointState() {
+        return (vm.readCSR(R5CSR.MSTATUS) & R5.STATUS_FS_MASK) >> R5.STATUS_FS_SHIFT;
     }
 
     private void assertTrapped(final int instruction) {
-        assertEquals(TRAP_VECTOR, execute(instruction),
+        assertEquals(TRAP_VECTOR, vm.execute(instruction),
             String.format("expected instruction %08x to trap while mstatus.FS is Off", instruction));
     }
 
     private void assertCompleted(final int instruction) {
-        assertEquals(PHYSICAL_MEMORY_START + 4, execute(instruction),
+        assertEquals(Vm.RAM_START + 4, vm.execute(instruction),
             String.format("expected instruction %08x to complete while mstatus.FS is on", instruction));
     }
 
