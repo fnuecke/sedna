@@ -34,6 +34,9 @@ public final class ByteBufferInputStream extends InputStream {
 
     @Override
     public long skip(final long n) throws IOException {
+        if (n <= 0) {
+            return 0;
+        }
         final int newPosition = (int) Math.min(buffer.position() + n, buffer.limit());
         final int skipped = newPosition - buffer.position();
         buffer.position(newPosition);
