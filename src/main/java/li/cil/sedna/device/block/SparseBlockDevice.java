@@ -108,7 +108,9 @@ public final class SparseBlockDevice implements BlockDevice {
                 readValue = lowerStream.read();
             }
 
-            offset++;
+            if (readValue >= 0) {
+                offset++;
+            }
             return readValue;
         }
 
