@@ -70,8 +70,8 @@ public final class SparseBlockDevice implements BlockDevice {
         return (int) (offset / blockSize);
     }
 
-    private int blockIndexToOffset(final int index) {
-        return index * blockSize;
+    private long blockIndexToOffset(final int index) {
+        return (long) index * blockSize;
     }
 
     public static final class SparseBlockMap extends Int2ObjectArrayMap<byte[]> {
@@ -100,7 +100,7 @@ public final class SparseBlockDevice implements BlockDevice {
             final int blockIndex = offsetToBlockIndex(offset);
             final byte[] block = blocks.get(blockIndex);
             if (block != null) {
-                final int startOffset = blockIndexToOffset(blockIndex);
+                final long startOffset = blockIndexToOffset(blockIndex);
                 final int localOffset = (int) (offset - startOffset);
                 if (lowerStream.skip(1) != 1) throw new IOException();
                 readValue = block[localOffset];
@@ -123,7 +123,7 @@ public final class SparseBlockDevice implements BlockDevice {
             final int blockIndex = offsetToBlockIndex(offset);
             final byte[] block = blocks.get(blockIndex);
             if (block != null) {
-                final int startOffset = blockIndexToOffset(blockIndex);
+                final long startOffset = blockIndexToOffset(blockIndex);
                 final int localOffset = (int) (offset - startOffset);
                 final int blockCount = blockSize - localOffset;
                 readBytes = (int) lowerStream.skip(Math.min(blockCount, len));
@@ -143,7 +143,7 @@ public final class SparseBlockDevice implements BlockDevice {
 
         @Override
         public int available() throws IOException {
-            return (int) (getCapacity() - offset);
+            return (int) Math.min(Integer.MAX_VALUE, getCapacity() - offset);
         }
     }
 
@@ -163,7 +163,7 @@ public final class SparseBlockDevice implements BlockDevice {
             final int blockIndex = offsetToBlockIndex(offset);
             final byte[] block = getShadowBlock(blockIndex);
 
-            final int startOffset = blockIndexToOffset(blockIndex);
+            final long startOffset = blockIndexToOffset(blockIndex);
             final int localOffset = (int) (offset - startOffset);
 
             block[localOffset] = (byte) b;
@@ -179,7 +179,7 @@ public final class SparseBlockDevice implements BlockDevice {
             final int blockIndex = offsetToBlockIndex(offset);
             final byte[] block = getShadowBlock(blockIndex);
 
-            final int startOffset = blockIndexToOffset(blockIndex);
+            final long startOffset = blockIndexToOffset(blockIndex);
             final int localOffset = (int) (offset - startOffset);
             final int writtenBytes = Math.min(len, blockSize - localOffset);
 
@@ -199,7 +199,7 @@ public final class SparseBlockDevice implements BlockDevice {
 
             block = new byte[blockSize];
 
-            final int startOffset = blockIndexToOffset(blockIndex);
+            final long startOffset = blockIndexToOffset(blockIndex);
             final InputStream stream = lower.getInputStream(startOffset);
             int initOffset = 0, initCount = blockSize;
             while (initCount > 0) {
