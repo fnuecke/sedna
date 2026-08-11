@@ -2,8 +2,10 @@ package li.cil.sedna.benchmark;
 
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.MemoryMappedDevice;
+import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
+import li.cil.sedna.device.memory.ByteBufferMemory;
 import li.cil.sedna.device.memory.Memory;
 import li.cil.sedna.memory.SimpleMemoryMap;
 import li.cil.sedna.riscv.R5;
@@ -11,7 +13,17 @@ import li.cil.sedna.riscv.R5Assembler;
 import li.cil.sedna.riscv.R5CPU;
 import li.cil.sedna.riscv.R5CSR;
 
-public final class Vm {
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.List;
+
+public final class Vm implements AutoCloseable {
     public static final long RAM_START = 0x80000000L;
     public static final int PAGE_SIZE = 1 << R5.PAGE_ADDRESS_SHIFT;
 
@@ -30,6 +42,9 @@ public final class Vm {
     private final R5CPU cpu;
     private final int ramSize;
 
+    private final List<PhysicalMemory> ramDevices = new ArrayList<>();
+    private final List<Path> tempFiles = new ArrayList<>();
+
     private final long tableRegionStart;
     private final long tableRegionEnd;
     private long nextFreeTable;
@@ -37,11 +52,19 @@ public final class Vm {
     private long rootTable;
     private final long usableStart;
 
-    private Vm(final int ramSize, final boolean paged) {
+    private Vm(final int ramSize, final boolean paged, final String backend, final int ramDeviceCount) {
         this.ramSize = ramSize;
 
         memoryMap = new SimpleMemoryMap();
-        memoryMap.addDevice(RAM_START, Memory.create(ramSize));
+        final int chunkSize = ramSize / ramDeviceCount;
+        if (chunkSize * ramDeviceCount != ramSize || (chunkSize & (PAGE_SIZE - 1)) != 0) {
+            throw new IllegalArgumentException("RAM must split into page-aligned chunks");
+        }
+        for (int i = 0; i < ramDeviceCount; i++) {
+            final PhysicalMemory ram = createMemory(backend, chunkSize);
+            ramDevices.add(ram);
+            memoryMap.addDevice(RAM_START + (long) i * chunkSize, ram);
+        }
 
         cpu = R5CPU.create(memoryMap);
         cpu.reset(true, RAM_START);
@@ -56,16 +79,67 @@ public final class Vm {
     }
 
     public static Vm bare(final int ramSize) {
-        return new Vm(ramSize, false);
+        return bare(ramSize, "unsafe");
+    }
+
+    public static Vm bare(final int ramSize, final String backend) {
+        return new Vm(ramSize, false, backend, 1);
     }
 
     public static Vm paged(final int ramSize) {
-        final Vm vm = new Vm(ramSize, true);
+        return paged(ramSize, "unsafe");
+    }
+
+    public static Vm paged(final int ramSize, final String backend) {
+        return paged(ramSize, backend, 1);
+    }
+
+    public static Vm paged(final int ramSize, final String backend, final int ramDeviceCount) {
+        final Vm vm = new Vm(ramSize, true, backend, ramDeviceCount);
         vm.rootTable = vm.allocateTable();
         for (long page = RAM_START; page < vm.ramEnd(); page += PAGE_SIZE) {
             vm.mapPage(page);
         }
         return vm;
+    }
+
+    private PhysicalMemory createMemory(final String backend, final int size) {
+        switch (backend) {
+            case "unsafe":
+                return Memory.create(size);
+            case "bytebuffer":
+                return new ByteBufferMemory(size);
+            case "mapped":
+                try {
+                    final Path file = Files.createTempFile("sedna-jmh-ram", ".bin");
+                    tempFiles.add(file);
+                    try (final FileChannel channel = FileChannel.open(file,
+                        StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+                        final MappedByteBuffer buffer = channel.map(FileChannel.MapMode.READ_WRITE, 0, size);
+                        return new ByteBufferMemory(size, buffer);
+                    }
+                } catch (final IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            default:
+                throw new IllegalArgumentException("Unknown memory backend: " + backend);
+        }
+    }
+
+    @Override
+    public void close() {
+        for (final PhysicalMemory ram : ramDevices) {
+            try {
+                ram.close();
+            } catch (final Exception ignored) {
+            }
+        }
+        for (final Path file : tempFiles) {
+            try {
+                Files.deleteIfExists(file);
+            } catch (final IOException ignored) {
+            }
+        }
     }
 
     private static int identityMappingTablePages(final int ramSize) {
@@ -110,6 +184,22 @@ public final class Vm {
     public void fill(final long address, final int lengthInBytes, final int instruction) {
         for (int offset = 0; offset < lengthInBytes; offset += 4) {
             store(address + offset, instruction, Sizes.SIZE_32_LOG2);
+        }
+    }
+
+    public void fillPattern(final long address, final int lengthInBytes, final int... instructions) {
+        final int patternBytes = instructions.length * 4;
+        for (int offset = 0; offset + patternBytes <= lengthInBytes; offset += patternBytes) {
+            for (int i = 0; i < instructions.length; i++) {
+                store(address + offset + i * 4L, instructions[i], Sizes.SIZE_32_LOG2);
+            }
+        }
+    }
+
+    /** Fills with a 16 bit (compressed) instruction. */
+    public void fillCompressed(final long address, final int lengthInBytes, final int instruction) {
+        for (int offset = 0; offset < lengthInBytes; offset += 2) {
+            store(address + offset, instruction, Sizes.SIZE_16_LOG2);
         }
     }
 

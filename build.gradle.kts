@@ -102,7 +102,8 @@ jmh {
     warmupForks = 0
     resultFormat = "TEXT"
     includeTests = false
-    jvmArgs = listOf("-XX:MaxDirectMemorySize=4g")
+    jvmArgs = listOf("-XX:MaxDirectMemorySize=4g") +
+        ((project.findProperty("jmh.images") as String?)?.let { listOf("-Dsedna.benchmark.images=$it") } ?: emptyList())
 }
 
 configurations.matching { it.name.startsWith("jmh") }.configureEach {

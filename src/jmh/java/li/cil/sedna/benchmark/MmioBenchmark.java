@@ -1,7 +1,5 @@
 package li.cil.sedna.benchmark;
 
-import li.cil.sedna.api.Sizes;
-import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.riscv.R5Assembler;
 import li.cil.sedna.riscv.R5CPU;
 import org.openjdk.jmh.annotations.*;
@@ -30,28 +28,6 @@ public class MmioBenchmark {
     private R5CPU cpu;
     private long codeStart;
     private long address;
-
-    /** A device that does nothing, so the measurement is the access path rather than the device. */
-    private static final class NullDevice implements MemoryMappedDevice {
-        @Override
-        public int getLength() {
-            return Vm.PAGE_SIZE;
-        }
-
-        @Override
-        public int getSupportedSizes() {
-            return (1 << Sizes.SIZE_32_LOG2) | (1 << Sizes.SIZE_64_LOG2);
-        }
-
-        @Override
-        public long load(final int offset, final int sizeLog2) {
-            return 0;
-        }
-
-        @Override
-        public void store(final int offset, final long value, final int sizeLog2) {
-        }
-    }
 
     @Setup(Level.Trial)
     public void setUp() {

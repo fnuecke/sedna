@@ -14,6 +14,7 @@ public final class R5Assembler {
     private static final int OP_IMM_32 = 0b0011011;
     private static final int STORE = 0b0100011;
     private static final int STORE_FP = 0b0100111;
+    private static final int AMO = 0b0101111;
     private static final int OP = 0b0110011;
     private static final int LUI = 0b0110111;
     private static final int OP_32 = 0b0111011;
@@ -317,6 +318,41 @@ public final class R5Assembler {
     }
 
     ///////////////////////////////////////////////////////////////////
+    // A extension
+
+    public static int lrW(final int rd, final int rs1) {
+        return amoType(0b00010, 0, rs1, 0b010, rd);
+    }
+
+    public static int scW(final int rd, final int rs1, final int rs2) {
+        return amoType(0b00011, rs2, rs1, 0b010, rd);
+    }
+
+    public static int amoswapW(final int rd, final int rs1, final int rs2) {
+        return amoType(0b00001, rs2, rs1, 0b010, rd);
+    }
+
+    public static int amoaddW(final int rd, final int rs1, final int rs2) {
+        return amoType(0b00000, rs2, rs1, 0b010, rd);
+    }
+
+    public static int lrD(final int rd, final int rs1) {
+        return amoType(0b00010, 0, rs1, 0b011, rd);
+    }
+
+    public static int scD(final int rd, final int rs1, final int rs2) {
+        return amoType(0b00011, rs2, rs1, 0b011, rd);
+    }
+
+    public static int amoswapD(final int rd, final int rs1, final int rs2) {
+        return amoType(0b00001, rs2, rs1, 0b011, rd);
+    }
+
+    public static int amoaddD(final int rd, final int rs1, final int rs2) {
+        return amoType(0b00000, rs2, rs1, 0b011, rd);
+    }
+
+    ///////////////////////////////////////////////////////////////////
     // F and D extensions: loads and stores
 
     public static int flw(final int rd, final int rs1, final int offset) {
@@ -537,10 +573,31 @@ public final class R5Assembler {
     }
 
     ///////////////////////////////////////////////////////////////////
+    // C extension. These return 16 bit encodings in the low half of the int.
+
+    public static final int C_NOP = 0x0001;
+
+    public static int cAddi(final int rd, final int imm) {
+        if (imm == 0) {
+            throw new IllegalArgumentException("c.addi requires a non-zero immediate");
+        }
+        final int nzimm = checkSigned(imm, 6, "imm");
+        return (((nzimm >> 5) & 0b1) << 12) | (regNonZero(rd) << 7) | ((nzimm & 0b1_1111) << 2) | 0b01;
+    }
+
+    public static int cMv(final int rd, final int rs2) {
+        return (0b1000 << 12) | (regNonZero(rd) << 7) | (regNonZero(rs2) << 2) | 0b10;
+    }
+
+    ///////////////////////////////////////////////////////////////////
     // Instruction formats
 
     private static int rType(final int funct7, final int rs2, final int rs1, final int funct3, final int rd, final int opcode) {
         return (funct7 << 25) | (reg(rs2) << 20) | (reg(rs1) << 15) | (funct3 << 12) | (reg(rd) << 7) | opcode;
+    }
+
+    private static int amoType(final int funct5, final int rs2, final int rs1, final int funct3, final int rd) {
+        return (funct5 << 27) | (reg(rs2) << 20) | (reg(rs1) << 15) | (funct3 << 12) | (reg(rd) << 7) | AMO;
     }
 
     private static int r4Type(final int rs3, final int fmt, final int rs2, final int rs1, final int rm, final int rd, final int opcode) {
@@ -604,6 +661,13 @@ public final class R5Assembler {
     private static int reg(final int register) {
         if (register < 0 || register > 31) {
             throw new IllegalArgumentException("Not a valid register: " + register);
+        }
+        return register;
+    }
+
+    private static int regNonZero(final int register) {
+        if (register < 1 || register > 31) {
+            throw new IllegalArgumentException("Not a valid non-zero register: " + register);
         }
         return register;
     }
