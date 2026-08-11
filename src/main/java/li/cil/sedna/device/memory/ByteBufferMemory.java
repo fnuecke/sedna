@@ -14,13 +14,10 @@ import java.nio.ByteOrder;
 public class ByteBufferMemory extends PhysicalMemory {
     private final ByteBuffer data;
     private final int size;
+    private long hostAddress;
 
     public ByteBufferMemory(final int size) {
-        if ((size & 0b11) != 0)
-            throw new IllegalArgumentException("size must be a multiple of four");
-        data = ByteBuffer.allocateDirect(size);
-        data.order(ByteOrder.LITTLE_ENDIAN);
-        this.size = size;
+        this(size, ByteBuffer.allocateDirect(size));
     }
 
     public ByteBufferMemory(final int size, final ByteBuffer buffer) {
@@ -28,11 +25,19 @@ public class ByteBufferMemory extends PhysicalMemory {
             throw new IllegalArgumentException("size must be a multiple of four");
         data = buffer.order(ByteOrder.LITTLE_ENDIAN);
         this.size = size;
+        hostAddress = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN
+            ? DirectByteBufferUtils.getAddress(data) : 0;
     }
 
     @Override
     public void close() throws Exception {
+        hostAddress = 0;
         DirectByteBufferUtils.release(data);
+    }
+
+    @Override
+    public long getHostAddress() {
+        return hostAddress;
     }
 
     @Override

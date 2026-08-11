@@ -50,6 +50,20 @@ public abstract class PhysicalMemory implements MemoryMappedDevice, AutoCloseabl
     }
 
     /**
+     * The native address of this memory's backing storage, or zero if direct host access is not
+     * available.
+     * <p>
+     * When returning a non-zero address, the implementation MUST guarantee that the full data of
+     * {@link #getLength()} bytes is contiguous at the returned address, native-order accesses
+     * through it observe exactly what {@link #load} and {@link #store} observe, and the address
+     * stays valid until {@link #close()}. Callers caching the address (e.g. in a TLB) must drop
+     * it before the memory is closed or unmapped.
+     */
+    public long getHostAddress() {
+        return 0;
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override

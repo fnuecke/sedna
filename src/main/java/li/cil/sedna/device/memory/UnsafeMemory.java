@@ -60,6 +60,11 @@ public final class UnsafeMemory extends PhysicalMemory {
     }
 
     @Override
+    public long getHostAddress() {
+        return size == 0 ? 0 : address;
+    }
+
+    @Override
     public long load(final int offset, final int sizeLog2) throws MemoryAccessException {
         if (offset < 0 || offset > getLength() - (1 << sizeLog2)) {
             throw new MemoryAccessException();

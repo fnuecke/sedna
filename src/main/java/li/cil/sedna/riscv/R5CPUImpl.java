@@ -23,7 +23,7 @@ final class R5CPUImpl extends R5CPUBase {
     }
 
     @Override
-    protected void interpretTrace32(final MemoryMappedDevice device, int inst, long pc, int instOffset, final int instEnd, final LongSet breakpoints) {
+    protected void interpretTrace32(final MemoryMappedDevice device, final long hostBase, int inst, long pc, int instOffset, final int instEnd, final LongSet breakpoints) {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
                 if (breakpoints != null && breakpoints.contains(pc)) {
@@ -189,7 +189,7 @@ final class R5CPUImpl extends R5CPUBase {
                 }
 
                 if (Integer.compareUnsigned(instOffset, instEnd) < 0) { // Likely case: we're still fully in the page.
-                    inst = (int) device.load(instOffset, Sizes.SIZE_32_LOG2);
+                    inst = hostBase != 0 ? UNSAFE.getInt(hostBase + instOffset) : (int) device.load(instOffset, Sizes.SIZE_32_LOG2);
                 } else { // Unlikely case: we reached the end of the page. Leave to do interrupts and cycle check.
                     this.pc = pc;
                     return;
@@ -1389,7 +1389,7 @@ final class R5CPUImpl extends R5CPUBase {
     }
 
     @Override
-    protected void interpretTrace64(final MemoryMappedDevice device, int inst, long pc, int instOffset, final int instEnd, final LongSet breakpoints) {
+    protected void interpretTrace64(final MemoryMappedDevice device, final long hostBase, int inst, long pc, int instOffset, final int instEnd, final LongSet breakpoints) {
         try { // Catch any exceptions to patch PC field.
             for (; ; ) { // End of page check at the bottom since we enter with a valid inst.
                 if (breakpoints != null && breakpoints.contains(pc)) {
@@ -1555,7 +1555,7 @@ final class R5CPUImpl extends R5CPUBase {
                 }
 
                 if (Integer.compareUnsigned(instOffset, instEnd) < 0) { // Likely case: we're still fully in the page.
-                    inst = (int) device.load(instOffset, Sizes.SIZE_32_LOG2);
+                    inst = hostBase != 0 ? UNSAFE.getInt(hostBase + instOffset) : (int) device.load(instOffset, Sizes.SIZE_32_LOG2);
                 } else { // Unlikely case: we reached the end of the page. Leave to do interrupts and cycle check.
                     this.pc = pc;
                     return;

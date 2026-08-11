@@ -59,7 +59,7 @@ public final class R5CPUImplGenerator {
 
         src.blank();
         src.line("@Override");
-        src.line("protected void interpretTrace" + variant + "(final MemoryMappedDevice device, int inst, long pc, int instOffset, final int instEnd, final LongSet breakpoints) {");
+        src.line("protected void interpretTrace" + variant + "(final MemoryMappedDevice device, final long hostBase, int inst, long pc, int instOffset, final int instEnd, final LongSet breakpoints) {");
         src.indent(() -> {
             src.line("try { // Catch any exceptions to patch PC field.");
             src.indent(() -> {
@@ -80,7 +80,7 @@ public final class R5CPUImplGenerator {
                     src.line("}");
                     src.blank();
                     src.line("if (Integer.compareUnsigned(instOffset, instEnd) < 0) { // Likely case: we're still fully in the page.");
-                    src.indent(() -> src.line("inst = (int) device.load(instOffset, Sizes.SIZE_32_LOG2);"));
+                    src.indent(() -> src.line("inst = hostBase != 0 ? UNSAFE.getInt(hostBase + instOffset) : (int) device.load(instOffset, Sizes.SIZE_32_LOG2);"));
                     src.line("} else { // Unlikely case: we reached the end of the page. Leave to do interrupts and cycle check.");
                     src.indent(() -> {
                         src.line("this.pc = pc;");
