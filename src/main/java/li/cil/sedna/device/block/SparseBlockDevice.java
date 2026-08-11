@@ -138,7 +138,9 @@ public final class SparseBlockDevice implements BlockDevice {
 
         @Override
         public long skip(final long n) throws IOException {
-            return offset += n;
+            final long skipped = lowerStream.skip(n);
+            offset += skipped;
+            return skipped;
         }
 
         @Override
