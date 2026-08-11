@@ -7,8 +7,6 @@ import li.cil.sedna.utils.DirectByteBufferUtils;
 import li.cil.sedna.utils.UnsafeGetter;
 import sun.misc.Unsafe;
 
-import java.lang.reflect.Field;
-import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -24,14 +22,11 @@ public final class UnsafeMemory extends PhysicalMemory {
         // bounds checks -- if trying to read something out of bounds it'll just
         // result in bogus, but that's fine.
         final ByteBuffer buffer = ByteBuffer.allocateDirect(size + Long.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-        try {
-            final Field addressField = Buffer.class.getDeclaredField("address");
-            final long addressFieldOffset = UNSAFE.objectFieldOffset(addressField);
-            final long address = UNSAFE.getLong(buffer, addressFieldOffset);
-            return new UnsafeMemory(buffer, address, size);
-        } catch (final Throwable e) {
+        final long address = DirectByteBufferUtils.getAddress(buffer);
+        if (address == 0) {
             return new ByteBufferMemory(size, buffer);
         }
+        return new UnsafeMemory(buffer, address, size);
     }
 
     private final ByteBuffer buffer;
