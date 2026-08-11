@@ -61,7 +61,7 @@ public abstract class R5CPUBase implements R5CPU {
         R5.STATUS_MXR_MASK | R5.STATUS_UXL_MASK);
 
     // Translation look-aside buffer config.
-    private static final int TLB_SIZE = 256; // Must be a power of two for fast modulo via `& (TLB_SIZE - 1)`.
+    private static final int TLB_SIZE = 1024; // Must be a power of two for fast modulo via `& (TLB_SIZE - 1)`.
 
     ///////////////////////////////////////////////////////////////////
     // RV32I / RV64I
