@@ -102,7 +102,7 @@ public final class SparseBlockDevice implements BlockDevice {
             if (block != null) {
                 final long startOffset = blockIndexToOffset(blockIndex);
                 final int localOffset = (int) (offset - startOffset);
-                if (lowerStream.skip(1) != 1) throw new IOException();
+                if (lowerStream.skip(1) != 1) return 0;
                 readValue = block[localOffset] & 0xFF;
             } else {
                 readValue = lowerStream.read();
