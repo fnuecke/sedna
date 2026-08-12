@@ -402,39 +402,45 @@ public abstract class R5CPUBase implements R5CPU {
         // instruction would fully fit a page. The last 16bit in a page may be the start of
         // a 32bit instruction spanning two pages, a special case we handle outside the loop.
         try {
-            final int cacheIndex = fetchPage(pc);
-            final MemoryMappedDevice device = fetchTLBDevice[cacheIndex];
-            // Device-relative base such that hostBase + instOffset addresses guest code directly;
-            // zero when this page has no raw host pointer and fetches must go through the device.
-            final long hostBase = (fetchTLBHash[cacheIndex] & TLB_DIRECT) != 0
-                ? fetchTLBHostDelta[cacheIndex] - fetchTLBToOffset[cacheIndex] : 0;
-            final int instOffset = (int) (pc + fetchTLBToOffset[cacheIndex]);
-            final int instEnd = instOffset - (int) (pc & R5.PAGE_ADDRESS_MASK) // Page start.
-                + ((1 << R5.PAGE_ADDRESS_SHIFT) - 2); // Page size minus 16bit.
+            do {
+                final int cacheIndex = fetchPage(pc);
+                final MemoryMappedDevice device = fetchTLBDevice[cacheIndex];
+                // Device-relative base such that hostBase + instOffset addresses guest code directly;
+                // zero when this page has no raw host pointer and fetches must go through the device.
+                final long hostBase = (fetchTLBHash[cacheIndex] & TLB_DIRECT) != 0
+                    ? fetchTLBHostDelta[cacheIndex] - fetchTLBToOffset[cacheIndex] : 0;
+                final int instOffset = (int) (pc + fetchTLBToOffset[cacheIndex]);
+                final int instEnd = instOffset - (int) (pc & R5.PAGE_ADDRESS_MASK) // Page start.
+                    + ((1 << R5.PAGE_ADDRESS_SHIFT) - 2); // Page size minus 16bit.
 
-            int inst;
-            try {
-                if (instOffset < instEnd) { // Likely case, instruction fully inside page.
-                    inst = hostBase != 0 ? UNSAFE.getInt(hostBase + instOffset) : (int) device.load(instOffset, Sizes.SIZE_32_LOG2);
-                } else { // Unlikely case, instruction may leave page if it is 32bit.
-                    inst = (short) device.load(instOffset, Sizes.SIZE_16_LOG2) & 0xFFFF;
-                    if ((inst & 0b11) == 0b11) { // 32bit instruction.
-                        final int highIndex = fetchPage(pc + 2);
-                        final MemoryMappedDevice highDevice = fetchTLBDevice[highIndex];
-                        final long highOffset = fetchTLBToOffset[highIndex];
-                        inst |= (int) (highDevice.load((int) (pc + 2 + highOffset), Sizes.SIZE_16_LOG2) << 16);
+                int inst;
+                try {
+                    if (instOffset < instEnd) { // Likely case, instruction fully inside page.
+                        inst = hostBase != 0 ? UNSAFE.getInt(hostBase + instOffset) : (int) device.load(instOffset, Sizes.SIZE_32_LOG2);
+                    } else { // Unlikely case, instruction may leave page if it is 32bit.
+                        inst = (short) device.load(instOffset, Sizes.SIZE_16_LOG2) & 0xFFFF;
+                        if ((inst & 0b11) == 0b11) { // 32bit instruction.
+                            final int highIndex = fetchPage(pc + 2);
+                            final MemoryMappedDevice highDevice = fetchTLBDevice[highIndex];
+                            final long highOffset = fetchTLBToOffset[highIndex];
+                            inst |= (int) (highDevice.load((int) (pc + 2 + highOffset), Sizes.SIZE_16_LOG2) << 16);
+                        }
                     }
+                } catch (final MemoryAccessException e) {
+                    raiseException(R5.EXCEPTION_FAULT_FETCH, pc);
+                    return;
                 }
-            } catch (final MemoryAccessException e) {
-                raiseException(R5.EXCEPTION_FAULT_FETCH, pc);
-                return;
-            }
 
-            if (xlen == R5.XLEN_32) {
-                interpretTrace32(device, hostBase, inst, pc, instOffset, singleStep ? 0 : instEnd, ignoreBreakpoints ? null : fetchTLBBreakpoints[cacheIndex]);
-            } else {
-                interpretTrace64(device, hostBase, inst, pc, instOffset, singleStep ? 0 : instEnd, ignoreBreakpoints ? null : fetchTLBBreakpoints[cacheIndex]);
-            }
+                if (xlen == R5.XLEN_32) {
+                    interpretTrace32(device, hostBase, inst, pc, instOffset, singleStep ? 0 : instEnd, ignoreBreakpoints ? null : fetchTLBBreakpoints[cacheIndex]);
+                } else {
+                    interpretTrace64(device, hostBase, inst, pc, instOffset, singleStep ? 0 : instEnd, ignoreBreakpoints ? null : fetchTLBBreakpoints[cacheIndex]);
+                }
+
+                // Chain straight into the next trace (a boot re-enters 2.5M times, a third of them
+                // after fewer than 8 instructions) unless we must yield: single-stepping, wfi to wait
+                // out, cycle budget exhausted, interrupts to raise.
+            } while (!(singleStep || waitingForInterrupt || mcycle >= cycleLimit || (mip.get() & mie) != 0));
         } catch (final R5MemoryAccessException e) {
             raiseException(e.getType(), e.getAddress());
         }
