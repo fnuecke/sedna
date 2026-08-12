@@ -7,12 +7,14 @@ import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.api.memory.MemoryRange;
 
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
 public final class SimpleMemoryMap implements MemoryMap {
     private final Map<MemoryMappedDevice, MappedMemoryRange> devices = new HashMap<>();
+    private MappedMemoryRange[] sortedRanges = new MappedMemoryRange[0];
 
     // For device IO we often get sequential access to the same range/device, so we remember the last one as a cache.
     private MappedMemoryRange cache;
@@ -24,17 +26,21 @@ public final class SimpleMemoryMap implements MemoryMap {
         }
 
         final MappedMemoryRange deviceRange = new MappedMemoryRange(device, address);
-        if (devices.values().stream().anyMatch(range -> range.intersects(deviceRange))) {
-            return false;
+        for (final MappedMemoryRange range : sortedRanges) {
+            if (range.intersects(deviceRange)) {
+                return false;
+            }
         }
 
         devices.put(device, deviceRange);
+        rebuildSortedRanges();
         return true;
     }
 
     @Override
     public void removeDevice(final MemoryMappedDevice device) {
         devices.remove(device);
+        rebuildSortedRanges();
         if (cache != null && cache.device == device) {
             cache = null;
         }
@@ -47,7 +53,7 @@ public final class SimpleMemoryMap implements MemoryMap {
 
     @Override
     public Optional<MappedMemoryRange> getMemoryRange(final MemoryRange range) {
-        for (final MappedMemoryRange existingRange : devices.values()) {
+        for (final MappedMemoryRange existingRange : sortedRanges) {
             if (existingRange.intersects(range)) {
                 return Optional.of(existingRange);
             }
@@ -64,8 +70,16 @@ public final class SimpleMemoryMap implements MemoryMap {
             return cachedValue;
         }
 
-        for (final MappedMemoryRange range : devices.values()) {
-            if (range.contains(address)) {
+        final MappedMemoryRange[] ranges = sortedRanges;
+        int low = 0, high = ranges.length - 1;
+        while (low <= high) {
+            final int mid = (low + high) >>> 1;
+            final MappedMemoryRange range = ranges[mid];
+            if (Long.compareUnsigned(address, range.start) < 0) {
+                high = mid - 1;
+            } else if (Long.compareUnsigned(address, range.end) > 0) {
+                low = mid + 1;
+            } else {
                 cache = range;
                 return range;
             }
@@ -97,5 +111,11 @@ public final class SimpleMemoryMap implements MemoryMap {
         } else {
             throw new MemoryAccessException();
         }
+    }
+
+    private void rebuildSortedRanges() {
+        final MappedMemoryRange[] ranges = devices.values().toArray(new MappedMemoryRange[0]);
+        Arrays.sort(ranges, (a, b) -> Long.compareUnsigned(a.start, b.start));
+        sortedRanges = ranges;
     }
 }
