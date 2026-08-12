@@ -1,11 +1,11 @@
 package li.cil.sedna.riscv;
 
+import li.cil.sedna.api.debug.CPUDebugInterface;
 import li.cil.sedna.api.device.InterruptController;
 import li.cil.sedna.api.device.Resettable;
 import li.cil.sedna.api.device.Steppable;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.api.debug.CPUDebugInterface;
 
 import javax.annotation.Nullable;
 

@@ -41,10 +41,10 @@ public class ContextSwitchBenchmark {
         // Machine mode trap handler: step the saved program counter past the ecall and return. This
         // is the smallest thing that behaves like a system call return.
         vm.write(handler,
-            R5Assembler.csrrs(5, R5CSR.MEPC, 0),
-            R5Assembler.addi(5, 5, 4),
-            R5Assembler.csrrw(0, R5CSR.MEPC, 5),
-            R5Assembler.MRET);
+                R5Assembler.csrrs(5, R5CSR.MEPC, 0),
+                R5Assembler.addi(5, 5, 4),
+                R5Assembler.csrrw(0, R5CSR.MEPC, 5),
+                R5Assembler.MRET);
         vm.writeCSR(R5CSR.MTVEC, handler);
 
         if ("syscall".equals(workload)) {

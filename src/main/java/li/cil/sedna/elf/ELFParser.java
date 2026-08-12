@@ -198,10 +198,10 @@ public final class ELFParser {
         elf.sectionHeaderTableEntryCount = read16i(elf);
 
         if (elf.programHeaderTableOffset < elf.sectionHeaderTableOffset &&
-            elf.programHeaderTableOffset + (long) elf.programHeaderTableEntrySize * elf.programHeaderTableEntryCount > elf.sectionHeaderTableOffset) {
+                elf.programHeaderTableOffset + (long) elf.programHeaderTableEntrySize * elf.programHeaderTableEntryCount > elf.sectionHeaderTableOffset) {
             throw new IllegalArgumentException("program header table intersects section header table");
         } else if (elf.sectionHeaderTableOffset < elf.programHeaderTableOffset &&
-            elf.sectionHeaderTableOffset + (long) elf.sectionHeaderTableEntrySize * elf.sectionHeaderTableEntryCount > elf.programHeaderTableOffset) {
+                elf.sectionHeaderTableOffset + (long) elf.sectionHeaderTableEntrySize * elf.sectionHeaderTableEntryCount > elf.programHeaderTableOffset) {
             throw new IllegalArgumentException("section header table intersects program header table");
         }
 

@@ -6,12 +6,10 @@ import li.cil.sedna.device.block.ByteBufferBlockDevice;
 import li.cil.sedna.device.block.SparseBlockDevice;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -83,7 +81,7 @@ public final class SparseBlockDeviceTests {
 
         final ByteBuffer serialized = BinarySerialization.serialize(sparse);
         final SparseBlockDevice deserialized = BinarySerialization.deserialize(serialized, new SparseBlockDevice(
-            lower));
+                lower));
 
         final byte[] deserializedData = new byte[overwriteData.length];
         deserialized.getInputStream().read(deserializedData);
@@ -192,7 +190,7 @@ public final class SparseBlockDeviceTests {
     public void singleByteReadOfHighLowerByteIsUnsigned() throws IOException {
         final byte[] data = {(byte) 0xFF, (byte) 0x80};
         final BlockDevice device = new SparseBlockDevice(
-            ByteBufferBlockDevice.wrap(ByteBuffer.wrap(data), true), false, BLOCK_SIZE);
+                ByteBufferBlockDevice.wrap(ByteBuffer.wrap(data), true), false, BLOCK_SIZE);
 
         final InputStream stream = device.getInputStream(0);
         assertEquals(0xFF, stream.read());

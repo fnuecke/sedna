@@ -3,7 +3,8 @@ package li.cil.sedna.riscv;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import static li.cil.sedna.riscv.R5Assembler.*;
+import static li.cil.sedna.riscv.R5Assembler.SRET;
+import static li.cil.sedna.riscv.R5Assembler.jal;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public final class InterruptPriorityTests {
@@ -12,7 +13,9 @@ public final class InterruptPriorityTests {
     private static final long TRAP_VECTOR = Vm.RAM_START + 0x800;
     private static final long STRAP_VECTOR = Vm.RAM_START + 0xC00;
 
-    /** {@code jal x0, 0}, a one instruction infinite loop. */
+    /**
+     * {@code jal x0, 0}, a one instruction infinite loop.
+     */
     private static final int LOOP = jal(0, 0);
 
     private static final long INTERRUPT = R5.interrupt(R5.XLEN_64);

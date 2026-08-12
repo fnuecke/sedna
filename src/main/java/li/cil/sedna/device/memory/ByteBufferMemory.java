@@ -26,7 +26,7 @@ public class ByteBufferMemory extends PhysicalMemory {
         data = buffer.order(ByteOrder.LITTLE_ENDIAN);
         this.size = size;
         hostAddress = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN
-            ? DirectByteBufferUtils.getAddress(data) : 0;
+                ? DirectByteBufferUtils.getAddress(data) : 0;
     }
 
     @Override

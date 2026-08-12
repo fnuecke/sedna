@@ -62,12 +62,12 @@ public final class SoftDouble {
 
     public static boolean isNaN(final long a) {
         return ((a >>> MANTISSA_SIZE) & EXPONENT_MASK) == EXPONENT_MASK
-            && (a & MANTISSA_MASK) != 0;
+                && (a & MANTISSA_MASK) != 0;
     }
 
     public static boolean isInfinity(final long a) {
         return ((a >>> MANTISSA_SIZE) & EXPONENT_MASK) == EXPONENT_MASK
-            && (a & MANTISSA_MASK) == 0;
+                && (a & MANTISSA_MASK) == 0;
     }
 
     public int sign(final long a) {
@@ -112,7 +112,7 @@ public final class SoftDouble {
                 }
                 return nan();
             } else if (exponentB == EXPONENT_MASK  // -inf + inf. b cannot be NaN if a is not NaN because we sorted the
-                && signA != signB) {        // two up top, and NaN > Infinity when excluding the sign bit.
+                    && signA != signB) {        // two up top, and NaN > Infinity when excluding the sign bit.
                 flags.raise(FLAG_INVALID);
                 return nan();
             } else { // Infinity
@@ -175,7 +175,7 @@ public final class SoftDouble {
             } else {
                 // inf * b || a * inf
                 if ((exponentA == EXPONENT_MASK && (exponentB == 0 && mantissaB == 0)) ||
-                    (exponentB == EXPONENT_MASK && (exponentA == 0 && mantissaA == 0))) {
+                        (exponentB == EXPONENT_MASK && (exponentA == 0 && mantissaA == 0))) {
                     // inf * 0 || 0 * inf
                     flags.raise(FLAG_INVALID);
                     return nan();
@@ -233,18 +233,18 @@ public final class SoftDouble {
         if (exponentA == EXPONENT_MASK || exponentB == EXPONENT_MASK || exponentC == EXPONENT_MASK) {
             if (isNaN(a) || isNaN(b) || isNaN(c)) { // nan * b + c || a * nan + c || a * b + nan
                 if (isSignalingNaN(a) || isSignalingNaN(b) || isSignalingNaN(c)
-                    // inf * 0 is invalid even when the addend is a quiet NaN.
-                    || (exponentA == EXPONENT_MASK && mantissaA == 0 && exponentB == 0 && mantissaB == 0)
-                    || (exponentB == EXPONENT_MASK && mantissaB == 0 && exponentA == 0 && mantissaA == 0)) {
+                        // inf * 0 is invalid even when the addend is a quiet NaN.
+                        || (exponentA == EXPONENT_MASK && mantissaA == 0 && exponentB == 0 && mantissaB == 0)
+                        || (exponentB == EXPONENT_MASK && mantissaB == 0 && exponentA == 0 && mantissaA == 0)) {
                     flags.raise(FLAG_INVALID);
                 }
                 return nan();
             } else {
                 // inf * b + c || a * inf + c || a * b + inf
                 if ((exponentA == EXPONENT_MASK && (exponentB == 0 && mantissaB == 0)) || // inf * 0 + c
-                    (exponentB == EXPONENT_MASK && (exponentA == 0 && mantissaA == 0)) || // 0 * inf + c
-                    (exponentA == EXPONENT_MASK || exponentB == EXPONENT_MASK) && // a = inf || b = inf
-                        (exponentC == EXPONENT_MASK && sign != signC)) { // c = inf && sign(c) != sign(a*b)
+                        (exponentB == EXPONENT_MASK && (exponentA == 0 && mantissaA == 0)) || // 0 * inf + c
+                        (exponentA == EXPONENT_MASK || exponentB == EXPONENT_MASK) && // a = inf || b = inf
+                                (exponentC == EXPONENT_MASK && sign != signC)) { // c = inf && sign(c) != sign(a*b)
                     flags.raise(FLAG_INVALID);
                     return nan();
                 } else if (exponentC == EXPONENT_MASK) {
@@ -565,7 +565,7 @@ public final class SoftDouble {
 
         if (signA != signB) {
             return (signA != 0) // a negative, b positive
-                || (((a | b) << 1) == 0); // a = b = 0 with -0 = 0
+                    || (((a | b) << 1) == 0); // a = b = 0 with -0 = 0
         } else {
             if (signA != 0) {
                 return a >= b;
@@ -586,7 +586,7 @@ public final class SoftDouble {
 
         if (signA != signB) {
             return (signA != 0) // a negative, b positive
-                && (((a | b) << 1) != 0); // a != 0 || b != 0
+                    && (((a | b) << 1) != 0); // a != 0 || b != 0
         } else {
             if (signA != 0) {
                 return a > b;
@@ -698,10 +698,10 @@ public final class SoftDouble {
         }
 
         return SoftFloat.normalize(sign,
-            // make exponent relative to new bias
-            exponent + (SoftFloat.BIAS - BIAS),
-            // left align to implicit leading bit
-            (int) shiftRightAndJam(mantissa, MANTISSA_SIZE - SoftFloat.INTERNAL_MANTISSA_SIZE), rm, flags);
+                // make exponent relative to new bias
+                exponent + (SoftFloat.BIAS - BIAS),
+                // left align to implicit leading bit
+                (int) shiftRightAndJam(mantissa, MANTISSA_SIZE - SoftFloat.INTERNAL_MANTISSA_SIZE), rm, flags);
     }
 
     public long floatToDouble(final int a, @SuppressWarnings("unused") final int rm) {
@@ -731,10 +731,10 @@ public final class SoftDouble {
         }
 
         return pack(sign,
-            // make exponent relative to new bias
-            exponent + (BIAS - SoftFloat.BIAS),
-            // left align to implicit leading bit
-            (long) mantissa << (MANTISSA_SIZE - SoftFloat.MANTISSA_SIZE)
+                // make exponent relative to new bias
+                exponent + (BIAS - SoftFloat.BIAS),
+                // left align to implicit leading bit
+                (long) mantissa << (MANTISSA_SIZE - SoftFloat.MANTISSA_SIZE)
         );
     }
 
@@ -943,8 +943,8 @@ public final class SoftDouble {
             mantissa = mantissa1 | (mantissa0 != 0 ? 1 : 0);
         } else if (shift < SIZE) {
             mantissa = (mantissa1 << shift)
-                | (mantissa0 >>> (SIZE - shift))
-                | ((mantissa0 << shift) != 0 ? 1 : 0);
+                    | (mantissa0 >>> (SIZE - shift))
+                    | ((mantissa0 << shift) != 0 ? 1 : 0);
         } else {
             mantissa = mantissa0 << (shift - SIZE);
         }

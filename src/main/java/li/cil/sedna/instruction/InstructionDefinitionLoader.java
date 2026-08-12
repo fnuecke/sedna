@@ -52,7 +52,7 @@ public final class InstructionDefinitionLoader {
 
             if (visitorByInstructionName.containsKey(visitor.instructionName)) {
                 LOGGER.warn("Duplicate instruction definitions for instruction [{}]. Using [{}].",
-                    visitor.instructionName, visitor.name);
+                        visitor.instructionName, visitor.name);
             } else {
                 visitorByInstructionName.put(visitor.instructionName, visitor);
             }
@@ -77,7 +77,7 @@ public final class InstructionDefinitionLoader {
                 returnsBoolean = false;
                 if (!Objects.equals(Type.VOID_TYPE, returnType)) {
                     throw new IllegalArgumentException(String.format(
-                        "Instruction definition [%s] return type is neither boolean nor void.", visitor.name));
+                            "Instruction definition [%s] return type is neither boolean nor void.", visitor.name));
                 }
             }
 
@@ -91,8 +91,8 @@ public final class InstructionDefinitionLoader {
                 }
                 if (!Objects.equals(argumentTypes[i], requiredType)) {
                     throw new IllegalArgumentException(String.format(
-                        "Instruction definition [%s] parameter [%d] of type [%s], requires [%s].",
-                        visitor.name, i, argumentTypes[i].getClassName(), requiredType.getClassName()));
+                            "Instruction definition [%s] parameter [%d] of type [%s], requires [%s].",
+                            visitor.name, i, argumentTypes[i].getClassName(), requiredType.getClassName()));
                 }
             }
 
@@ -101,8 +101,8 @@ public final class InstructionDefinitionLoader {
             for (int i = 0; i < argumentCount; i++) {
                 if (visitor.parameterAnnotations[i] == null) {
                     throw new IllegalArgumentException(String.format(
-                        "Instruction definition [%s] parameter [%d] has no usage annotation. Annotate arguments with the @Field annotations and instruction size parameters with the @InstructionSize annotation.",
-                        visitor.name, i + 1));
+                            "Instruction definition [%s] parameter [%d] has no usage annotation. Annotate arguments with the @Field annotations and instruction size parameters with the @InstructionSize annotation.",
+                            visitor.name, i + 1));
                 }
                 if (visitor.parameterAnnotations[i].argumentName != null) {
                     fieldArgumentCount++;
@@ -111,9 +111,9 @@ public final class InstructionDefinitionLoader {
 
             if (fieldArgumentCount != declaration.arguments.size()) {
                 throw new IllegalArgumentException(String.format(
-                    "Number of @Field parameters [%d] in instruction definition [%s] does not match number of " +
-                        "expected arguments [%d] in instruction declaration of instruction [%s].",
-                    fieldArgumentCount, visitor.name, declaration.arguments.size(), declaration.displayName));
+                        "Number of @Field parameters [%d] in instruction definition [%s] does not match number of " +
+                                "expected arguments [%d] in instruction declaration of instruction [%s].",
+                        fieldArgumentCount, visitor.name, declaration.arguments.size(), declaration.displayName));
             }
 
             final InstructionArgument[] arguments = new InstructionArgument[argumentCount];
@@ -126,9 +126,9 @@ public final class InstructionDefinitionLoader {
 
                     if (argument == null) {
                         throw new IllegalArgumentException(String.format(
-                            "Required argument [%s] for instruction definition [%s] not defined in instruction " +
-                                "declaration.",
-                            argumentName, declaration.displayName));
+                                "Required argument [%s] for instruction definition [%s] not defined in instruction " +
+                                        "declaration.",
+                                argumentName, declaration.displayName));
                     }
 
                     arguments[i] = argument;
@@ -139,19 +139,19 @@ public final class InstructionDefinitionLoader {
                     arguments[i] = new ProgramCounterInstructionArgument();
                 } else {
                     throw new AssertionError("Annotation info was generated but for neither @Field nor " +
-                        "@InstructionSize annotation.");
+                            "@InstructionSize annotation.");
                 }
             }
 
             final InstructionDefinition definition = new InstructionDefinition(
-                declaration.name,
-                visitor.name,
-                visitor.writesPC,
-                visitor.isBranch,
-                returnsBoolean,
-                visitor.thrownExceptions,
-                arguments,
-                argumentNames);
+                    declaration.name,
+                    visitor.name,
+                    visitor.writesPC,
+                    visitor.isBranch,
+                    returnsBoolean,
+                    visitor.thrownExceptions,
+                    arguments,
+                    argumentNames);
             definitions.put(declaration, definition);
         }
 
@@ -237,9 +237,9 @@ public final class InstructionDefinitionLoader {
             if (Objects.equals(owner, Type.getInternalName(implementation)) && Objects.equals(name, "pc")) {
                 if (opcode == Opcodes.GETFIELD) {
                     throw new IllegalArgumentException(String.format("Instruction [%s] is reading from PC field. This " +
-                        "value will be incorrect. Use the @ProgramCounter " +
-                        "annotation to have the current PC value passed " +
-                        "to the instruction.", this.name));
+                            "value will be incorrect. Use the @ProgramCounter " +
+                            "annotation to have the current PC value passed " +
+                            "to the instruction.", this.name));
                 }
                 if (opcode == Opcodes.PUTFIELD) {
                     writesPC = true;
@@ -302,8 +302,8 @@ public final class InstructionDefinitionLoader {
             if (o == null || getClass() != o.getClass()) return false;
             final NonStaticMethodInvocation that = (NonStaticMethodInvocation) o;
             return owner.equals(that.owner) &&
-                name.equals(that.name) &&
-                descriptor.equals(that.descriptor);
+                    name.equals(that.name) &&
+                    descriptor.equals(that.descriptor);
         }
 
         @Override
@@ -353,7 +353,7 @@ public final class InstructionDefinitionLoader {
                     @Override
                     public MethodVisitor visitMethod(final int access, final String methodName, final String methodDescriptor, final String signature, final String[] exceptions) {
                         if (methodName.equals(NonStaticMethodInvocation.this.name) &&
-                            methodDescriptor.equals(NonStaticMethodInvocation.this.descriptor)) {
+                                methodDescriptor.equals(NonStaticMethodInvocation.this.descriptor)) {
                             return new MethodVisitor(Opcodes.ASM7) {
                                 @Override
                                 public void visitMethodInsn(final int opcode, final String invokedMethodOwner, final String invokedMethodName, final String invokedMethodDescriptor, final boolean isInterface) {
@@ -371,10 +371,10 @@ public final class InstructionDefinitionLoader {
                                     if (Objects.equals(owner, Type.getInternalName(implementation)) && Objects.equals(name, "pc")) {
                                         if (opcode == Opcodes.GETFIELD) {
                                             throw new IllegalArgumentException(
-                                                String.format("Method [%s] which is invoked by an instruction is " +
-                                                    "reading from PC field. This value will be incorrect. " +
-                                                    "Use the @ProgramCounter annotation to have the current " +
-                                                    "PC value passed to the instruction and pass it along.", methodName));
+                                                    String.format("Method [%s] which is invoked by an instruction is " +
+                                                            "reading from PC field. This value will be incorrect. " +
+                                                            "Use the @ProgramCounter annotation to have the current " +
+                                                            "PC value passed to the instruction and pass it along.", methodName));
                                         }
                                         if (opcode == Opcodes.PUTFIELD) {
                                             writesPC = true;

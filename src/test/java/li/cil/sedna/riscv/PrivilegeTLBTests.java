@@ -11,7 +11,9 @@ public final class PrivilegeTLBTests {
 
     private static final int MEGAPAGE = 2 * 1024 * 1024;
 
-    /** Identity mapped in supervisor mode, so code can be fetched at the same address in both modes. */
+    /**
+     * Identity mapped in supervisor mode, so code can be fetched at the same address in both modes.
+     */
     private static final long CODE = Vm.RAM_START;
 
     private static final long SHARED_ADDRESS = Vm.RAM_START + MEGAPAGE;
@@ -87,7 +89,7 @@ public final class PrivilegeTLBTests {
 
         // Make the shared page's mapping accessible to effective user-mode accesses.
         vm.store64(LEVEL1_TABLE + Vm.pageTableIndex(SHARED_ADDRESS, 1) * 8L,
-            Vm.leafPTE(SUPERVISOR_TARGET, Vm.PTE_CODE | R5.PTE_U_MASK));
+                Vm.leafPTE(SUPERVISOR_TARGET, Vm.PTE_CODE | R5.PTE_U_MASK));
 
         // MPP = M, MPRV = 1: data accesses are effectively machine mode, i.e. untranslated.
         vm.setCSRBits(R5CSR.MSTATUS, R5.STATUS_MPP_MASK | R5.STATUS_MPRV_MASK);
@@ -99,7 +101,7 @@ public final class PrivilegeTLBTests {
         vm.execute(MRET);
 
         assertEquals(MARKER_SUPERVISOR, readSharedAddress(),
-            "after MRET, MPRV data accesses must use the new MPP privilege, not stale TLB entries");
+                "after MRET, MPRV data accesses must use the new MPP privilege, not stale TLB entries");
     }
 
     @Test

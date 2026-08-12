@@ -46,9 +46,9 @@ public final class InstructionCounterTests {
         }
 
         assertEquals(retiredWhenParked, vm.cpu().getInstructionsRetired(),
-            "an idle hart must not appear to retire instructions");
+                "an idle hart must not appear to retire instructions");
         assertTrue(vm.cpu().getTime() > cyclesWhenParked,
-            "cycles must keep advancing while idle, since they are the guest's time source");
+                "cycles must keep advancing while idle, since they are the guest's time source");
     }
 
     @Test
@@ -70,7 +70,7 @@ public final class InstructionCounterTests {
         vm.cpu().step(10_000);
 
         assertTrue(vm.cpu().getInstructionsRetired() > retiredWhileParked,
-            "a woken hart must retire instructions again");
+                "a woken hart must retire instructions again");
     }
 
     @Test
@@ -109,7 +109,7 @@ public final class InstructionCounterTests {
         final long instret = vm.readCSR(R5CSR.MINSTRET);
 
         assertTrue(cycle - instret > IDLE_CYCLES / 2,
-            String.format("after idling for ~%d cycles, cycles (%d) must have run far ahead of instructions retired (%d)",
-                IDLE_CYCLES, cycle, instret));
+                String.format("after idling for ~%d cycles, cycles (%d) must have run far ahead of instructions retired (%d)",
+                        IDLE_CYCLES, cycle, instret));
     }
 }

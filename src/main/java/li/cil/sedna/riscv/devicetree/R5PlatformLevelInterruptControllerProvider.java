@@ -27,11 +27,11 @@ public final class R5PlatformLevelInterruptControllerProvider implements DeviceT
     @Override
     public void visit(final DeviceTree node, final MemoryMap memoryMap, final Device device) {
         node
-            .addProp("#address-cells", 0)
-            .addProp("#interrupt-cells", 1)
-            .addProp(DeviceNames.INTERRUPT_CONTROLLER)
-            .addProp(DevicePropertyNames.COMPATIBLE, "riscv,plic0")
-            .addProp("riscv,ndev", R5PlatformLevelInterruptController.INTERRUPT_COUNT)
-            .addProp(DevicePropertyNames.PHANDLE, node.getPHandle(device));
+                .addProp("#address-cells", 0)
+                .addProp("#interrupt-cells", 1)
+                .addProp(DeviceNames.INTERRUPT_CONTROLLER)
+                .addProp(DevicePropertyNames.COMPATIBLE, "riscv,plic0")
+                .addProp("riscv,ndev", R5PlatformLevelInterruptController.INTERRUPT_COUNT)
+                .addProp(DevicePropertyNames.PHANDLE, node.getPHandle(device));
     }
 }

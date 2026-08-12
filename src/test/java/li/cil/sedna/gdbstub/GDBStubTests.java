@@ -21,10 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.LongConsumer;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public final class GDBStubTests {
     private static final Duration MUST_NOT_BLOCK = Duration.ofSeconds(5);
@@ -238,7 +235,7 @@ public final class GDBStubTests {
 
     private void poll() {
         assertTimeoutPreemptively(MUST_NOT_BLOCK, () -> stub.poll(),
-            "poll must never block the thread stepping the machine");
+                "poll must never block the thread stepping the machine");
     }
 
     private void connect() throws IOException {

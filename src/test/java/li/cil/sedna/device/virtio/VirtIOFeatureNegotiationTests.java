@@ -26,11 +26,11 @@ public final class VirtIOFeatureNegotiationTests {
     private static final class PackedRingDevice extends AbstractVirtIODevice {
         PackedRingDevice(final MemoryMap memoryMap) {
             super(memoryMap, VirtIODeviceSpec
-                .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_CONSOLE)
-                .features(VIRTIO_F_RING_PACKED)
-                .queueCount(1)
-                .configSpaceSize(0)
-                .build());
+                    .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_CONSOLE)
+                    .features(VIRTIO_F_RING_PACKED)
+                    .queueCount(1)
+                    .configSpaceSize(0)
+                    .build());
         }
     }
 
@@ -51,7 +51,7 @@ public final class VirtIOFeatureNegotiationTests {
         negotiate(device, VERSION_1_HIGH | RING_PACKED_HIGH);
 
         assertEquals(0, device.load(VIRTIO_MMIO_STATUS, Sizes.SIZE_32_LOG2) & AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK,
-            "device must refuse a feature set including packed rings");
+                "device must refuse a feature set including packed rings");
     }
 
     @Test
@@ -61,7 +61,7 @@ public final class VirtIOFeatureNegotiationTests {
         negotiate(device, VERSION_1_HIGH);
 
         assertNotEquals(0, device.load(VIRTIO_MMIO_STATUS, Sizes.SIZE_32_LOG2) & AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK,
-            "device must accept a feature set it can support");
+                "device must accept a feature set it can support");
     }
 
     @Test
@@ -71,7 +71,7 @@ public final class VirtIOFeatureNegotiationTests {
         negotiate(device, 0);
 
         assertEquals(0, device.load(VIRTIO_MMIO_STATUS, Sizes.SIZE_32_LOG2) & AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK,
-            "device must refuse a driver that does not accept VIRTIO_F_VERSION_1");
+                "device must refuse a driver that does not accept VIRTIO_F_VERSION_1");
     }
 
     private static void negotiate(final AbstractVirtIODevice device, final int featuresHigh) {
@@ -83,6 +83,6 @@ public final class VirtIOFeatureNegotiationTests {
         device.store(VIRTIO_MMIO_DRIVER_FEATURES, featuresHigh, Sizes.SIZE_32_LOG2);
 
         device.store(VIRTIO_MMIO_STATUS,
-            AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK, Sizes.SIZE_32_LOG2);
+                AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK, Sizes.SIZE_32_LOG2);
     }
 }

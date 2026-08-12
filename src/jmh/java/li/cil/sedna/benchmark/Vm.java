@@ -35,7 +35,9 @@ public final class Vm implements AutoCloseable {
 
     private static final int SPARE_TABLE_PAGES = 16;
 
-    /** Where in its page a pointer chain node sits. Anywhere but zero, so offsets are exercised. */
+    /**
+     * Where in its page a pointer chain node sits. Anywhere but zero, so offsets are exercised.
+     */
     private static final int NODE_OFFSET = 64;
 
     private final MemoryMap memoryMap;
@@ -114,7 +116,7 @@ public final class Vm implements AutoCloseable {
                     final Path file = Files.createTempFile("sedna-jmh-ram", ".bin");
                     tempFiles.add(file);
                     try (final FileChannel channel = FileChannel.open(file,
-                        StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+                            StandardOpenOption.READ, StandardOpenOption.WRITE)) {
                         final MappedByteBuffer buffer = channel.map(FileChannel.MapMode.READ_WRITE, 0, size);
                         return new ByteBufferMemory(size, buffer);
                     }
@@ -196,7 +198,9 @@ public final class Vm implements AutoCloseable {
         }
     }
 
-    /** Fills with a 16 bit (compressed) instruction. */
+    /**
+     * Fills with a 16 bit (compressed) instruction.
+     */
     public void fillCompressed(final long address, final int lengthInBytes, final int instruction) {
         for (int offset = 0; offset < lengthInBytes; offset += 2) {
             store(address + offset, instruction, Sizes.SIZE_16_LOG2);
@@ -319,8 +323,8 @@ public final class Vm implements AutoCloseable {
 
     private static long leafPTE(final long page) {
         return ((page >>> R5.PAGE_ADDRESS_SHIFT) << R5.PTE_DATA_BITS)
-            | R5.PTE_V_MASK | R5.PTE_R_MASK | R5.PTE_W_MASK | R5.PTE_X_MASK
-            | R5.PTE_A_MASK | R5.PTE_D_MASK;
+                | R5.PTE_V_MASK | R5.PTE_R_MASK | R5.PTE_W_MASK | R5.PTE_X_MASK
+                | R5.PTE_A_MASK | R5.PTE_D_MASK;
     }
 
     private static int ceilDiv(final int value, final int divisor) {

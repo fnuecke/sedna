@@ -4,7 +4,8 @@ import li.cil.sedna.api.device.MemoryMappedDevice;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import static li.cil.sedna.riscv.R5Assembler.*;
+import static li.cil.sedna.riscv.R5Assembler.ld;
+import static li.cil.sedna.riscv.R5Assembler.sd;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public final class MMIOTLBTests {
@@ -97,7 +98,7 @@ public final class MMIOTLBTests {
         read(HOLE_ADDRESS);
 
         assertEquals(R5.EXCEPTION_FAULT_LOAD, vm.readCSR(R5CSR.MCAUSE),
-            "an access outside the device but inside its cached page must still fault");
+                "an access outside the device but inside its cached page must still fault");
     }
 
     @Test
@@ -131,7 +132,7 @@ public final class MMIOTLBTests {
         vm.flushPage(SHARED_ADDRESS);
 
         assertEquals(target.loadValue, read(SHARED_ADDRESS),
-            "the remapped page must resolve to the new device");
+                "the remapped page must resolve to the new device");
     }
 
     // ------------------------------------------------------------- //

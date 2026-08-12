@@ -23,7 +23,7 @@ public class MemoryMappedDeviceProvider implements DeviceTreeProvider {
         final Optional<MappedMemoryRange> range = memoryMap.getMemoryRange(mappedDevice);
 
         range.ifPresent(r -> node.addProp(DevicePropertyNames.REG,
-            r.address() & 0xFFFFFFFFL,
-            r.size() & 0xFFFFFFFFL));
+                r.address() & 0xFFFFFFFFL,
+                r.size() & 0xFFFFFFFFL));
     }
 }

@@ -568,8 +568,8 @@ public final class R5Assembler {
 
     public static int fence(final int predecessor, final int successor) {
         return (checkUnsigned(predecessor, 4, "predecessor") << 24)
-            | (checkUnsigned(successor, 4, "successor") << 20)
-            | MISC_MEM;
+                | (checkUnsigned(successor, 4, "successor") << 20)
+                | MISC_MEM;
     }
 
     // ------------------------------------------------------------- //
@@ -602,7 +602,7 @@ public final class R5Assembler {
 
     private static int r4Type(final int rs3, final int fmt, final int rs2, final int rs1, final int rm, final int rd, final int opcode) {
         return (reg(rs3) << 27) | (fmt << 25) | (reg(rs2) << 20) | (reg(rs1) << 15)
-            | (roundingMode(rm) << 12) | (reg(rd) << 7) | opcode;
+                | (roundingMode(rm) << 12) | (reg(rd) << 7) | opcode;
     }
 
     private static int iType(final int imm, final int rs1, final int funct3, final int rd, final int opcode) {
@@ -612,15 +612,15 @@ public final class R5Assembler {
     private static int sType(final int imm, final int rs2, final int rs1, final int funct3, final int opcode) {
         checkSigned(imm, 12, "imm");
         return (((imm >> 5) & 0b111_1111) << 25) | (reg(rs2) << 20) | (reg(rs1) << 15)
-            | (funct3 << 12) | ((imm & 0b1_1111) << 7) | opcode;
+                | (funct3 << 12) | ((imm & 0b1_1111) << 7) | opcode;
     }
 
     private static int bType(final int imm, final int rs2, final int rs1, final int funct3, final int opcode) {
         checkSigned(imm, 13, "offset");
         checkEven(imm, "offset");
         return (((imm >> 12) & 0b1) << 31) | (((imm >> 5) & 0b11_1111) << 25)
-            | (reg(rs2) << 20) | (reg(rs1) << 15) | (funct3 << 12)
-            | (((imm >> 1) & 0b1111) << 8) | (((imm >> 11) & 0b1) << 7) | opcode;
+                | (reg(rs2) << 20) | (reg(rs1) << 15) | (funct3 << 12)
+                | (((imm >> 1) & 0b1111) << 8) | (((imm >> 11) & 0b1) << 7) | opcode;
     }
 
     private static int uType(final int imm, final int rd, final int opcode) {
@@ -631,10 +631,10 @@ public final class R5Assembler {
         checkSigned(imm, 21, "offset");
         checkEven(imm, "offset");
         return (((imm >> 20) & 0b1) << 31)
-            | (((imm >> 1) & 0b11_1111_1111) << 21)
-            | (((imm >> 11) & 0b1) << 20)
-            | (((imm >> 12) & 0b1111_1111) << 12)
-            | (reg(rd) << 7) | opcode;
+                | (((imm >> 1) & 0b11_1111_1111) << 21)
+                | (((imm >> 11) & 0b1) << 20)
+                | (((imm >> 12) & 0b1111_1111) << 12)
+                | (reg(rd) << 7) | opcode;
     }
 
     private static int fpType(final int funct7, final int rs2, final int rs1, final int rm, final int rd) {
@@ -647,12 +647,12 @@ public final class R5Assembler {
 
     private static int shiftImmediate(final int funct6, final int shamt, final int rs1, final int funct3, final int rd, final int opcode) {
         return (funct6 << 26) | (checkUnsigned(shamt, 6, "shamt") << 20)
-            | (reg(rs1) << 15) | (funct3 << 12) | (reg(rd) << 7) | opcode;
+                | (reg(rs1) << 15) | (funct3 << 12) | (reg(rd) << 7) | opcode;
     }
 
     private static int shiftImmediateWord(final int funct7, final int shamt, final int rs1, final int funct3, final int rd, final int opcode) {
         return (funct7 << 25) | (checkUnsigned(shamt, 5, "shamt") << 20)
-            | (reg(rs1) << 15) | (funct3 << 12) | (reg(rd) << 7) | opcode;
+                | (reg(rs1) << 15) | (funct3 << 12) | (reg(rd) << 7) | opcode;
     }
 
     // ------------------------------------------------------------- //

@@ -31,9 +31,9 @@ public interface MemoryMappedDevice extends Device {
      */
     default int getSupportedSizes() {
         return (1 << Sizes.SIZE_8_LOG2) |
-            (1 << Sizes.SIZE_16_LOG2) |
-            (1 << Sizes.SIZE_32_LOG2) |
-            (1 << Sizes.SIZE_64_LOG2);
+                (1 << Sizes.SIZE_16_LOG2) |
+                (1 << Sizes.SIZE_32_LOG2) |
+                (1 << Sizes.SIZE_64_LOG2);
     }
 
     /**

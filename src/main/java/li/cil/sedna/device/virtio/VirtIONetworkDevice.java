@@ -81,28 +81,29 @@ public final class VirtIONetworkDevice extends AbstractVirtIODevice {
 
     // struct virtio_net_hdr {
     private static final int HEADER_SIZE =
-        1 + // u8 flags;
-            1 + // u8 gso_type;
-            2 + // le16 hdr_len;
-            2 + // le16 gso_size;
-            2 + // le16 csum_start;
-            2 + // le16 csum_offset;
-            2;  // le16 num_buffers;
+            1 + // u8 flags;
+                    1 + // u8 gso_type;
+                    2 + // le16 hdr_len;
+                    2 + // le16 gso_size;
+                    2 + // le16 csum_start;
+                    2 + // le16 csum_offset;
+                    2;  // le16 num_buffers;
     // };
 
     private static final int VIRTQ_RECEIVE = 0; // receiveq1
     private static final int VIRTQ_TRANSMIT = 1; // transmitq1
     private static final int VIRTQ_CONTROL = 2; // controlq
 
-    @Serialized private byte[] mac = new byte[6];
+    @Serialized
+    private byte[] mac = new byte[6];
 
     public VirtIONetworkDevice(final MemoryMap memoryMap) {
         super(memoryMap, VirtIODeviceSpec
-            .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_NETWORK_CARD)
-            .features(VIRTIO_NET_F_MAC)
-            .configSpaceSize(6 + 2) // mac + status
-            .queueCount(2)
-            .build());
+                .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_NETWORK_CARD)
+                .features(VIRTIO_NET_F_MAC)
+                .configSpaceSize(6 + 2) // mac + status
+                .queueCount(2)
+                .build());
 
         // One of the OUI patterns safe for local use:
         //xE-xx-xx-xx-xx-xx

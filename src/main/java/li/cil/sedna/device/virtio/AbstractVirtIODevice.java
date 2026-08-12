@@ -582,7 +582,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
     @Override
     public int getSupportedSizes() {
         return (1 << Sizes.SIZE_8_LOG2) |
-            (1 << Sizes.SIZE_32_LOG2);
+                (1 << Sizes.SIZE_32_LOG2);
     }
 
     public final long load(final int offset, final int sizeLog2) {
@@ -733,12 +733,18 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                     reset();
                 }
             }
-            case VIRTIO_MMIO_QUEUE_DESC_LOW -> queues[queueSel].desc = (queues[queueSel].desc & ~0xFFFFFFFFL) | ((long) intValue & 0xFFFFFFFFL);
-            case VIRTIO_MMIO_QUEUE_DESC_HIGH -> queues[queueSel].desc = (queues[queueSel].desc & 0xFFFFFFFFL) | ((long) intValue << 32);
-            case VIRTIO_MMIO_QUEUE_DRIVER_LOW -> queues[queueSel].driver = (queues[queueSel].driver & ~0xFFFFFFFFL) | ((long) intValue & 0xFFFFFFFFL);
-            case VIRTIO_MMIO_QUEUE_DRIVER_HIGH -> queues[queueSel].driver = (queues[queueSel].driver & 0xFFFFFFFFL) | ((long) intValue << 32);
-            case VIRTIO_MMIO_QUEUE_DEVICE_LOW -> queues[queueSel].device = (queues[queueSel].device & ~0xFFFFFFFFL) | ((long) intValue & 0xFFFFFFFFL);
-            case VIRTIO_MMIO_QUEUE_DEVICE_HIGH -> queues[queueSel].device = (queues[queueSel].device & 0xFFFFFFFFL) | ((long) intValue << 32);
+            case VIRTIO_MMIO_QUEUE_DESC_LOW ->
+                    queues[queueSel].desc = (queues[queueSel].desc & ~0xFFFFFFFFL) | ((long) intValue & 0xFFFFFFFFL);
+            case VIRTIO_MMIO_QUEUE_DESC_HIGH ->
+                    queues[queueSel].desc = (queues[queueSel].desc & 0xFFFFFFFFL) | ((long) intValue << 32);
+            case VIRTIO_MMIO_QUEUE_DRIVER_LOW ->
+                    queues[queueSel].driver = (queues[queueSel].driver & ~0xFFFFFFFFL) | ((long) intValue & 0xFFFFFFFFL);
+            case VIRTIO_MMIO_QUEUE_DRIVER_HIGH ->
+                    queues[queueSel].driver = (queues[queueSel].driver & 0xFFFFFFFFL) | ((long) intValue << 32);
+            case VIRTIO_MMIO_QUEUE_DEVICE_LOW ->
+                    queues[queueSel].device = (queues[queueSel].device & ~0xFFFFFFFFL) | ((long) intValue & 0xFFFFFFFFL);
+            case VIRTIO_MMIO_QUEUE_DEVICE_HIGH ->
+                    queues[queueSel].device = (queues[queueSel].device & 0xFFFFFFFFL) | ((long) intValue << 32);
         }
     }
 

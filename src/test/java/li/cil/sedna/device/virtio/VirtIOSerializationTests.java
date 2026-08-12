@@ -38,10 +38,10 @@ public final class VirtIOSerializationTests {
     private static final class TestDevice extends AbstractVirtIODevice {
         TestDevice(final MemoryMap memoryMap) {
             super(memoryMap, VirtIODeviceSpec
-                .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_CONSOLE)
-                .queueCount(2)
-                .configSpaceSize(8)
-                .build());
+                    .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_CONSOLE)
+                    .queueCount(2)
+                    .configSpaceSize(8)
+                    .build());
         }
     }
 
@@ -56,8 +56,8 @@ public final class VirtIOSerializationTests {
         assertEquals(original.getStatus(), restored.getStatus());
         assertEquals(original.getNegotiatedFeatures(), restored.getNegotiatedFeatures());
         assertEquals(original.load(VIRTIO_MMIO_QUEUE_READY, Sizes.SIZE_32_LOG2),
-            restored.load(VIRTIO_MMIO_QUEUE_READY, Sizes.SIZE_32_LOG2),
-            "queue state must survive the round trip");
+                restored.load(VIRTIO_MMIO_QUEUE_READY, Sizes.SIZE_32_LOG2),
+                "queue state must survive the round trip");
     }
 
     @Test
@@ -65,17 +65,17 @@ public final class VirtIOSerializationTests {
         final ByteBuffer data = BinarySerialization.serialize(configuredDevice());
 
         assertEquals(EXPECTED_SERIALIZED_SIZE, data.remaining(),
-            "the serialized size of a VirtIO device changed, which means the savestate format changed");
+                "the serialized size of a VirtIO device changed, which means the savestate format changed");
 
         final byte[] bytes = new byte[data.remaining()];
         data.get(bytes);
         assertEquals(EXPECTED_SERIALIZED_DIGEST, toHex(MessageDigest.getInstance("SHA-256").digest(bytes)),
-            "the serialized bytes of a VirtIO device changed, which means the savestate format changed");
+                "the serialized bytes of a VirtIO device changed, which means the savestate format changed");
     }
 
     private static final int EXPECTED_SERIALIZED_SIZE = 151;
     private static final String EXPECTED_SERIALIZED_DIGEST =
-        "ba66b4ba19df667d7f8ecca47e9b99559d9b877ddeeca7ae51e65f4c5001c52d";
+            "ba66b4ba19df667d7f8ecca47e9b99559d9b877ddeeca7ae51e65f4c5001c52d";
 
     private static String toHex(final byte[] value) {
         final StringBuilder sb = new StringBuilder(value.length * 2);
@@ -92,12 +92,12 @@ public final class VirtIOSerializationTests {
 
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE
-            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER, Sizes.SIZE_32_LOG2);
+                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_DRIVER_FEATURES_SEL, FEATURES_HIGH_SEL, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_DRIVER_FEATURES, VERSION_1_HIGH, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE
-            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
-            | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK, Sizes.SIZE_32_LOG2);
+                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
+                | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK, Sizes.SIZE_32_LOG2);
 
         // Give both queues distinct, non-default state so a layout change is likely to move bytes.
         for (int queue = 0; queue < 2; queue++) {
@@ -110,9 +110,9 @@ public final class VirtIOSerializationTests {
         }
 
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE
-            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
-            | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK
-            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER_OK, Sizes.SIZE_32_LOG2);
+                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
+                | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK
+                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER_OK, Sizes.SIZE_32_LOG2);
 
         return device;
     }

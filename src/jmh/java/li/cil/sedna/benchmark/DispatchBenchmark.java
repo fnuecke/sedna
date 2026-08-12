@@ -20,9 +20,9 @@ public class DispatchBenchmark {
     private static final int CODE_SIZE = (INSTRUCTIONS + 4096) * 4;
 
     @Param({"nop", "add", "mul", "mulh", "mulhsu", "mulhu", "ld", "sd",
-        "fadd_s", "fadd_d", "fmul_d", "fdiv_d", "fsqrt_d", "fmadd_d",
-        "amoadd_w", "amoadd_d", "amoswap_d", "lr_sc_w", "lr_sc_d",
-        "c_addi", "c_mv", "csrrs_time", "csrrs_mscratch"})
+            "fadd_s", "fadd_d", "fmul_d", "fdiv_d", "fsqrt_d", "fmadd_d",
+            "amoadd_w", "amoadd_d", "amoswap_d", "lr_sc_w", "lr_sc_d",
+            "c_addi", "c_mv", "csrrs_time", "csrrs_mscratch"})
     public String instruction;
 
     private Vm vm;

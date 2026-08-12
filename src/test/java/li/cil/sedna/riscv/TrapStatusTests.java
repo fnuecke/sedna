@@ -54,7 +54,7 @@ public final class TrapStatusTests {
         vm.execute(MRET);
         vm.execute(ECALL);
         assertEquals(R5.STATUS_MPIE_MASK, vm.readCSR(R5CSR.MSTATUS) & R5.STATUS_MPIE_MASK,
-            "MRET must restore MIE, observed via the MPIE the following trap saves");
+                "MRET must restore MIE, observed via the MPIE the following trap saves");
     }
 
     @Test

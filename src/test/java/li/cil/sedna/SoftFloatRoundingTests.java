@@ -6,10 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Random;
 
-import static li.cil.sedna.utils.SoftFloat.RM_RDN;
-import static li.cil.sedna.utils.SoftFloat.RM_RNE;
-import static li.cil.sedna.utils.SoftFloat.RM_RTZ;
-import static li.cil.sedna.utils.SoftFloat.RM_RUP;
+import static li.cil.sedna.utils.SoftFloat.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -129,7 +126,7 @@ public final class SoftFloatRoundingTests {
                 assertTrue(SoftFloat.isNaN(actual), () -> String.format("fma(%08x, %08x, %08x) must be NaN, was %08x", a, b, c, actual));
             } else {
                 assertEquals(Float.floatToRawIntBits(expected), actual,
-                    () -> String.format("fma(%08x, %08x, %08x)", a, b, c));
+                        () -> String.format("fma(%08x, %08x, %08x)", a, b, c));
             }
         }
     }
@@ -166,7 +163,7 @@ public final class SoftFloatRoundingTests {
             assertTrue(SoftDouble.isNaN(actual), () -> String.format("fma(%016x, %016x, %016x) must be NaN, was %016x", a, b, c, actual));
         } else {
             assertEquals(Double.doubleToRawLongBits(expected), actual,
-                () -> String.format("fma(%016x, %016x, %016x)", a, b, c));
+                    () -> String.format("fma(%016x, %016x, %016x)", a, b, c));
         }
     }
 

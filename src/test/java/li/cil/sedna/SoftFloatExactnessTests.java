@@ -24,18 +24,18 @@ public final class SoftFloatExactnessTests {
 
             fpu.flags.value = 0;
             assertEquals(Double.doubleToLongBits(product),
-                fpu.mul(Double.doubleToLongBits(x), Double.doubleToLongBits(y), RM_RNE));
+                    fpu.mul(Double.doubleToLongBits(x), Double.doubleToLongBits(y), RM_RNE));
             assertEquals(0, fpu.flags.value & FLAG_INEXACT);
 
             fpu.flags.value = 0;
             assertEquals(Double.doubleToLongBits(x),
-                fpu.div(Double.doubleToLongBits(product), Double.doubleToLongBits(y), RM_RNE));
+                    fpu.div(Double.doubleToLongBits(product), Double.doubleToLongBits(y), RM_RNE));
             assertEquals(0, fpu.flags.value & FLAG_INEXACT);
 
             final double square = x * x;
             fpu.flags.value = 0;
             assertEquals(Double.doubleToLongBits(x),
-                fpu.sqrt(Double.doubleToLongBits(square), RM_RNE));
+                    fpu.sqrt(Double.doubleToLongBits(square), RM_RNE));
             assertEquals(0, fpu.flags.value & FLAG_INEXACT);
         }
     }
@@ -52,18 +52,18 @@ public final class SoftFloatExactnessTests {
 
             fpu.flags.value = 0;
             assertEquals(Float.floatToIntBits(product),
-                fpu.mul(Float.floatToIntBits(x), Float.floatToIntBits(y), RM_RNE));
+                    fpu.mul(Float.floatToIntBits(x), Float.floatToIntBits(y), RM_RNE));
             assertEquals(0, fpu.flags.value & FLAG_INEXACT);
 
             fpu.flags.value = 0;
             assertEquals(Float.floatToIntBits(x),
-                fpu.div(Float.floatToIntBits(product), Float.floatToIntBits(y), RM_RNE));
+                    fpu.div(Float.floatToIntBits(product), Float.floatToIntBits(y), RM_RNE));
             assertEquals(0, fpu.flags.value & FLAG_INEXACT);
 
             final float square = x * x;
             fpu.flags.value = 0;
             assertEquals(Float.floatToIntBits(x),
-                fpu.sqrt(Float.floatToIntBits(square), RM_RNE));
+                    fpu.sqrt(Float.floatToIntBits(square), RM_RNE));
             assertEquals(0, fpu.flags.value & FLAG_INEXACT);
         }
     }
@@ -73,23 +73,23 @@ public final class SoftFloatExactnessTests {
         final SoftDouble fpu64 = new SoftDouble();
         fpu64.flags.value = 0;
         assertEquals(Double.doubleToLongBits(1.0 / 3.0),
-            fpu64.div(Double.doubleToLongBits(1.0), Double.doubleToLongBits(3.0), RM_RNE));
+                fpu64.div(Double.doubleToLongBits(1.0), Double.doubleToLongBits(3.0), RM_RNE));
         assertNotEquals(0, fpu64.flags.value & FLAG_INEXACT);
 
         fpu64.flags.value = 0;
         assertEquals(Double.doubleToLongBits(Math.sqrt(2.0)),
-            fpu64.sqrt(Double.doubleToLongBits(2.0), RM_RNE));
+                fpu64.sqrt(Double.doubleToLongBits(2.0), RM_RNE));
         assertNotEquals(0, fpu64.flags.value & FLAG_INEXACT);
 
         final SoftFloat fpu32 = new SoftFloat();
         fpu32.flags.value = 0;
         assertEquals(Float.floatToIntBits(1.0f / 3.0f),
-            fpu32.div(Float.floatToIntBits(1.0f), Float.floatToIntBits(3.0f), RM_RNE));
+                fpu32.div(Float.floatToIntBits(1.0f), Float.floatToIntBits(3.0f), RM_RNE));
         assertNotEquals(0, fpu32.flags.value & FLAG_INEXACT);
 
         fpu32.flags.value = 0;
         assertEquals(Float.floatToIntBits((float) Math.sqrt(2.0)),
-            fpu32.sqrt(Float.floatToIntBits(2.0f), RM_RNE));
+                fpu32.sqrt(Float.floatToIntBits(2.0f), RM_RNE));
         assertNotEquals(0, fpu32.flags.value & FLAG_INEXACT);
     }
 }

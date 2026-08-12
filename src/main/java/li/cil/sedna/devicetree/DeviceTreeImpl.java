@@ -12,7 +12,8 @@ import java.util.List;
 import java.util.function.Consumer;
 
 final class DeviceTreeImpl implements DeviceTree {
-    @Nullable private final DeviceTreeImpl parent;
+    @Nullable
+    private final DeviceTreeImpl parent;
     private final DeviceTreeImpl root;
     private final Object2IntMap<Object> phandles;
     private final MemoryMap mmu;
@@ -176,10 +177,10 @@ final class DeviceTreeImpl implements DeviceTree {
 
     private static boolean isValidCharacterForNodeName(final int ch) {
         return (ch >= '0' && ch <= '9') ||
-            (ch >= 'a' && ch <= 'z') ||
-            (ch >= 'A' && ch <= 'Z') ||
-            ch == ',' || ch == '.' ||
-            ch == '_' || ch == '+' ||
-            ch == '-';
+                (ch >= 'a' && ch <= 'z') ||
+                (ch >= 'A' && ch <= 'Z') ||
+                ch == ',' || ch == '.' ||
+                ch == '_' || ch == '+' ||
+                ch == '-';
     }
 }

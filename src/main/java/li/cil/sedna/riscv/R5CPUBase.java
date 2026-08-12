@@ -6,18 +6,14 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSortedSet;
 import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Sizes;
+import li.cil.sedna.api.debug.CPUDebugInterface;
 import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.memory.MappedMemoryRange;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.api.debug.CPUDebugInterface;
-import li.cil.sedna.instruction.InstructionDefinition.Branch;
-import li.cil.sedna.instruction.InstructionDefinition.Field;
-import li.cil.sedna.instruction.InstructionDefinition.Instruction;
-import li.cil.sedna.instruction.InstructionDefinition.InstructionSize;
-import li.cil.sedna.instruction.InstructionDefinition.ProgramCounter;
+import li.cil.sedna.instruction.InstructionDefinition.*;
 import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
 import li.cil.sedna.riscv.exception.R5MemoryAccessException;
 import li.cil.sedna.utils.SoftDouble;
@@ -59,9 +55,9 @@ public abstract class R5CPUBase implements R5CPU {
     // Supervisor status (sstatus) CSR mask over mstatus. UIE/UPIE are hardwired to zero since
     // we do not implement the N (user-level interrupts) extension.
     private static final long SSTATUS_MASK = (R5.STATUS_SIE_MASK | R5.STATUS_SPIE_MASK |
-        R5.STATUS_SPP_MASK | R5.STATUS_FS_MASK |
-        R5.STATUS_XS_MASK | R5.STATUS_SUM_MASK |
-        R5.STATUS_MXR_MASK | R5.STATUS_UXL_MASK);
+            R5.STATUS_SPP_MASK | R5.STATUS_FS_MASK |
+            R5.STATUS_XS_MASK | R5.STATUS_SUM_MASK |
+            R5.STATUS_MXR_MASK | R5.STATUS_UXL_MASK);
 
     // Translation look-aside buffer config.
     private static final int TLB_SIZE = 1024; // Must be a power of two for fast modulo via `& (TLB_SIZE - 1)`.
@@ -233,9 +229,9 @@ public abstract class R5CPUBase implements R5CPU {
         this.xlen = value;
 
         mstatus = mstatus
-            & ~(R5.STATUS_UXL_MASK | R5.STATUS_SXL_MASK)
-            | (R5.mxl(value) << R5.STATUS_UXL_SHIFT)
-            | (R5.mxl(value) << R5.STATUS_SXL_SHIFT);
+                & ~(R5.STATUS_UXL_MASK | R5.STATUS_SXL_MASK)
+                | (R5.mxl(value) << R5.STATUS_UXL_SHIFT)
+                | (R5.mxl(value) << R5.STATUS_SXL_SHIFT);
 
         if (value == R5.XLEN_32) {
             for (int i = 0; i < x.length; i++) {
@@ -276,7 +272,7 @@ public abstract class R5CPUBase implements R5CPU {
             minstret = 0;
 
             mstatus = (R5.mxl(xlen) << R5.STATUS_UXL_SHIFT) |
-                (R5.mxl(xlen) << R5.STATUS_SXL_SHIFT);
+                    (R5.mxl(xlen) << R5.STATUS_SXL_SHIFT);
             mtvec = 0;
             medeleg = 0;
             mideleg = 0;
@@ -408,10 +404,10 @@ public abstract class R5CPUBase implements R5CPU {
                 // Device-relative base such that hostBase + instOffset addresses guest code directly;
                 // zero when this page has no raw host pointer and fetches must go through the device.
                 final long hostBase = (fetchTLBHash[cacheIndex] & TLB_DIRECT) != 0
-                    ? fetchTLBHostDelta[cacheIndex] - fetchTLBToOffset[cacheIndex] : 0;
+                        ? fetchTLBHostDelta[cacheIndex] - fetchTLBToOffset[cacheIndex] : 0;
                 final int instOffset = (int) (pc + fetchTLBToOffset[cacheIndex]);
                 final int instEnd = instOffset - (int) (pc & R5.PAGE_ADDRESS_MASK) // Page start.
-                    + ((1 << R5.PAGE_ADDRESS_SHIFT) - 2); // Page size minus 16bit.
+                        + ((1 << R5.PAGE_ADDRESS_SHIFT) - 2); // Page size minus 16bit.
 
                 int inst;
                 try {
@@ -494,7 +490,7 @@ public abstract class R5CPUBase implements R5CPU {
 
     private void checkCSR(final int csr, final boolean throwIfReadonly) throws R5IllegalInstructionException {
         if (throwIfReadonly && ((csr >= R5CSR.CYCLE && csr <= R5CSR.HPMCOUNTER31) ||
-            (csr >= R5CSR.CYCLEH && csr <= R5CSR.HPMCOUNTER31H)))
+                (csr >= R5CSR.CYCLEH && csr <= R5CSR.HPMCOUNTER31H)))
             throw new R5IllegalInstructionException();
 
         // Topmost bits, i.e. csr[11:8], encode access rights for CSR by convention. Of these, the top-most two bits,
@@ -795,18 +791,13 @@ public abstract class R5CPUBase implements R5CPU {
                     stvec = value;
                 }
             }
-            case R5CSR.SCOUNTEREN ->
-                scounteren = (int) (value & COUNTEREN_MASK);
+            case R5CSR.SCOUNTEREN -> scounteren = (int) (value & COUNTEREN_MASK);
 
             // Supervisor Trap Handling
-            case R5CSR.SSCRATCH ->
-                sscratch = value;
-            case R5CSR.SEPC ->
-                sepc = value & ~0b1;
-            case R5CSR.SCAUSE ->
-                scause = value;
-            case R5CSR.STVAL ->
-                stval = value;
+            case R5CSR.SSCRATCH -> sscratch = value;
+            case R5CSR.SEPC -> sepc = value & ~0b1;
+            case R5CSR.SCAUSE -> scause = value;
+            case R5CSR.STVAL -> stval = value;
             case R5CSR.SIP -> {
                 final long mask = mideleg; // Can only set stuff that's delegated to S mode.
                 mip.updateAndGet(operand -> (operand & ~mask) | (value & mask));
@@ -841,12 +832,12 @@ public abstract class R5CPUBase implements R5CPU {
                     // without the need to execute an SFENCE.VMA instruction."
                     if (xlen == R5.XLEN_32) {
                         if (((satp & R5.SATP_MODE_MASK32) == R5.SATP_MODE_NONE) !=
-                            ((validatedValue & R5.SATP_MODE_MASK32) == R5.SATP_MODE_NONE)) {
+                                ((validatedValue & R5.SATP_MODE_MASK32) == R5.SATP_MODE_NONE)) {
                             flushTLB();
                         }
                     } else {
                         if (((satp & R5.SATP_MODE_MASK64) == R5.SATP_MODE_NONE) !=
-                            ((validatedValue & R5.SATP_MODE_MASK64) == R5.SATP_MODE_NONE)) {
+                                ((validatedValue & R5.SATP_MODE_MASK64) == R5.SATP_MODE_NONE)) {
                             flushTLB();
                         }
                     }
@@ -869,15 +860,14 @@ public abstract class R5CPUBase implements R5CPU {
             // 0x280: vsatp, Virtual supervisor address translation and protection
 
             // Machine Trap Setup
-            case R5CSR.MSTATUS ->
-                setStatus(value & MSTATUS_MASK);
+            case R5CSR.MSTATUS -> setStatus(value & MSTATUS_MASK);
             case R5CSR.MISA -> {
                 // We do not support changing feature sets dynamically.
             }
             case R5CSR.MEDELEG ->
                 // From Volume 2 p31: For exceptions that cannot occur in less privileged modes, the corresponding
                 // medeleg bits should be hardwired to zero. In particular, medeleg[11] is hardwired to zero.
-                medeleg = value & ~(1 << R5.EXCEPTION_MACHINE_ECALL);
+                    medeleg = value & ~(1 << R5.EXCEPTION_MACHINE_ECALL);
             case R5CSR.MIDELEG -> {
                 final int mask = R5.SSIP_MASK | R5.STIP_MASK | R5.SEIP_MASK;
                 mideleg = (mideleg & ~mask) | (value & mask);
@@ -891,8 +881,7 @@ public abstract class R5CPUBase implements R5CPU {
                     mtvec = value;
                 }
             }
-            case R5CSR.MCOUNTEREN ->
-                mcounteren = (int) (value & COUNTEREN_MASK);
+            case R5CSR.MCOUNTEREN -> mcounteren = (int) (value & COUNTEREN_MASK);
             case R5CSR.MSTATUSH -> {
                 if (xlen != R5.XLEN_32) throw new R5IllegalInstructionException();
                 setStatus((value << 32) & MSTATUS_MASK);
@@ -909,14 +898,10 @@ public abstract class R5CPUBase implements R5CPU {
             }
 
             // Machine Trap Handling
-            case R5CSR.MSCRATCH ->
-                mscratch = value;
-            case R5CSR.MEPC ->
-                mepc = value & ~0b1; // p38: Lowest bit must always be zero.
-            case R5CSR.MCAUSE ->
-                mcause = value;
-            case R5CSR.MTVAL ->
-                mtval = value;
+            case R5CSR.MSCRATCH -> mscratch = value;
+            case R5CSR.MEPC -> mepc = value & ~0b1; // p38: Lowest bit must always be zero.
+            case R5CSR.MCAUSE -> mcause = value;
+            case R5CSR.MTVAL -> mtval = value;
             case R5CSR.MIP -> {
                 // p32: MEIP, MTIP, MSIP are readonly in mip.
                 // Additionally, SEIP is controlled by a PLIC in our case, so we must not allow
@@ -993,7 +978,7 @@ public abstract class R5CPUBase implements R5CPU {
     private long getStatus(final long mask) {
         final long status = (mstatus | (fs << R5.STATUS_FS_SHIFT)) & mask;
         final boolean dirty = ((status & R5.STATUS_FS_MASK) == R5.STATUS_FS_MASK) ||
-            ((status & R5.STATUS_XS_MASK) == R5.STATUS_XS_MASK);
+                ((status & R5.STATUS_XS_MASK) == R5.STATUS_XS_MASK);
         return status | (dirty ? R5.getStatusStateDirtyMask(xlen) : 0);
     }
 
@@ -1011,7 +996,7 @@ public abstract class R5CPUBase implements R5CPU {
         fs = (byte) ((value & R5.STATUS_FS_MASK) >> R5.STATUS_FS_SHIFT);
 
         final long mask = MSTATUS_MASK & ~(R5.getStatusStateDirtyMask(xlen) | R5.STATUS_FS_MASK |
-            R5.STATUS_UXL_MASK | R5.STATUS_SXL_MASK);
+                R5.STATUS_UXL_MASK | R5.STATUS_SXL_MASK);
         mstatus = (mstatus & ~mask) | (value & mask);
 
         updateTLBTags();
@@ -1041,8 +1026,8 @@ public abstract class R5CPUBase implements R5CPU {
     private void updateTLBTags() {
         fetchTLBTag = priv;
         dataTLBTag = (mstatus & R5.STATUS_MPRV_MASK) != 0
-            ? (mstatus & R5.STATUS_MPP_MASK) >>> R5.STATUS_MPP_SHIFT
-            : priv;
+                ? (mstatus & R5.STATUS_MPP_MASK) >>> R5.STATUS_MPP_SHIFT
+                : priv;
     }
 
     private void checkFPUEnabled() throws R5IllegalInstructionException {
@@ -1090,9 +1075,9 @@ public abstract class R5CPUBase implements R5CPU {
             sepc = pc;
             stval = value;
             mstatus = (mstatus & ~R5.STATUS_SPIE_MASK) |
-                (((mstatus & R5.STATUS_SIE_MASK) >>> R5.STATUS_SIE_SHIFT) << R5.STATUS_SPIE_SHIFT);
+                    (((mstatus & R5.STATUS_SIE_MASK) >>> R5.STATUS_SIE_SHIFT) << R5.STATUS_SPIE_SHIFT);
             mstatus = (mstatus & ~R5.STATUS_SPP_MASK) |
-                (((long) priv) << R5.STATUS_SPP_SHIFT);
+                    (((long) priv) << R5.STATUS_SPP_SHIFT);
             mstatus &= ~R5.STATUS_SIE_MASK;
             setPrivilege(R5.PRIVILEGE_S);
             vec = stvec;
@@ -1101,9 +1086,9 @@ public abstract class R5CPUBase implements R5CPU {
             mepc = pc;
             mtval = value;
             mstatus = (mstatus & ~R5.STATUS_MPIE_MASK) |
-                (((mstatus & R5.STATUS_MIE_MASK) >>> R5.STATUS_MIE_SHIFT) << R5.STATUS_MPIE_SHIFT);
+                    (((mstatus & R5.STATUS_MIE_MASK) >>> R5.STATUS_MIE_SHIFT) << R5.STATUS_MPIE_SHIFT);
             mstatus = (mstatus & ~R5.STATUS_MPP_MASK) |
-                (((long) priv) << R5.STATUS_MPP_SHIFT);
+                    (((long) priv) << R5.STATUS_MPP_SHIFT);
             mstatus &= ~R5.STATUS_MIE_MASK;
             setPrivilege(R5.PRIVILEGE_M);
             vec = mtvec;
@@ -1465,7 +1450,7 @@ public abstract class R5CPUBase implements R5CPU {
                 // Check privilege. Can only be in S or U mode here, M was handled above. V2p61.
                 final boolean userModeFlag = (pte & R5.PTE_U_MASK) != 0;
                 if (userModeFlag && (privilege != R5.PRIVILEGE_U) &&
-                    ((accessType == MemoryAccessType.FETCH) || ((mstatus & R5.STATUS_SUM_MASK) == 0))) {
+                        ((accessType == MemoryAccessType.FETCH) || ((mstatus & R5.STATUS_SUM_MASK) == 0))) {
                     throw getPageFaultException(accessType, virtualAddress);
                 }
                 if (!userModeFlag && (privilege != R5.PRIVILEGE_S)) {
@@ -1519,7 +1504,7 @@ public abstract class R5CPUBase implements R5CPU {
     private long loadPTE(final long pteAddress, final int pteSizeLog2) {
         final MappedMemoryRange range = pteRange;
         if (range != null && range.contains(pteAddress)
-            && (range.device.getSupportedSizes() & (1 << pteSizeLog2)) != 0) {
+                && (range.device.getSupportedSizes() & (1 << pteSizeLog2)) != 0) {
             final long hostAddress = pteRangeHostAddress;
             if (hostAddress != 0 && range.contains(pteAddress + (1 << pteSizeLog2) - 1)) {
                 final long host = hostAddress + (pteAddress - range.start);
@@ -1541,7 +1526,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
         pteRange = range;
         pteRangeHostAddress = UNSAFE != null && range.device instanceof PhysicalMemory
-            ? ((PhysicalMemory) range.device).getHostAddress() : 0;
+                ? ((PhysicalMemory) range.device).getHostAddress() : 0;
         try {
             return range.device.load((int) (pteAddress - range.start), pteSizeLog2);
         } catch (final MemoryAccessException e) {
@@ -1552,7 +1537,7 @@ public abstract class R5CPUBase implements R5CPU {
     private boolean storePTE(final long pteAddress, final long value, final int pteSizeLog2) {
         final MappedMemoryRange range = pteRange;
         if (range != null && range.contains(pteAddress)
-            && (range.device.getSupportedSizes() & (1 << pteSizeLog2)) != 0) {
+                && (range.device.getSupportedSizes() & (1 << pteSizeLog2)) != 0) {
             final long hostAddress = pteRangeHostAddress;
             if (hostAddress != 0 && range.contains(pteAddress + (1 << pteSizeLog2) - 1)) {
                 final long host = hostAddress + (pteAddress - range.start);
@@ -1596,7 +1581,7 @@ public abstract class R5CPUBase implements R5CPU {
             final long hostAddress = ((PhysicalMemory) range.device).getHostAddress();
             final long pageOffset = (address & ~R5.PAGE_ADDRESS_MASK) + toOffset;
             if (hostAddress != 0 && pageOffset >= 0
-                && pageOffset + (1 << R5.PAGE_ADDRESS_SHIFT) <= range.device.getLength()) {
+                    && pageOffset + (1 << R5.PAGE_ADDRESS_SHIFT) <= range.device.getLength()) {
                 hash |= TLB_DIRECT;
                 hostDelta = hostAddress + toOffset;
             }
@@ -1673,7 +1658,7 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("LUI")
     protected void lui(@Field("rd") final int rd,
-                     @Field("imm") final int imm) {
+                       @Field("imm") final int imm) {
         if (rd != 0) {
             x[rd] = imm;
         }
@@ -1681,8 +1666,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AUIPC")
     protected void auipc(@Field("rd") final int rd,
-                       @Field("imm") final int imm,
-                       @ProgramCounter final long pc) {
+                         @Field("imm") final int imm,
+                         @ProgramCounter final long pc) {
         if (rd != 0) {
             x[rd] = pc + imm;
         }
@@ -1691,9 +1676,9 @@ public abstract class R5CPUBase implements R5CPU {
     @Branch
     @Instruction("JAL")
     protected void jal(@Field("rd") final int rd,
-                     @Field("imm") final int imm,
-                     @ProgramCounter final long pc,
-                     @InstructionSize final int instructionSize) {
+                       @Field("imm") final int imm,
+                       @ProgramCounter final long pc,
+                       @InstructionSize final int instructionSize) {
         if (rd != 0) {
             x[rd] = pc + instructionSize;
         }
@@ -1704,10 +1689,10 @@ public abstract class R5CPUBase implements R5CPU {
     @Branch
     @Instruction("JALR")
     protected void jalr(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("imm") final int imm,
-                      @ProgramCounter final long pc,
-                      @InstructionSize final int instructionSize) {
+                        @Field("rs1") final int rs1,
+                        @Field("imm") final int imm,
+                        @ProgramCounter final long pc,
+                        @InstructionSize final int instructionSize) {
         // Compute first in case rs1 == rd and clear lowest bit as per spec.
         final long address = (x[rs1] + imm) & ~1;
         if (rd != 0) {
@@ -1720,9 +1705,9 @@ public abstract class R5CPUBase implements R5CPU {
     @Branch
     @Instruction("BEQ")
     protected boolean beq(@Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2,
-                        @Field("imm") final int imm,
-                        @ProgramCounter final long pc) {
+                          @Field("rs2") final int rs2,
+                          @Field("imm") final int imm,
+                          @ProgramCounter final long pc) {
         if (x[rs1] == x[rs2]) {
             this.pc = pc + imm;
             return true;
@@ -1734,9 +1719,9 @@ public abstract class R5CPUBase implements R5CPU {
     @Branch
     @Instruction("BNE")
     protected boolean bne(@Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2,
-                        @Field("imm") final int imm,
-                        @ProgramCounter final long pc) {
+                          @Field("rs2") final int rs2,
+                          @Field("imm") final int imm,
+                          @ProgramCounter final long pc) {
         if (x[rs1] != x[rs2]) {
             this.pc = pc + imm;
             return true;
@@ -1748,9 +1733,9 @@ public abstract class R5CPUBase implements R5CPU {
     @Branch
     @Instruction("BLT")
     protected boolean blt(@Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2,
-                        @Field("imm") final int imm,
-                        @ProgramCounter final long pc) {
+                          @Field("rs2") final int rs2,
+                          @Field("imm") final int imm,
+                          @ProgramCounter final long pc) {
         if (x[rs1] < x[rs2]) {
             this.pc = pc + imm;
             return true;
@@ -1762,9 +1747,9 @@ public abstract class R5CPUBase implements R5CPU {
     @Branch
     @Instruction("BGE")
     protected boolean bge(@Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2,
-                        @Field("imm") final int imm,
-                        @ProgramCounter final long pc) {
+                          @Field("rs2") final int rs2,
+                          @Field("imm") final int imm,
+                          @ProgramCounter final long pc) {
         if (x[rs1] >= x[rs2]) {
             this.pc = pc + imm;
             return true;
@@ -1776,9 +1761,9 @@ public abstract class R5CPUBase implements R5CPU {
     @Branch
     @Instruction("BLTU")
     protected boolean bltu(@Field("rs1") final int rs1,
-                         @Field("rs2") final int rs2,
-                         @Field("imm") final int imm,
-                         @ProgramCounter final long pc) {
+                           @Field("rs2") final int rs2,
+                           @Field("imm") final int imm,
+                           @ProgramCounter final long pc) {
         if (Long.compareUnsigned(x[rs1], x[rs2]) < 0) {
             this.pc = pc + imm;
             return true;
@@ -1790,9 +1775,9 @@ public abstract class R5CPUBase implements R5CPU {
     @Branch
     @Instruction("BGEU")
     protected boolean bgeu(@Field("rs1") final int rs1,
-                         @Field("rs2") final int rs2,
-                         @Field("imm") final int imm,
-                         @ProgramCounter final long pc) {
+                           @Field("rs2") final int rs2,
+                           @Field("imm") final int imm,
+                           @ProgramCounter final long pc) {
         if (Long.compareUnsigned(x[rs1], x[rs2]) >= 0) {
             this.pc = pc + imm;
             return true;
@@ -1803,8 +1788,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("LB")
     protected void lb(@Field("rd") final int rd,
-                    @Field("rs1") final int rs1,
-                    @Field("imm") final int imm) throws R5MemoryAccessException {
+                      @Field("rs1") final int rs1,
+                      @Field("imm") final int imm) throws R5MemoryAccessException {
         final int result = load8(x[rs1] + imm);
         if (rd != 0) {
             x[rd] = result;
@@ -1813,8 +1798,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("LH")
     protected void lh(@Field("rd") final int rd,
-                    @Field("rs1") final int rs1,
-                    @Field("imm") final int imm) throws R5MemoryAccessException {
+                      @Field("rs1") final int rs1,
+                      @Field("imm") final int imm) throws R5MemoryAccessException {
         final int result = load16(x[rs1] + imm);
         if (rd != 0) {
             x[rd] = result;
@@ -1823,8 +1808,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("LW")
     protected void lw(@Field("rd") final int rd,
-                    @Field("rs1") final int rs1,
-                    @Field("imm") final int imm) throws R5MemoryAccessException {
+                      @Field("rs1") final int rs1,
+                      @Field("imm") final int imm) throws R5MemoryAccessException {
         final int result = load32(x[rs1] + imm);
         if (rd != 0) {
             x[rd] = result;
@@ -1833,8 +1818,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("LBU")
     protected void lbu(@Field("rd") final int rd,
-                     @Field("rs1") final int rs1,
-                     @Field("imm") final int imm) throws R5MemoryAccessException {
+                       @Field("rs1") final int rs1,
+                       @Field("imm") final int imm) throws R5MemoryAccessException {
         final int result = load8(x[rs1] + imm) & 0xFF;
         if (rd != 0) {
             x[rd] = result;
@@ -1843,8 +1828,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("LHU")
     protected void lhu(@Field("rd") final int rd,
-                     @Field("rs1") final int rs1,
-                     @Field("imm") final int imm) throws R5MemoryAccessException {
+                       @Field("rs1") final int rs1,
+                       @Field("imm") final int imm) throws R5MemoryAccessException {
         final int result = load16(x[rs1] + imm) & 0xFFFF;
         if (rd != 0) {
             x[rd] = result;
@@ -1853,29 +1838,29 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SB")
     protected void sb(@Field("rs1") final int rs1,
-                    @Field("rs2") final int rs2,
-                    @Field("imm") final int imm) throws R5MemoryAccessException {
+                      @Field("rs2") final int rs2,
+                      @Field("imm") final int imm) throws R5MemoryAccessException {
         store8(x[rs1] + imm, (byte) x[rs2]);
     }
 
     @Instruction("SH")
     protected void sh(@Field("rs1") final int rs1,
-                    @Field("rs2") final int rs2,
-                    @Field("imm") final int imm) throws R5MemoryAccessException {
+                      @Field("rs2") final int rs2,
+                      @Field("imm") final int imm) throws R5MemoryAccessException {
         store16(x[rs1] + imm, (short) x[rs2]);
     }
 
     @Instruction("SW")
     protected void sw(@Field("rs1") final int rs1,
-                    @Field("rs2") final int rs2,
-                    @Field("imm") final int imm) throws R5MemoryAccessException {
+                      @Field("rs2") final int rs2,
+                      @Field("imm") final int imm) throws R5MemoryAccessException {
         store32(x[rs1] + imm, (int) x[rs2]);
     }
 
     @Instruction("ADDI")
     protected void addi(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("imm") final int imm) {
+                        @Field("rs1") final int rs1,
+                        @Field("imm") final int imm) {
         if (rd != 0) {
             x[rd] = x[rs1] + imm;
         }
@@ -1883,8 +1868,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SLTI")
     protected void slti(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("imm") final int imm) {
+                        @Field("rs1") final int rs1,
+                        @Field("imm") final int imm) {
         if (rd != 0) {
             x[rd] = x[rs1] < imm ? 1 : 0;
         }
@@ -1892,8 +1877,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SLTIU")
     protected void sltiu(@Field("rd") final int rd,
-                       @Field("rs1") final int rs1,
-                       @Field("imm") final int imm) {
+                         @Field("rs1") final int rs1,
+                         @Field("imm") final int imm) {
         if (rd != 0) {
             x[rd] = Long.compareUnsigned(x[rs1], imm) < 0 ? 1 : 0;
         }
@@ -1901,8 +1886,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("XORI")
     protected void xori(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("imm") final int imm) {
+                        @Field("rs1") final int rs1,
+                        @Field("imm") final int imm) {
         if (rd != 0) {
             x[rd] = x[rs1] ^ imm;
         }
@@ -1910,8 +1895,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("ORI")
     protected void ori(@Field("rd") final int rd,
-                     @Field("rs1") final int rs1,
-                     @Field("imm") final int imm) {
+                       @Field("rs1") final int rs1,
+                       @Field("imm") final int imm) {
         if (rd != 0) {
             x[rd] = x[rs1] | imm;
         }
@@ -1919,8 +1904,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("ANDI")
     protected void andi(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("imm") final int imm) {
+                        @Field("rs1") final int rs1,
+                        @Field("imm") final int imm) {
         if (rd != 0) {
             x[rd] = x[rs1] & imm;
         }
@@ -1928,8 +1913,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SLLI")
     protected void slli(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("shamt") final int shamt) {
+                        @Field("rs1") final int rs1,
+                        @Field("shamt") final int shamt) {
         if (rd != 0) {
             x[rd] = x[rs1] << shamt;
         }
@@ -1937,8 +1922,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SRLI")
     protected void srli(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("shamt") final int shamt) {
+                        @Field("rs1") final int rs1,
+                        @Field("shamt") final int shamt) {
         if (rd != 0) {
             x[rd] = x[rs1] >>> shamt;
         }
@@ -1946,8 +1931,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SRAI")
     protected void srai(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("shamt") final int shamt) {
+                        @Field("rs1") final int rs1,
+                        @Field("shamt") final int shamt) {
         if (rd != 0) {
             x[rd] = x[rs1] >> shamt;
         }
@@ -1955,8 +1940,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("ADD")
     protected void add(@Field("rd") final int rd,
-                     @Field("rs1") final int rs1,
-                     @Field("rs2") final int rs2) {
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = x[rs1] + x[rs2];
         }
@@ -1964,8 +1949,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SUB")
     protected void sub(@Field("rd") final int rd,
-                     @Field("rs1") final int rs1,
-                     @Field("rs2") final int rs2) {
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = x[rs1] - x[rs2];
         }
@@ -1973,8 +1958,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SLL")
     protected void sll(@Field("rd") final int rd,
-                     @Field("rs1") final int rs1,
-                     @Field("rs2") final int rs2) {
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = x[rs1] << x[rs2];
         }
@@ -1982,8 +1967,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SLT")
     protected void slt(@Field("rd") final int rd,
-                     @Field("rs1") final int rs1,
-                     @Field("rs2") final int rs2) {
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = x[rs1] < x[rs2] ? 1 : 0;
         }
@@ -1991,8 +1976,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SLTU")
     protected void sltu(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("rs2") final int rs2) {
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = Long.compareUnsigned(x[rs1], x[rs2]) < 0 ? 1 : 0;
         }
@@ -2000,8 +1985,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("XOR")
     protected void xor(@Field("rd") final int rd,
-                     @Field("rs1") final int rs1,
-                     @Field("rs2") final int rs2) {
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = x[rs1] ^ x[rs2];
         }
@@ -2009,8 +1994,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SRL")
     protected void srl(@Field("rd") final int rd,
-                     @Field("rs1") final int rs1,
-                     @Field("rs2") final int rs2) {
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = x[rs1] >>> x[rs2];
         }
@@ -2018,8 +2003,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SRA")
     protected void sra(@Field("rd") final int rd,
-                     @Field("rs1") final int rs1,
-                     @Field("rs2") final int rs2) {
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = x[rs1] >> x[rs2];
         }
@@ -2027,8 +2012,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("OR")
     protected void or(@Field("rd") final int rd,
-                    @Field("rs1") final int rs1,
-                    @Field("rs2") final int rs2) {
+                      @Field("rs1") final int rs1,
+                      @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = x[rs1] | x[rs2];
         }
@@ -2036,8 +2021,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AND")
     protected void and(@Field("rd") final int rd,
-                     @Field("rs1") final int rs1,
-                     @Field("rs2") final int rs2) {
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = x[rs1] & x[rs2];
         }
@@ -2065,8 +2050,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AUIPCW")
     protected void auipcw(@Field("rd") final int rd,
-                        @Field("imm") final int imm,
-                        @ProgramCounter final long pc) {
+                          @Field("imm") final int imm,
+                          @ProgramCounter final long pc) {
         if (rd != 0) {
             x[rd] = (int) (pc + imm);
         }
@@ -2074,9 +2059,9 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("JALW")
     protected void jalw(@Field("rd") final int rd,
-                      @Field("imm") final int imm,
-                      @ProgramCounter final long pc,
-                      @InstructionSize final int instructionSize) {
+                        @Field("imm") final int imm,
+                        @ProgramCounter final long pc,
+                        @InstructionSize final int instructionSize) {
         if (rd != 0) {
             x[rd] = (int) (pc + instructionSize);
         }
@@ -2086,10 +2071,10 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("JALRW")
     protected void jalrw(@Field("rd") final int rd,
-                       @Field("rs1") final int rs1,
-                       @Field("imm") final int imm,
-                       @ProgramCounter final long pc,
-                       @InstructionSize final int instructionSize) {
+                         @Field("rs1") final int rs1,
+                         @Field("imm") final int imm,
+                         @ProgramCounter final long pc,
+                         @InstructionSize final int instructionSize) {
         // Compute first in case rs1 == rd and clear lowest bit as per spec.
         final long address = (x[rs1] + imm) & ~1;
         if (rd != 0) {
@@ -2101,8 +2086,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("ADDIW")
     protected void addiw(@Field("rd") final int rd,
-                       @Field("rs1") final int rs1,
-                       @Field("imm") final int imm) {
+                         @Field("rs1") final int rs1,
+                         @Field("imm") final int imm) {
         if (rd != 0) {
             x[rd] = (int) x[rs1] + imm;
         }
@@ -2110,8 +2095,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SLLIW")
     protected void slliw(@Field("rd") final int rd,
-                       @Field("rs1") final int rs1,
-                       @Field("shamt") final int shamt) {
+                         @Field("rs1") final int rs1,
+                         @Field("shamt") final int shamt) {
         if (rd != 0) {
             x[rd] = (int) (x[rs1] << shamt);
         }
@@ -2119,8 +2104,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SRLIW")
     protected void srliw(@Field("rd") final int rd,
-                       @Field("rs1") final int rs1,
-                       @Field("shamt") final int shamt) {
+                         @Field("rs1") final int rs1,
+                         @Field("shamt") final int shamt) {
         if (rd != 0) {
             x[rd] = (int) x[rs1] >>> shamt;
         }
@@ -2128,8 +2113,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SRAIW")
     protected void sraiw(@Field("rd") final int rd,
-                       @Field("rs1") final int rs1,
-                       @Field("shamt") final int shamt) {
+                         @Field("rs1") final int rs1,
+                         @Field("shamt") final int shamt) {
         if (rd != 0) {
             x[rd] = (int) x[rs1] >> shamt;
         }
@@ -2137,8 +2122,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("ADDW")
     protected void addw(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("rs2") final int rs2) {
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = (int) x[rs1] + (int) x[rs2];
         }
@@ -2146,8 +2131,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SUBW")
     protected void subw(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("rs2") final int rs2) {
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = (int) x[rs1] - (int) x[rs2];
         }
@@ -2155,8 +2140,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SLLW")
     protected void sllw(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("rs2") final int rs2) {
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = (int) x[rs1] << (int) x[rs2];
         }
@@ -2164,8 +2149,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SRLW")
     protected void srlw(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("rs2") final int rs2) {
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = (int) x[rs1] >>> (int) x[rs2];
         }
@@ -2173,8 +2158,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SRAW")
     protected void sraw(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("rs2") final int rs2) {
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = (int) x[rs1] >> (int) x[rs2];
         }
@@ -2182,8 +2167,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("LWU")
     protected void lwu(@Field("rd") final int rd,
-                     @Field("rs1") final int rs1,
-                     @Field("imm") final int imm) throws R5MemoryAccessException {
+                       @Field("rs1") final int rs1,
+                       @Field("imm") final int imm) throws R5MemoryAccessException {
         final long address = x[rs1] + imm;
         final long result = load32(address) & 0xFFFFFFFFL;
         if (rd != 0) {
@@ -2193,8 +2178,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("LD")
     protected void ld(@Field("rd") final int rd,
-                    @Field("rs1") final int rs1,
-                    @Field("imm") final int imm) throws R5MemoryAccessException {
+                      @Field("rs1") final int rs1,
+                      @Field("imm") final int imm) throws R5MemoryAccessException {
         final long address = x[rs1] + imm;
         final long result = load64(address);
         if (rd != 0) {
@@ -2204,8 +2189,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SD")
     protected void sd(@Field("rs1") final int rs1,
-                    @Field("rs2") final int rs2,
-                    @Field("imm") final int imm) throws R5MemoryAccessException {
+                      @Field("rs2") final int rs2,
+                      @Field("imm") final int imm) throws R5MemoryAccessException {
         store64(x[rs1] + imm, x[rs2]);
     }
 
@@ -2222,43 +2207,43 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("CSRRW")
     protected boolean csrrw(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("csr") final int csr) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("csr") final int csr) throws R5IllegalInstructionException {
         return csrrwx(rd, x[rs1], csr);
     }
 
     @Instruction("CSRRS")
     protected boolean csrrs(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("csr") final int csr) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("csr") final int csr) throws R5IllegalInstructionException {
         return csrrscx(rd, rs1, csr, x[rs1], true);
     }
 
     @Instruction("CSRRC")
     protected boolean csrrc(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("csr") final int csr) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("csr") final int csr) throws R5IllegalInstructionException {
         return csrrscx(rd, rs1, csr, x[rs1], false);
     }
 
     @Instruction("CSRRWI")
     protected boolean csrrwi(@Field("rd") final int rd,
-                           @Field("rs1") final int rs1,
-                           @Field("csr") final int csr) throws R5IllegalInstructionException {
+                             @Field("rs1") final int rs1,
+                             @Field("csr") final int csr) throws R5IllegalInstructionException {
         return csrrwx(rd, rs1, csr);
     }
 
     @Instruction("CSRRSI")
     protected boolean csrrsi(@Field("rd") final int rd,
-                           @Field("rs1") final int rs1,
-                           @Field("csr") final int csr) throws R5IllegalInstructionException {
+                             @Field("rs1") final int rs1,
+                             @Field("csr") final int csr) throws R5IllegalInstructionException {
         return csrrscx(rd, rs1, csr, rs1, true);
     }
 
     @Instruction("CSRRCI")
     protected boolean csrrci(@Field("rd") final int rd,
-                           @Field("rs1") final int rs1,
-                           @Field("csr") final int csr) throws R5IllegalInstructionException {
+                             @Field("rs1") final int rs1,
+                             @Field("csr") final int csr) throws R5IllegalInstructionException {
         return csrrscx(rd, rs1, csr, rs1, false);
     }
 
@@ -2267,8 +2252,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("MUL")
     protected void mul(@Field("rd") final int rd,
-                     @Field("rs1") final int rs1,
-                     @Field("rs2") final int rs2) {
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = x[rs1] * x[rs2];
         }
@@ -2276,8 +2261,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("MULH")
     protected void mulh(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("rs2") final int rs2) {
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = Math.multiplyHigh(x[rs1], x[rs2]);
         }
@@ -2285,8 +2270,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("MULHSU")
     protected void mulhsu(@Field("rd") final int rd,
-                        @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2) {
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = signedUnsignedMultiplyHigh(x[rs1], x[rs2]);
         }
@@ -2294,8 +2279,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("MULHU")
     protected void mulhu(@Field("rd") final int rd,
-                       @Field("rs1") final int rs1,
-                       @Field("rs2") final int rs2) {
+                         @Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = unsignedMultiplyHigh(x[rs1], x[rs2]);
         }
@@ -2311,8 +2296,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("DIV")
     protected void div(@Field("rd") final int rd,
-                     @Field("rs1") final int rs1,
-                     @Field("rs2") final int rs2) {
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
         if (rd != 0) {
             if (x[rs2] == 0) {
                 x[rd] = -1L;
@@ -2326,8 +2311,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("DIVU")
     protected void divu(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("rs2") final int rs2) {
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) {
         if (rd != 0) {
             if (x[rs2] == 0) {
                 x[rd] = -1L;
@@ -2339,8 +2324,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("REM")
     protected void rem(@Field("rd") final int rd,
-                     @Field("rs1") final int rs1,
-                     @Field("rs2") final int rs2) {
+                       @Field("rs1") final int rs1,
+                       @Field("rs2") final int rs2) {
         if (rd != 0) {
             if (x[rs2] == 0) {
                 x[rd] = x[rs1];
@@ -2354,8 +2339,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("REMU")
     protected void remu(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("rs2") final int rs2) {
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) {
         if (rd != 0) {
             if (x[rs2] == 0) {
                 x[rd] = x[rs1];
@@ -2370,8 +2355,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("MULW")
     protected void mulw(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("rs2") final int rs2) {
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = (int) x[rs1] * (int) x[rs2];
         }
@@ -2379,8 +2364,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("MULHW")
     protected void mulhw(@Field("rd") final int rd,
-                       @Field("rs1") final int rs1,
-                       @Field("rs2") final int rs2) {
+                         @Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = (int) ((x[rs1] * x[rs2]) >>> 32);
         }
@@ -2388,8 +2373,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("MULHSUW")
     protected void mulhsuw(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1,
-                         @Field("rs2") final int rs2) {
+                           @Field("rs1") final int rs1,
+                           @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = (int) ((x[rs1] * (x[rs2] & 0xFFFFFFFFL)) >>> 32);
         }
@@ -2397,8 +2382,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("MULHUW")
     protected void mulhuw(@Field("rd") final int rd,
-                        @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2) {
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) {
         if (rd != 0) {
             x[rd] = (int) (((x[rs1] & 0xFFFFFFFFL) * (x[rs2] & 0xFFFFFFFFL)) >>> 32);
         }
@@ -2406,8 +2391,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("DIVW")
     protected void divw(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("rs2") final int rs2) {
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) {
         if (rd != 0) {
             if ((int) x[rs2] == 0) {
                 x[rd] = -1;
@@ -2421,8 +2406,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("DIVUW")
     protected void divuw(@Field("rd") final int rd,
-                       @Field("rs1") final int rs1,
-                       @Field("rs2") final int rs2) {
+                         @Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2) {
         if (rd != 0) {
             if ((int) x[rs2] == 0) {
                 x[rd] = -1;
@@ -2434,8 +2419,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("REMW")
     protected void remw(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("rs2") final int rs2) {
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) {
         if (rd != 0) {
             if ((int) x[rs2] == 0) {
                 x[rd] = (int) x[rs1];
@@ -2449,8 +2434,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("REMUW")
     protected void remuw(@Field("rd") final int rd,
-                       @Field("rs1") final int rs1,
-                       @Field("rs2") final int rs2) {
+                         @Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2) {
         if (rd != 0) {
             if ((int) x[rs2] == 0) {
                 x[rd] = (int) x[rs1];
@@ -2465,7 +2450,7 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("LR.W")
     protected void lr_w(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1) throws R5MemoryAccessException {
+                        @Field("rs1") final int rs1) throws R5MemoryAccessException {
         final long address = x[rs1];
         final int result = load32(address);
         reservation_set = address;
@@ -2477,8 +2462,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SC.W")
     protected void sc_w(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final int result;
         final long address = x[rs1];
         if (address == reservation_set) {
@@ -2497,8 +2482,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOSWAP.W")
     protected void amoswap_w(@Field("rd") final int rd,
-                           @Field("rs1") final int rs1,
-                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                             @Field("rs1") final int rs1,
+                             @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final int a = load32(address);
         final int b = (int) x[rs2];
@@ -2512,8 +2497,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOADD.W")
     protected void amoadd_w(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final int a = load32(address);
         final int b = (int) x[rs2];
@@ -2527,8 +2512,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOXOR.W")
     protected void amoxor_w(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final int a = load32(address);
         final int b = (int) x[rs2];
@@ -2542,8 +2527,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOAND.W")
     protected void amoand_w(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final int a = load32(address);
         final int b = (int) x[rs2];
@@ -2557,8 +2542,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOOR.W")
     protected void amoor_w(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1,
-                         @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                           @Field("rs1") final int rs1,
+                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final int a = load32(address);
         final int b = (int) x[rs2];
@@ -2572,8 +2557,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOMIN.W")
     protected void amomin_w(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final int a = load32(address);
         final int b = (int) x[rs2];
@@ -2587,8 +2572,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOMAX.W")
     protected void amomax_w(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final int a = load32(address);
         final int b = (int) x[rs2];
@@ -2602,8 +2587,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOMINU.W")
     protected void amominu_w(@Field("rd") final int rd,
-                           @Field("rs1") final int rs1,
-                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                             @Field("rs1") final int rs1,
+                             @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final int a = load32(address);
         final int b = (int) x[rs2];
@@ -2618,8 +2603,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOMAXU.W")
     protected void amomaxu_w(@Field("rd") final int rd,
-                           @Field("rs1") final int rs1,
-                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                             @Field("rs1") final int rs1,
+                             @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final int a = load32(address);
         final int b = (int) x[rs2];
@@ -2636,7 +2621,7 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("LR.D")
     protected void lr_d(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1) throws R5MemoryAccessException {
+                        @Field("rs1") final int rs1) throws R5MemoryAccessException {
         final long address = x[rs1];
         final long result = load64(address);
         reservation_set = address;
@@ -2648,8 +2633,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SC.D")
     protected void sc_d(@Field("rd") final int rd,
-                      @Field("rs1") final int rs1,
-                      @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                        @Field("rs1") final int rs1,
+                        @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final int result;
         final long address = x[rs1];
         if (address == reservation_set) {
@@ -2668,8 +2653,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOSWAP.D")
     protected void amoswap_d(@Field("rd") final int rd,
-                           @Field("rs1") final int rs1,
-                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                             @Field("rs1") final int rs1,
+                             @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final long a = load64(address);
         final long b = x[rs2];
@@ -2683,8 +2668,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOADD.D")
     protected void amoadd_d(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final long a = load64(address);
         final long b = x[rs2];
@@ -2698,8 +2683,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOXOR.D")
     protected void amoxor_d(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final long a = load64(address);
         final long b = x[rs2];
@@ -2713,8 +2698,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOAND.D")
     protected void amoand_d(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final long a = load64(address);
         final long b = x[rs2];
@@ -2728,8 +2713,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOOR.D")
     protected void amoor_d(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1,
-                         @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                           @Field("rs1") final int rs1,
+                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final long a = load64(address);
         final long b = x[rs2];
@@ -2743,8 +2728,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOMIN.D")
     protected void amomin_d(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final long a = load64(address);
         final long b = x[rs2];
@@ -2758,8 +2743,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOMAX.D")
     protected void amomax_d(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final long a = load64(address);
         final long b = x[rs2];
@@ -2773,8 +2758,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOMINU.D")
     protected void amominu_d(@Field("rd") final int rd,
-                           @Field("rs1") final int rs1,
-                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                             @Field("rs1") final int rs1,
+                             @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final long a = load64(address);
         final long b = x[rs2];
@@ -2788,8 +2773,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("AMOMAXU.D")
     protected void amomaxu_d(@Field("rd") final int rd,
-                           @Field("rs1") final int rs1,
-                           @Field("rs2") final int rs2) throws R5MemoryAccessException {
+                             @Field("rs1") final int rs1,
+                             @Field("rs2") final int rs2) throws R5MemoryAccessException {
         final long address = x[rs1];
         final long a = load64(address);
         final long b = x[rs2];
@@ -2867,7 +2852,7 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("SFENCE.VMA")
     protected boolean sfence_vma(@Field("rs1") final int rs1,
-                               @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+                                 @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         if (priv == R5.PRIVILEGE_U) {
             throw new R5IllegalInstructionException();
         }
@@ -2899,8 +2884,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FLW")
     protected void flw(@Field("rd") final int rd,
-                     @Field("rs1") final int rs1,
-                     @Field("imm") final int imm) throws R5IllegalInstructionException, R5MemoryAccessException {
+                       @Field("rs1") final int rs1,
+                       @Field("imm") final int imm) throws R5IllegalInstructionException, R5MemoryAccessException {
         checkFPUEnabled();
         f[rd] = load32(x[rs1] + imm) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -2908,18 +2893,18 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FSW")
     protected void fsw(@Field("rs1") final int rs1,
-                     @Field("rs2") final int rs2,
-                     @Field("imm") final int imm) throws R5IllegalInstructionException, R5MemoryAccessException {
+                       @Field("rs2") final int rs2,
+                       @Field("imm") final int imm) throws R5IllegalInstructionException, R5MemoryAccessException {
         checkFPUEnabled();
         store32(x[rs1] + imm, (int) f[rs2]);
     }
 
     @Instruction("FMADD.S")
     protected void fmadd_s(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1,
-                         @Field("rs2") final int rs2,
-                         @Field("rs3") final int rs3,
-                         @Field("rm") int rm) throws R5IllegalInstructionException {
+                           @Field("rs1") final int rs1,
+                           @Field("rs2") final int rs2,
+                           @Field("rs3") final int rs3,
+                           @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.muladd(checkFloat(f[rs1]), checkFloat(f[rs2]), checkFloat(f[rs3]), rm) | R5.NAN_BOXING_MASK;
@@ -2928,10 +2913,10 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FMSUB.S")
     protected void fmsub_s(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1,
-                         @Field("rs2") final int rs2,
-                         @Field("rs3") final int rs3,
-                         @Field("rm") int rm) throws R5IllegalInstructionException {
+                           @Field("rs1") final int rs1,
+                           @Field("rs2") final int rs2,
+                           @Field("rs3") final int rs3,
+                           @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.mulsub(checkFloat(f[rs1]), checkFloat(f[rs2]), checkFloat(f[rs3]), rm) | R5.NAN_BOXING_MASK;
@@ -2940,10 +2925,10 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FNMSUB.S")
     protected void fnmsub_s(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2,
-                          @Field("rs3") final int rs3,
-                          @Field("rm") int rm) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2,
+                            @Field("rs3") final int rs3,
+                            @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.muladd(fpu32.neg(checkFloat(f[rs1])), checkFloat(f[rs2]), checkFloat(f[rs3]), rm) | R5.NAN_BOXING_MASK;
@@ -2952,10 +2937,10 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FNMADD.S")
     protected void fnmadd_s(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2,
-                          @Field("rs3") final int rs3,
-                          @Field("rm") int rm) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2,
+                            @Field("rs3") final int rs3,
+                            @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.mulsub(fpu32.neg(checkFloat(f[rs1])), checkFloat(f[rs2]), checkFloat(f[rs3]), rm) | R5.NAN_BOXING_MASK;
@@ -2964,9 +2949,9 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FADD.S")
     protected void fadd_s(@Field("rd") final int rd,
-                        @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2,
-                        @Field("rm") int rm) throws R5IllegalInstructionException {
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.add(checkFloat(f[rs1]), checkFloat(f[rs2]), rm) | R5.NAN_BOXING_MASK;
@@ -2975,9 +2960,9 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FSUB.S")
     protected void fsub_s(@Field("rd") final int rd,
-                        @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2,
-                        @Field("rm") int rm) throws R5IllegalInstructionException {
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.sub(checkFloat(f[rs1]), checkFloat(f[rs2]), rm) | R5.NAN_BOXING_MASK;
@@ -2986,9 +2971,9 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FMUL.S")
     protected void fmul_s(@Field("rd") final int rd,
-                        @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2,
-                        @Field("rm") int rm) throws R5IllegalInstructionException {
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.mul(checkFloat(f[rs1]), checkFloat(f[rs2]), rm) | R5.NAN_BOXING_MASK;
@@ -2997,9 +2982,9 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FDIV.S")
     protected void fdiv_s(@Field("rd") final int rd,
-                        @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2,
-                        @Field("rm") int rm) throws R5IllegalInstructionException {
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.div(checkFloat(f[rs1]), checkFloat(f[rs2]), rm) | R5.NAN_BOXING_MASK;
@@ -3008,8 +2993,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FSQRT.S")
     protected void fsqrt_s(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1,
-                         @Field("rm") int rm) throws R5IllegalInstructionException {
+                           @Field("rs1") final int rs1,
+                           @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.sqrt(checkFloat(f[rs1]), rm) | R5.NAN_BOXING_MASK;
@@ -3018,8 +3003,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FSGNJ.S")
     protected void fsgnj_s(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1,
-                         @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+                           @Field("rs1") final int rs1,
+                           @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         final long value = checkFloat(f[rs1]) & ~SoftFloat.SIGN_MASK;
         f[rd] = value | (checkFloat(f[rs2]) & SoftFloat.SIGN_MASK) | R5.NAN_BOXING_MASK;
@@ -3028,8 +3013,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FSGNJN.S")
     protected void fsgnjn_s(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         final long value = checkFloat(f[rs1]) & ~SoftFloat.SIGN_MASK;
         f[rd] = value | (~checkFloat(f[rs2]) & SoftFloat.SIGN_MASK) | R5.NAN_BOXING_MASK;
@@ -3038,8 +3023,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FSGNJX.S")
     protected void fsgnjx_s(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         f[rd] = f[rs1] ^ (checkFloat(f[rs2]) & SoftFloat.SIGN_MASK) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -3047,8 +3032,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FMIN.S")
     protected void fmin_s(@Field("rd") final int rd,
-                        @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         f[rd] = fpu32.min(checkFloat(f[rs1]), checkFloat(f[rs2])) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -3056,8 +3041,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FMAX.S")
     protected void fmax_s(@Field("rd") final int rd,
-                        @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         f[rd] = fpu32.max(checkFloat(f[rs1]), checkFloat(f[rs2])) | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -3065,8 +3050,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.W.S")
     protected void fcvt_w_s(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rm") int rm) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final int value = fpu32.floatToInt(checkFloat(f[rs1]), rm);
@@ -3078,8 +3063,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.WU.S")
     protected void fcvt_wu_s(@Field("rd") final int rd,
-                           @Field("rs1") final int rs1,
-                           @Field("rm") int rm) throws R5IllegalInstructionException {
+                             @Field("rs1") final int rs1,
+                             @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final int value = fpu32.floatToUnsignedInt(checkFloat(f[rs1]), rm);
@@ -3091,7 +3076,7 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FMV.X.W")
     protected void fmv_x_w(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1) throws R5IllegalInstructionException {
+                           @Field("rs1") final int rs1) throws R5IllegalInstructionException {
         checkFPUEnabled();
         if (rd != 0) {
             x[rd] = (int) f[rs1];
@@ -3100,8 +3085,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FEQ.S")
     protected void feq_s(@Field("rd") final int rd,
-                       @Field("rs1") final int rs1,
-                       @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+                         @Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         final boolean areEqual = fpu32.equals(checkFloat(f[rs1]), checkFloat(f[rs2]));
         fs = R5.FS_DIRTY;
@@ -3112,8 +3097,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FLT.S")
     protected void flt_s(@Field("rd") final int rd,
-                       @Field("rs1") final int rs1,
-                       @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+                         @Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         final boolean isLessThan = fpu32.lessThan(checkFloat(f[rs1]), checkFloat(f[rs2]));
         fs = R5.FS_DIRTY;
@@ -3124,8 +3109,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FLE.S")
     protected void fle_s(@Field("rd") final int rd,
-                       @Field("rs1") final int rs1,
-                       @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+                         @Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         final boolean isLessOrEqual = fpu32.lessOrEqual(checkFloat(f[rs1]), checkFloat(f[rs2]));
         fs = R5.FS_DIRTY;
@@ -3136,7 +3121,7 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCLASS.S")
     protected void fclass_s(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1) throws R5IllegalInstructionException {
         checkFPUEnabled();
         if (rd != 0) {
             x[rd] = fpu32.classify(checkFloat(f[rs1]));
@@ -3145,8 +3130,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.S.W")
     protected void fcvt_s_w(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rm") int rm) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.intToFloat((int) x[rs1], rm) | R5.NAN_BOXING_MASK;
@@ -3155,8 +3140,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.S.WU")
     protected void fcvt_s_wu(@Field("rd") final int rd,
-                           @Field("rs1") final int rs1,
-                           @Field("rm") int rm) throws R5IllegalInstructionException {
+                             @Field("rs1") final int rs1,
+                             @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.unsignedIntToFloat((int) x[rs1], rm) | R5.NAN_BOXING_MASK;
@@ -3165,7 +3150,7 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FMV.W.X")
     protected void fmv_w_x(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1) throws R5IllegalInstructionException {
+                           @Field("rs1") final int rs1) throws R5IllegalInstructionException {
         checkFPUEnabled();
         f[rd] = x[rs1] | R5.NAN_BOXING_MASK;
         fs = R5.FS_DIRTY;
@@ -3176,8 +3161,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.L.S")
     protected void fcvt_l_s(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rm") int rm) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final long value = fpu32.floatToLong((int) f[rs1], rm);
@@ -3189,8 +3174,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.LU.S")
     protected void fcvt_lu_s(@Field("rd") final int rd,
-                           @Field("rs1") final int rs1,
-                           @Field("rm") int rm) throws R5IllegalInstructionException {
+                             @Field("rs1") final int rs1,
+                             @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final long value = fpu32.floatToUnsignedLong((int) f[rs1], rm);
@@ -3202,8 +3187,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.S.L")
     protected void fcvt_s_l(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rm") int rm) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.longToFloat(x[rs1], rm) | R5.NAN_BOXING_MASK;
@@ -3212,8 +3197,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.S.LU")
     protected void fcvt_s_lu(@Field("rd") final int rd,
-                           @Field("rs1") final int rs1,
-                           @Field("rm") int rm) throws R5IllegalInstructionException {
+                             @Field("rs1") final int rs1,
+                             @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu32.unsignedLongToFloat(x[rs1], rm) | R5.NAN_BOXING_MASK;
@@ -3225,8 +3210,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FLD")
     protected void fld(@Field("rd") final int rd,
-                     @Field("rs1") final int rs1,
-                     @Field("imm") final int imm) throws R5IllegalInstructionException, R5MemoryAccessException {
+                       @Field("rs1") final int rs1,
+                       @Field("imm") final int imm) throws R5IllegalInstructionException, R5MemoryAccessException {
         checkFPUEnabled();
         f[rd] = load64(x[rs1] + imm);
         fs = R5.FS_DIRTY;
@@ -3234,18 +3219,18 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FSD")
     protected void fsd(@Field("rs1") final int rs1,
-                     @Field("rs2") final int rs2,
-                     @Field("imm") final int imm) throws R5IllegalInstructionException, R5MemoryAccessException {
+                       @Field("rs2") final int rs2,
+                       @Field("imm") final int imm) throws R5IllegalInstructionException, R5MemoryAccessException {
         checkFPUEnabled();
         store64(x[rs1] + imm, f[rs2]);
     }
 
     @Instruction("FMADD.D")
     protected void fmadd_d(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1,
-                         @Field("rs2") final int rs2,
-                         @Field("rs3") final int rs3,
-                         @Field("rm") int rm) throws R5IllegalInstructionException {
+                           @Field("rs1") final int rs1,
+                           @Field("rs2") final int rs2,
+                           @Field("rs3") final int rs3,
+                           @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.muladd(f[rs1], f[rs2], f[rs3], rm);
@@ -3254,10 +3239,10 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FMSUB.D")
     protected void FMSUB_D(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1,
-                         @Field("rs2") final int rs2,
-                         @Field("rs3") final int rs3,
-                         @Field("rm") int rm) throws R5IllegalInstructionException {
+                           @Field("rs1") final int rs1,
+                           @Field("rs2") final int rs2,
+                           @Field("rs3") final int rs3,
+                           @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.mulsub(f[rs1], f[rs2], f[rs3], rm);
@@ -3266,10 +3251,10 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FNMSUB.D")
     protected void fnmsub_d(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2,
-                          @Field("rs3") final int rs3,
-                          @Field("rm") int rm) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2,
+                            @Field("rs3") final int rs3,
+                            @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.muladd(fpu64.neg(f[rs1]), f[rs2], f[rs3], rm);
@@ -3278,10 +3263,10 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FNMADD.D")
     protected void fnmadd_d(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2,
-                          @Field("rs3") final int rs3,
-                          @Field("rm") int rm) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2,
+                            @Field("rs3") final int rs3,
+                            @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.mulsub(fpu64.neg(f[rs1]), f[rs2], f[rs3], rm);
@@ -3290,9 +3275,9 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FADD.D")
     protected void fadd_d(@Field("rd") final int rd,
-                        @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2,
-                        @Field("rm") int rm) throws R5IllegalInstructionException {
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.add(f[rs1], f[rs2], rm);
@@ -3301,9 +3286,9 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FSUB.D")
     protected void fsub_d(@Field("rd") final int rd,
-                        @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2,
-                        @Field("rm") int rm) throws R5IllegalInstructionException {
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.sub(f[rs1], f[rs2], rm);
@@ -3312,9 +3297,9 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FMUL.D")
     protected void fmul_d(@Field("rd") final int rd,
-                        @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2,
-                        @Field("rm") int rm) throws R5IllegalInstructionException {
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.mul(f[rs1], f[rs2], rm);
@@ -3323,9 +3308,9 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FDIV.D")
     protected void fdiv_d(@Field("rd") final int rd,
-                        @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2,
-                        @Field("rm") int rm) throws R5IllegalInstructionException {
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2,
+                          @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.div(f[rs1], f[rs2], rm);
@@ -3334,8 +3319,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FSQRT.D")
     protected void fsqrt_d(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1,
-                         @Field("rm") int rm) throws R5IllegalInstructionException {
+                           @Field("rs1") final int rs1,
+                           @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.sqrt(f[rs1], rm);
@@ -3344,8 +3329,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FSGNJ.D")
     protected void fsgnj_d(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1,
-                         @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+                           @Field("rs1") final int rs1,
+                           @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         final long value = f[rs1] & ~SoftDouble.SIGN_MASK;
         f[rd] = value | (f[rs2] & SoftDouble.SIGN_MASK);
@@ -3354,8 +3339,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FSGNJN.D")
     protected void fsgnjn_d(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         final long value = f[rs1] & ~SoftDouble.SIGN_MASK;
         f[rd] = value | (~f[rs2] & SoftDouble.SIGN_MASK);
@@ -3364,8 +3349,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FSGNJX.D")
     protected void fsgnjx_d(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         f[rd] = f[rs1] ^ (f[rs2] & SoftDouble.SIGN_MASK);
         fs = R5.FS_DIRTY;
@@ -3373,8 +3358,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FMIN.D")
     protected void fmin_d(@Field("rd") final int rd,
-                        @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         f[rd] = fpu64.min(f[rs1], f[rs2]);
         fs = R5.FS_DIRTY;
@@ -3382,8 +3367,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FMAX.D")
     protected void fmax_d(@Field("rd") final int rd,
-                        @Field("rs1") final int rs1,
-                        @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+                          @Field("rs1") final int rs1,
+                          @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         f[rd] = fpu64.max(f[rs1], f[rs2]);
         fs = R5.FS_DIRTY;
@@ -3391,8 +3376,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.S.D")
     protected void fcvt_s_d(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rm") int rm) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.doubleToFloat(f[rs1], rm) | R5.NAN_BOXING_MASK;
@@ -3401,8 +3386,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.D.S")
     protected void fcvt_d_s(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rm") int rm) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.floatToDouble((int) f[rs1], rm);
@@ -3411,8 +3396,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FEQ.D")
     protected void feq_d(@Field("rd") final int rd,
-                       @Field("rs1") final int rs1,
-                       @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+                         @Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         final boolean areEqual = fpu64.equals(f[rs1], f[rs2]);
         fs = R5.FS_DIRTY;
@@ -3423,8 +3408,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FLT.D")
     protected void flt_d(@Field("rd") final int rd,
-                       @Field("rs1") final int rs1,
-                       @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+                         @Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         final boolean isLessThan = fpu64.lessThan(f[rs1], f[rs2]);
         fs = R5.FS_DIRTY;
@@ -3435,8 +3420,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FLE.D")
     protected void fle_d(@Field("rd") final int rd,
-                       @Field("rs1") final int rs1,
-                       @Field("rs2") final int rs2) throws R5IllegalInstructionException {
+                         @Field("rs1") final int rs1,
+                         @Field("rs2") final int rs2) throws R5IllegalInstructionException {
         checkFPUEnabled();
         final boolean isLessOrEqual = fpu64.lessOrEqual(f[rs1], f[rs2]);
         fs = R5.FS_DIRTY;
@@ -3447,7 +3432,7 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCLASS.D")
     protected void fclass_d(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1) throws R5IllegalInstructionException {
         checkFPUEnabled();
         if (rd != 0) {
             x[rd] = fpu64.classify(f[rs1]);
@@ -3456,8 +3441,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.W.D")
     protected void fcvt_w_d(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rm") int rm) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final int value = fpu64.doubleToInt(f[rs1], rm);
@@ -3469,8 +3454,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.WU.D")
     protected void fcvt_wu_d(@Field("rd") final int rd,
-                           @Field("rs1") final int rs1,
-                           @Field("rm") int rm) throws R5IllegalInstructionException {
+                             @Field("rs1") final int rs1,
+                             @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final int value = fpu64.doubleToUnsignedInt(f[rs1], rm);
@@ -3482,8 +3467,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.D.W")
     protected void fcvt_d_w(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rm") int rm) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.intToDouble((int) x[rs1], rm);
@@ -3492,8 +3477,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.D.WU")
     protected void fcvt_d_wu(@Field("rd") final int rd,
-                           @Field("rs1") final int rs1,
-                           @Field("rm") int rm) throws R5IllegalInstructionException {
+                             @Field("rs1") final int rs1,
+                             @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.unsignedIntToDouble((int) x[rs1], rm);
@@ -3505,8 +3490,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.L.D")
     protected void fcvt_l_d(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rm") int rm) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final long value = fpu64.doubleToLong(f[rs1], rm);
@@ -3518,8 +3503,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.LU.D")
     protected void fcvt_lu_d(@Field("rd") final int rd,
-                           @Field("rs1") final int rs1,
-                           @Field("rm") int rm) throws R5IllegalInstructionException {
+                             @Field("rs1") final int rs1,
+                             @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         final long value = fpu64.doubleToUnsignedLong(f[rs1], rm);
@@ -3531,7 +3516,7 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FMV.X.D")
     protected void fmv_x_d(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1) throws R5IllegalInstructionException {
+                           @Field("rs1") final int rs1) throws R5IllegalInstructionException {
         checkFPUEnabled();
         if (rd != 0) {
             x[rd] = f[rs1];
@@ -3540,8 +3525,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.D.L")
     protected void fcvt_d_l(@Field("rd") final int rd,
-                          @Field("rs1") final int rs1,
-                          @Field("rm") int rm) throws R5IllegalInstructionException {
+                            @Field("rs1") final int rs1,
+                            @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.longToDouble(x[rs1], rm);
@@ -3550,8 +3535,8 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FCVT.D.LU")
     protected void fcvt_d_lu(@Field("rd") final int rd,
-                           @Field("rs1") final int rs1,
-                           @Field("rm") int rm) throws R5IllegalInstructionException {
+                             @Field("rs1") final int rs1,
+                             @Field("rm") int rm) throws R5IllegalInstructionException {
         checkFPUEnabled();
         rm = resolveRoundingMode(rm);
         f[rd] = fpu64.unsignedLongToDouble(x[rs1], rm);
@@ -3560,7 +3545,7 @@ public abstract class R5CPUBase implements R5CPU {
 
     @Instruction("FMV.D.X")
     protected void fmv_d_x(@Field("rd") final int rd,
-                         @Field("rs1") final int rs1) throws R5IllegalInstructionException {
+                           @Field("rs1") final int rs1) throws R5IllegalInstructionException {
         checkFPUEnabled();
         f[rd] = x[rs1];
         fs = R5.FS_DIRTY;
@@ -3590,12 +3575,13 @@ public abstract class R5CPUBase implements R5CPU {
 
         public boolean matches(final long address, final long tag, final int sizeLog2) {
             return hash == ((address & ~R5.PAGE_ADDRESS_MASK) | tag)
-                && Long.compareUnsigned(address, windowStart) >= 0
-                && Long.compareUnsigned(address + (1 << sizeLog2) - 1, windowEnd) <= 0;
+                    && Long.compareUnsigned(address, windowStart) >= 0
+                    && Long.compareUnsigned(address + (1 << sizeLog2) - 1, windowEnd) <= 0;
         }
     }
 
-    private record PageAccess(MemoryMappedDevice device, long toOffset) {}
+    private record PageAccess(MemoryMappedDevice device, long toOffset) {
+    }
 
     final class DebugInterface implements CPUDebugInterface {
         private final Collection<LongConsumer> breakpointListeners = new ArrayList<>();
@@ -3693,7 +3679,7 @@ public abstract class R5CPUBase implements R5CPU {
 
             final int index = tlbIndex(address);
             if ((fetchTLBHash[index] & ~TLB_DIRECT) == ((address & ~R5.PAGE_ADDRESS_MASK) | fetchTLBTag)
-                && fetchTLBBreakpoints[index] != null) {
+                    && fetchTLBBreakpoints[index] != null) {
                 fetchTLBBreakpoints[index].remove(address);
             }
         }
@@ -3728,11 +3714,11 @@ public abstract class R5CPUBase implements R5CPU {
             final long hash = (address & ~R5.PAGE_ADDRESS_MASK) | tagFor(accessType);
             return switch (accessType) {
                 case LOAD -> (loadTLBHash[index] & ~TLB_DIRECT) == hash
-                    ? new PageAccess(loadTLBDevice[index], loadTLBToOffset[index]) : null;
+                        ? new PageAccess(loadTLBDevice[index], loadTLBToOffset[index]) : null;
                 case STORE -> (storeTLBHash[index] & ~TLB_DIRECT) == hash
-                    ? new PageAccess(storeTLBDevice[index], storeTLBToOffset[index]) : null;
+                        ? new PageAccess(storeTLBDevice[index], storeTLBToOffset[index]) : null;
                 case FETCH -> (fetchTLBHash[index] & ~TLB_DIRECT) == hash
-                    ? new PageAccess(fetchTLBDevice[index], fetchTLBToOffset[index]) : null;
+                        ? new PageAccess(fetchTLBDevice[index], fetchTLBToOffset[index]) : null;
             };
         }
 

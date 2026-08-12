@@ -321,8 +321,8 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
                 if ((mcr & UART_MCR_LBM) != 0) {
                     // Loopback mode -> output = input
                     return (byte) ((mcr & 0b1100) << 4 | // OUT [3:2] -> [7:6]
-                        (mcr & 0b0010) << 3 | // RTS [1] -> [4]
-                        (mcr & 0b0001) << 5); // DTR [0] -> [5]
+                            (mcr & 0b0010) << 3 | // RTS [1] -> [4]
+                            (mcr & 0b0001) << 5); // DTR [0] -> [5]
                 } else {
                     synchronized (lock) {
                         final byte result = msr;
@@ -442,7 +442,7 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
         } else if ((ier & UART_IER_RDI) != 0 && timeoutInterruptPending) {
             niir = UART_IIR_CTI;
         } else if ((ier & UART_IER_RDI) != 0 && (lsr & UART_LSR_DR) != 0 &&
-            ((fcr & UART_FCR_FE) == 0 || receiveFifo.size() > triggerLevel)) {
+                ((fcr & UART_FCR_FE) == 0 || receiveFifo.size() > triggerLevel)) {
             niir = UART_IIR_RDI;
         } else if ((ier & UART_IER_THRI) != 0 && transmitInterruptPending) {
             niir = UART_IIR_THRI;

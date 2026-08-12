@@ -297,14 +297,14 @@ public final class P9Tests {
         data.get(bytes);
 
         assertEquals(EXPECTED_SERIALIZED_SIZE, bytes.length,
-            "the serialized size of the 9P device changed, which means the savestate format changed");
+                "the serialized size of the 9P device changed, which means the savestate format changed");
         assertEquals(EXPECTED_SERIALIZED_DIGEST, toHex(MessageDigest.getInstance("SHA-256").digest(bytes)),
-            "the serialized bytes of the 9P device changed, which means the savestate format changed");
+                "the serialized bytes of the 9P device changed, which means the savestate format changed");
     }
 
     private static final int EXPECTED_SERIALIZED_SIZE = 173;
     private static final String EXPECTED_SERIALIZED_DIGEST =
-        "10e55178f9eb5d68beb86d9365a905430a63e9992e5cb6dc4f088ef27beb1f44";
+            "10e55178f9eb5d68beb86d9365a905430a63e9992e5cb6dc4f088ef27beb1f44";
 
     private static String toHex(final byte[] value) {
         final StringBuilder sb = new StringBuilder(value.length * 2);
@@ -364,7 +364,7 @@ public final class P9Tests {
         }
         final int replyLength = reply.getInt(0);
         assertTrue(replyLength >= 7 && replyLength <= REPLY_CAPACITY,
-            "device must write a framed reply, got length " + replyLength);
+                "device must write a framed reply, got length " + replyLength);
         reply.limit(replyLength);
         return reply;
     }
@@ -393,14 +393,14 @@ public final class P9Tests {
         device.store(VIRTIO_MMIO_STATUS, 0, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE
-            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER, Sizes.SIZE_32_LOG2);
+                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER, Sizes.SIZE_32_LOG2);
 
         device.store(VIRTIO_MMIO_DRIVER_FEATURES_SEL, FEATURES_HIGH_SEL, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_DRIVER_FEATURES, VERSION_1_HIGH, Sizes.SIZE_32_LOG2);
 
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE
-            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
-            | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK, Sizes.SIZE_32_LOG2);
+                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
+                | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK, Sizes.SIZE_32_LOG2);
 
         device.store(VIRTIO_MMIO_QUEUE_SEL, 0, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_QUEUE_NUM, QUEUE_SIZE, Sizes.SIZE_32_LOG2);
@@ -410,9 +410,9 @@ public final class P9Tests {
         device.store(VIRTIO_MMIO_QUEUE_READY, 1, Sizes.SIZE_32_LOG2);
 
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE
-            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
-            | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK
-            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER_OK, Sizes.SIZE_32_LOG2);
+                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
+                | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK
+                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER_OK, Sizes.SIZE_32_LOG2);
     }
 
     private void storeAddress(final int lowRegister, final int highRegister, final long address) {

@@ -10,11 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nullable;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public final class DescriptorChainTests {
     private static final int VIRTIO_MMIO_DRIVER_FEATURES = 0x020;
@@ -54,10 +50,10 @@ public final class DescriptorChainTests {
     private static final class TestDevice extends AbstractVirtIODevice {
         TestDevice(final MemoryMap memoryMap) {
             super(memoryMap, VirtIODeviceSpec
-                .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_CONSOLE)
-                .queueCount(1)
-                .configSpaceSize(0)
-                .build());
+                    .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_CONSOLE)
+                    .queueCount(1)
+                    .configSpaceSize(0)
+                    .build());
         }
 
         @Nullable
@@ -88,12 +84,12 @@ public final class DescriptorChainTests {
 
         for (int i = 0; i < chainLength * BYTES_PER_DESCRIPTOR; i++) {
             assertEquals((byte) i, chain.get(),
-                String.format("byte %d of a %d-descriptor chain must be readable", i, chainLength));
+                    String.format("byte %d of a %d-descriptor chain must be readable", i, chainLength));
         }
 
         assertEquals(0, chain.readableBytes());
         assertEquals(0, device.getStatus() & AbstractVirtIODevice.VIRTIO_STATUS_DEVICE_NEEDS_RESET,
-            "walking a legal chain must not put the device into an error state");
+                "walking a legal chain must not put the device into an error state");
     }
 
     @Test
@@ -106,9 +102,9 @@ public final class DescriptorChainTests {
         assertTrue(queue.hasNext());
 
         assertThrows(VirtIODeviceException.class, queue::next,
-            "a chain at or beyond the maximum length must be refused");
+                "a chain at or beyond the maximum length must be refused");
         assertTrue((device.getStatus() & AbstractVirtIODevice.VIRTIO_STATUS_DEVICE_NEEDS_RESET) != 0,
-            "refusing a chain must put the device into an error state");
+                "refusing a chain must put the device into an error state");
     }
 
     @Test
@@ -132,14 +128,14 @@ public final class DescriptorChainTests {
         device.store(VIRTIO_MMIO_STATUS, 0, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE
-            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER, Sizes.SIZE_32_LOG2);
+                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER, Sizes.SIZE_32_LOG2);
 
         device.store(VIRTIO_MMIO_DRIVER_FEATURES_SEL, FEATURES_HIGH_SEL, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_DRIVER_FEATURES, VERSION_1_HIGH, Sizes.SIZE_32_LOG2);
 
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE
-            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
-            | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK, Sizes.SIZE_32_LOG2);
+                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
+                | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK, Sizes.SIZE_32_LOG2);
 
         device.store(VIRTIO_MMIO_QUEUE_SEL, 0, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_QUEUE_NUM, QUEUE_SIZE, Sizes.SIZE_32_LOG2);
@@ -149,9 +145,9 @@ public final class DescriptorChainTests {
         device.store(VIRTIO_MMIO_QUEUE_READY, 1, Sizes.SIZE_32_LOG2);
 
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE
-            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
-            | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK
-            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER_OK, Sizes.SIZE_32_LOG2);
+                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
+                | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK
+                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER_OK, Sizes.SIZE_32_LOG2);
     }
 
     private void storeAddress(final int lowRegister, final int highRegister, final long address) {

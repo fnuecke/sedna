@@ -72,7 +72,7 @@ public final class HostPointerTLBTests {
         cpu.step(16);
 
         assertEquals(TEST_VALUE, memoryMap.load(dataAddress, Sizes.SIZE_64_LOG2),
-            "store must be visible through the memory map");
+                "store must be visible through the memory map");
         assertNotEquals(0, cpu.getDebugInterface().getGeneralRegisters()[3]);
         return cpu.getDebugInterface().getGeneralRegisters()[3];
     }

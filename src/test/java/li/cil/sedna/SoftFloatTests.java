@@ -215,8 +215,8 @@ public final class SoftFloatTests {
             if (o == null || getClass() != o.getClass()) return false;
             final OperationResult that = (OperationResult) o;
             return boolValue == that.boolValue &&
-                   floatBits == that.floatBits &&
-                   longValue == that.longValue;
+                    floatBits == that.floatBits &&
+                    longValue == that.longValue;
         }
 
         @Override

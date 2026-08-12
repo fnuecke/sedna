@@ -1,12 +1,7 @@
 package li.cil.sedna.p9;
 
 import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.fs.DirectoryEntry;
-import li.cil.sedna.fs.FileHandle;
-import li.cil.sedna.fs.FileMode;
-import li.cil.sedna.fs.FileSystem;
-import li.cil.sedna.fs.FileSystemStats;
-import li.cil.sedna.fs.Path;
+import li.cil.sedna.fs.*;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -50,8 +45,8 @@ public final class P9Server {
         // version(5): the server responds with a message no larger than the negotiated maximum, and
         // the request is already using part of that budget.
         final ByteBuffer reply = ByteBuffer
-            .allocate(P9.MAX_MESSAGE_SIZE - request.remaining())
-            .order(ByteOrder.LITTLE_ENDIAN);
+                .allocate(P9.MAX_MESSAGE_SIZE - request.remaining())
+                .order(ByteOrder.LITTLE_ENDIAN);
 
         // struct p9_fcall { u32 size; u8 id; u16 tag; ... };
         request.getInt(); // size, unused
@@ -420,10 +415,10 @@ public final class P9Server {
         for (int i = (int) offset; i < entries.size(); i++) {
             final DirectoryEntry entry = entries.get(i);
             final int length = 13 // qid[13]
-                + 8 // offset[8]
-                + 1 // type[1]
-                + 2 // nname[2]
-                + entry.name.length(); // name[nname]
+                    + 8 // offset[8]
+                    + 1 // type[1]
+                    + 2 // nname[2]
+                    + entry.name.length(); // name[nname]
             if (reply.position() - dataStart + length > count) {
                 break;
             }
@@ -500,15 +495,15 @@ public final class P9Server {
 
     private static ByteBuffer lerror(final short tag, final int error) {
         return message(P9.MSG_TLERROR, tag,
-            ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(error));
+                ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(error));
     }
 
     private static ByteBuffer message(final byte messageId, final short tag, final ByteBuffer data) {
         data.flip();
         final int dataLength = data.remaining();
         final ByteBuffer message = ByteBuffer
-            .allocate(P9.HEADER_SIZE + dataLength)
-            .order(ByteOrder.LITTLE_ENDIAN);
+                .allocate(P9.HEADER_SIZE + dataLength)
+                .order(ByteOrder.LITTLE_ENDIAN);
         message.putInt(message.remaining());
         message.put((byte) (messageId + 1)); // Reply message type is always message type + 1.
         message.putShort(tag);

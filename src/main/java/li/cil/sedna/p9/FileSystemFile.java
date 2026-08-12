@@ -1,11 +1,7 @@
 package li.cil.sedna.p9;
 
 import li.cil.ceres.api.Serialized;
-import li.cil.sedna.fs.DirectoryEntry;
-import li.cil.sedna.fs.FileHandle;
-import li.cil.sedna.fs.FileMode;
-import li.cil.sedna.fs.FileSystem;
-import li.cil.sedna.fs.Path;
+import li.cil.sedna.fs.*;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -23,10 +19,14 @@ import java.util.List;
  * fid is no longer needed by the client).
  */
 public final class FileSystemFile implements Closeable {
-    @Serialized public int id;
-    @Serialized public String[] pathParts;
-    @Serialized public boolean isOpen;
-    @Serialized public int openFlags;
+    @Serialized
+    public int id;
+    @Serialized
+    public String[] pathParts;
+    @Serialized
+    public boolean isOpen;
+    @Serialized
+    public int openFlags;
 
     private Path path;
     private FileHandle handle;

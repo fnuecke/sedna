@@ -221,7 +221,7 @@ public final class GDBStub {
             checksum += rx.get(i);
         }
         final int expected = (HexFormat.fromHexDigit(rx.get(hash + 1)) << 4)
-            | HexFormat.fromHexDigit(rx.get(hash + 2));
+                | HexFormat.fromHexDigit(rx.get(hash + 2));
 
         final ByteBuffer packet = rx.slice(start, hash - start);
         rx.position(hash + 3);

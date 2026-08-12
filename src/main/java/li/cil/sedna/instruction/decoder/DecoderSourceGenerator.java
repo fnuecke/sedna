@@ -14,13 +14,7 @@ import li.cil.sedna.instruction.decoder.tree.DecoderTreeBranchNode;
 import li.cil.sedna.instruction.decoder.tree.DecoderTreeSwitchNode;
 import li.cil.sedna.utils.BitUtils;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.OptionalInt;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -164,7 +158,9 @@ public final class DecoderSourceGenerator {
     // ------------------------------------------------------------- //
     // Expressions
 
-    /** The value of an operand, as an expression over the current instruction word. */
+    /**
+     * The value of an operand, as an expression over the current instruction word.
+     */
     private String fieldExpression(final FieldInstructionArgument argument, final String instExpr) {
         final StringBuilder sb = new StringBuilder();
         for (final InstructionFieldMapping mapping : argument.mappings) {
@@ -273,16 +269,16 @@ public final class DecoderSourceGenerator {
             parameters.sort(Comparator.comparing(context.locals::get));
 
             final List<InstructionDefinition> definitions = instructions.stream()
-                .map(definitionProvider)
-                .filter(Objects::nonNull)
-                .toList();
+                    .map(definitionProvider)
+                    .filter(Objects::nonNull)
+                    .toList();
             final boolean containsReturns = definitions.stream().anyMatch(d -> d.writesPC || d.returnsBoolean);
 
             final String methodName = methodPrefix + "$instructionGroup" + (groupMethodIndex++);
 
             final StringBuilder signature = new StringBuilder();
             signature.append("private ").append(containsReturns ? "int" : "void").append(' ')
-                .append(methodName).append("(final int inst, final long pc");
+                    .append(methodName).append("(final int inst, final long pc");
             final Object2ObjectArrayMap<FieldInstructionArgument, String> localsInMethod = new Object2ObjectArrayMap<>();
             for (int i = 0; i < parameters.size(); i++) {
                 final String name = "arg" + i;
@@ -294,15 +290,15 @@ public final class DecoderSourceGenerator {
             final LinkedHashSet<String> exceptions = new LinkedHashSet<>();
             exceptions.add(illegalInstructionExceptionClass.getName());
             definitions.stream()
-                .map(d -> d.thrownExceptions)
-                .filter(Objects::nonNull)
-                .flatMap(Arrays::stream)
-                .map(DecoderSourceGenerator::binaryName)
-                .forEach(exceptions::add);
+                    .map(d -> d.thrownExceptions)
+                    .filter(Objects::nonNull)
+                    .flatMap(Arrays::stream)
+                    .map(DecoderSourceGenerator::binaryName)
+                    .forEach(exceptions::add);
             signature.append(" throws ").append(String.join(", ", exceptions));
 
             final StringBuilder call = new StringBuilder(methodName).append('(').append(context.instExpr)
-                .append(", ").append(context.pcExpr);
+                    .append(", ").append(context.pcExpr);
             for (final FieldInstructionArgument parameter : parameters) {
                 call.append(", ").append(context.locals.get(parameter));
             }
@@ -321,8 +317,8 @@ public final class DecoderSourceGenerator {
             body.push();
 
             final Context methodContext = new Context(
-                containsReturns ? ContextType.CONDITIONAL_METHOD : ContextType.VOID_METHOD,
-                context.processedMask, "inst", "pc", localsInMethod, body);
+                    containsReturns ? ContextType.CONDITIONAL_METHOD : ContextType.VOID_METHOD,
+                    context.processedMask, "inst", "pc", localsInMethod, body);
 
             groupMethods.add(null);
             splitSlot = groupMethods.size() - 1;
@@ -390,15 +386,15 @@ public final class DecoderSourceGenerator {
             final int threshold = Math.max(2, (int) (arguments.totalLeafCount * HOIST_THRESHOLD));
             // Sort for stable, deterministic output (e.g. for change check in test).
             arguments.arguments.entrySet().stream()
-                .filter(e -> e.getValue().count >= threshold && !context.locals.containsKey(e.getKey()))
-                .sorted(Comparator.comparing(e -> localName(e.getValue())))
-                .forEach(e -> {
-                    final FieldInstructionArgument argument = e.getKey();
-                    final String name = localName(e.getValue());
-                    hoisted.add(argument);
-                    context.locals.put(argument, name);
-                    context.out.line("final int " + name + " = " + fieldExpression(argument, context.instExpr) + ";");
-                });
+                    .filter(e -> e.getValue().count >= threshold && !context.locals.containsKey(e.getKey()))
+                    .sorted(Comparator.comparing(e -> localName(e.getValue())))
+                    .forEach(e -> {
+                        final FieldInstructionArgument argument = e.getKey();
+                        final String name = localName(e.getValue());
+                        hoisted.add(argument);
+                        context.locals.put(argument, name);
+                        context.out.line("final int " + name + " = " + fieldExpression(argument, context.instExpr) + ";");
+                    });
         }
 
         private String localName(final DecoderTreeNodeArguments.Entry entry) {
@@ -449,7 +445,7 @@ public final class DecoderSourceGenerator {
 
             if (maskFields.isEmpty()) {
                 throw new IllegalStateException(String.format("All cases in a switch node have the same patterns: [%s]",
-                    commonFields.stream().map(f -> Integer.toBinaryString(patterns[0] & f.asMask())).collect(Collectors.joining(", "))));
+                        commonFields.stream().map(f -> Integer.toBinaryString(patterns[0] & f.asMask())).collect(Collectors.joining(", "))));
             }
 
             if (!commonFields.isEmpty()) {
@@ -582,7 +578,7 @@ public final class DecoderSourceGenerator {
             }
 
             context.out.line("if ((" + context.instExpr + " & " + hex(remainingMask) + ") == "
-                + hex(pattern & ~context.processedMask) + ") {");
+                    + hex(pattern & ~context.processedMask) + ") {");
             context.out.push();
             return new NodeVisitor(context.withProcessed(remainingMask), () -> {
                 context.out.pop();
@@ -678,7 +674,7 @@ public final class DecoderSourceGenerator {
                 switch (context.type) {
                     case TOP_LEVEL -> context.emitJumpHandler(definition.isBranch);
                     case CONDITIONAL_METHOD ->
-                        context.out.line("return " + (definition.isBranch ? RETURN_JUMP_BRANCH : RETURN_JUMP) + ";");
+                            context.out.line("return " + (definition.isBranch ? RETURN_JUMP_BRANCH : RETURN_JUMP) + ";");
                     default -> throw new IllegalStateException();
                 }
             } else {

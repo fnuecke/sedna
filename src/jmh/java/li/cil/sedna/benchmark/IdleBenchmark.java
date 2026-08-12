@@ -12,7 +12,9 @@ import java.util.concurrent.TimeUnit;
 public class IdleBenchmark {
     private static final int RAM_SIZE = 4 * 1024 * 1024;
 
-    /** Matches what we use in OC2. */
+    /**
+     * Matches what we use in OC2.
+     */
     private static final int CYCLES_PER_STEP = 1_000;
 
     @Param({"idle", "running"})

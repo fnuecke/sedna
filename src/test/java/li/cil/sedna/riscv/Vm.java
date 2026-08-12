@@ -12,13 +12,17 @@ import static li.cil.sedna.riscv.R5Assembler.*;
 public final class Vm {
     public static final long RAM_START = 0x80000000L;
 
-    /** A leaf PTE for a page holding code: valid, readable, writable, executable, accessed, dirty. */
+    /**
+     * A leaf PTE for a page holding code: valid, readable, writable, executable, accessed, dirty.
+     */
     public static final int PTE_CODE = R5.PTE_V_MASK | R5.PTE_R_MASK | R5.PTE_W_MASK
-        | R5.PTE_X_MASK | R5.PTE_A_MASK | R5.PTE_D_MASK;
+            | R5.PTE_X_MASK | R5.PTE_A_MASK | R5.PTE_D_MASK;
 
-    /** The same for a page holding data, i.e. without execute permission. */
+    /**
+     * The same for a page holding data, i.e. without execute permission.
+     */
     public static final int PTE_DATA = R5.PTE_V_MASK | R5.PTE_R_MASK | R5.PTE_W_MASK
-        | R5.PTE_A_MASK | R5.PTE_D_MASK;
+            | R5.PTE_A_MASK | R5.PTE_D_MASK;
 
     private static final int SCRATCH_REGISTER = 31;
 

@@ -37,16 +37,18 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
     private static final int VIRTQ_TRANSMIT_CONTROL = 3; // control transmitq
 
     // Store input and output in own buffers to avoid storing chains for serialization.
-    @Serialized private final ByteArrayFIFOQueue transmitBuffer = new ByteArrayFIFOQueue(BUFFER_SIZE);
-    @Serialized private final ByteArrayFIFOQueue receiveBuffer = new ByteArrayFIFOQueue(BUFFER_SIZE);
+    @Serialized
+    private final ByteArrayFIFOQueue transmitBuffer = new ByteArrayFIFOQueue(BUFFER_SIZE);
+    @Serialized
+    private final ByteArrayFIFOQueue receiveBuffer = new ByteArrayFIFOQueue(BUFFER_SIZE);
 
     public VirtIOConsoleDevice(final MemoryMap memoryMap) {
         super(memoryMap, VirtIODeviceSpec
-            .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_CONSOLE)
-            .features(VIRTIO_CONSOLE_F_SIZE)
-            .queueCount(2)
-            .configSpaceSize(4)
-            .build());
+                .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_CONSOLE)
+                .features(VIRTIO_CONSOLE_F_SIZE)
+                .queueCount(2)
+                .configSpaceSize(4)
+                .build());
     }
 
     @Override

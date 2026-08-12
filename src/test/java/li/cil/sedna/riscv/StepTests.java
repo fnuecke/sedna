@@ -43,8 +43,8 @@ public final class StepTests {
         final long overrun = executed - requested;
 
         assertTrue(overrun <= MAX_INSTRUCTIONS_PER_TRACE,
-            String.format("cumulative overrun must stay within one trace, but ran %d cycles for %d requested (overrun %d, one trace is %d)",
-                executed, requested, overrun, MAX_INSTRUCTIONS_PER_TRACE));
+                String.format("cumulative overrun must stay within one trace, but ran %d cycles for %d requested (overrun %d, one trace is %d)",
+                        executed, requested, overrun, MAX_INSTRUCTIONS_PER_TRACE));
     }
 
     @Test
@@ -59,7 +59,7 @@ public final class StepTests {
         final long requested = (long) CYCLES_PER_STEP * STEP_COUNT;
 
         assertTrue(executed >= requested,
-            String.format("must not run fewer cycles than requested, but ran %d for %d requested", executed, requested));
+                String.format("must not run fewer cycles than requested, but ran %d for %d requested", executed, requested));
     }
 
     @Test
@@ -72,14 +72,14 @@ public final class StepTests {
 
         final long start = cpu.getTime();
         Assertions.assertTimeoutPreemptively(Duration.ofSeconds(5),
-            () -> cpu.step(CYCLES_PER_STEP),
-            "the in-trace cycle budget check must bound guest loops");
+                () -> cpu.step(CYCLES_PER_STEP),
+                "the in-trace cycle budget check must bound guest loops");
         final long executed = cpu.getTime() - start;
 
         assertTrue(executed >= CYCLES_PER_STEP,
-            String.format("must not run fewer cycles than requested, but ran %d for %d requested", executed, CYCLES_PER_STEP));
+                String.format("must not run fewer cycles than requested, but ran %d for %d requested", executed, CYCLES_PER_STEP));
         assertTrue(executed <= CYCLES_PER_STEP + MAX_INSTRUCTIONS_PER_TRACE,
-            String.format("the in-trace budget check must bound the loop, but ran %d cycles for %d requested", executed, CYCLES_PER_STEP));
+                String.format("the in-trace budget check must bound the loop, but ran %d cycles for %d requested", executed, CYCLES_PER_STEP));
     }
 
     @Test
@@ -91,8 +91,8 @@ public final class StepTests {
         final long executed = cpu.getTime() - start;
 
         assertTrue(executed >= cycles,
-            String.format("expected at least %d cycles to be executed, but got %d", cycles, executed));
+                String.format("expected at least %d cycles to be executed, but got %d", cycles, executed));
         assertTrue(executed <= cycles + MAX_INSTRUCTIONS_PER_TRACE,
-            String.format("expected at most %d cycles to be executed, but got %d", cycles + MAX_INSTRUCTIONS_PER_TRACE, executed));
+                String.format("expected at most %d cycles to be executed, but got %d", cycles + MAX_INSTRUCTIONS_PER_TRACE, executed));
     }
 }

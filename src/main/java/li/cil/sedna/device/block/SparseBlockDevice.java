@@ -16,7 +16,8 @@ public final class SparseBlockDevice implements BlockDevice {
     private final int blockSize;
     private final boolean readonly;
 
-    @Serialized private final SparseBlockMap blocks;
+    @Serialized
+    private final SparseBlockMap blocks;
 
     public SparseBlockDevice(final BlockDevice lower) {
         this(lower, false, DEFAULT_BLOCK_SIZE);

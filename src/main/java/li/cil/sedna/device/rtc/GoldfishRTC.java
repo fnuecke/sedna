@@ -24,7 +24,8 @@ public final class GoldfishRTC implements InterruptSource, MemoryMappedDevice {
     private final RealTimeCounter rtc;
     private final Interrupt interrupt = new Interrupt();
 
-    @Serialized private long time;
+    @Serialized
+    private long time;
 
     public GoldfishRTC(final RealTimeCounter rtc) {
         this.rtc = rtc;
@@ -47,7 +48,7 @@ public final class GoldfishRTC implements InterruptSource, MemoryMappedDevice {
     @Override
     public int getSupportedSizes() {
         return (1 << Sizes.SIZE_32_LOG2) |
-            (1 << Sizes.SIZE_64_LOG2);
+                (1 << Sizes.SIZE_64_LOG2);
     }
 
     @Override

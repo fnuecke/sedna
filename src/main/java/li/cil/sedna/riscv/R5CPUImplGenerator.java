@@ -53,8 +53,8 @@ public final class R5CPUImplGenerator {
         // decode block (4), content (5).
         final SourceBuilder decode = new SourceBuilder(5);
         final DecoderSourceGenerator generator = new DecoderSourceGenerator(
-            spec.getDecoderTree(), spec::getDefinition, R5IllegalInstructionException.class,
-            "interpretTrace" + variant, decode);
+                spec.getDecoderTree(), spec::getDefinition, R5IllegalInstructionException.class,
+                "interpretTrace" + variant, decode);
         generator.generate();
 
         src.blank();

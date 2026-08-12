@@ -30,7 +30,7 @@ public final class TLBSerializationTests {
     private static final long MARKER_B = 0x5555666677778888L;
 
     private static final long MSTATUS_TRANSLATE_DATA_AS_SUPERVISOR =
-        R5.STATUS_MPRV_MASK | ((long) R5.PRIVILEGE_S << R5.STATUS_MPP_SHIFT);
+            R5.STATUS_MPRV_MASK | ((long) R5.PRIVILEGE_S << R5.STATUS_MPP_SHIFT);
 
     private Vm vm;
 
@@ -47,9 +47,9 @@ public final class TLBSerializationTests {
         // csrrs x0, mstatus, x2  ; translate data accesses as supervisor
         // ld    x4, 0(x3)        ; x4 = *x3, translated
         vm.write(PROGRAM,
-            csrrw(0, R5CSR.SATP, 1),
-            csrrs(0, R5CSR.MSTATUS, 2),
-            ld(4, 3, 0));
+                csrrw(0, R5CSR.SATP, 1),
+                csrrs(0, R5CSR.MSTATUS, 2),
+                ld(4, 3, 0));
 
         mapMegapage(ROOT_TABLE_A, LEVEL1_TABLE_A, TARGET_A);
         mapMegapage(ROOT_TABLE_B, LEVEL1_TABLE_B, TARGET_B);

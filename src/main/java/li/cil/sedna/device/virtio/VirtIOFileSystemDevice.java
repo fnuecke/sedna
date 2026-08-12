@@ -2,7 +2,6 @@ package li.cil.sedna.device.virtio;
 
 import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.device.Steppable;
-import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.fs.FileSystem;
 import li.cil.sedna.p9.FileSystemFileMap;
@@ -34,16 +33,18 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
 
     // The fid table stays a field of the device: it is what a savestate contains, and moving it into
     // the server would nest it one level deeper in the ceres output, changing the format.
-    @Serialized private final FileSystemFileMap files = new FileSystemFileMap();
-    @Serialized private boolean hasPendingRequest;
+    @Serialized
+    private final FileSystemFileMap files = new FileSystemFileMap();
+    @Serialized
+    private boolean hasPendingRequest;
 
     public VirtIOFileSystemDevice(final MemoryMap memoryMap, final String tag, final FileSystem fileSystem) {
         super(memoryMap, VirtIODeviceSpec
-            .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_9P_TRANSPORT)
-            .features(VIRTIO_9P_F_MOUNT_TAG)
-            .queueCount(1)
-            .configSpaceSize(2 + Math.min(tag.length(), 0xFFFF))
-            .build());
+                .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_9P_TRANSPORT)
+                .features(VIRTIO_9P_F_MOUNT_TAG)
+                .queueCount(1)
+                .configSpaceSize(2 + Math.min(tag.length(), 0xFFFF))
+                .build());
         this.tag = tag;
         this.server = new P9Server(fileSystem, files);
     }

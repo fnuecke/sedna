@@ -83,8 +83,8 @@ public final class DecoderTree {
 
                             if (!ambiguousCaseHandledByMoreSpecificDeclaration) {
                                 throw new IllegalArgumentException(String.format("Instructions [%s] (line %d) and [%s] (line %d) have ambiguous bit pattern.",
-                                    moreSpecific.displayName, moreSpecific.lineNumber,
-                                    lessSpecific.displayName, lessSpecific.lineNumber));
+                                        moreSpecific.displayName, moreSpecific.lineNumber,
+                                        lessSpecific.displayName, lessSpecific.lineNumber));
                             }
                         }
                     }

@@ -102,7 +102,7 @@ public final class FloatingPointStatusTests {
 
         assertCompleted(instruction);
         assertEquals(R5.FS_DIRTY, floatingPointState(),
-            String.format("expected instruction %08x to mark floating point state dirty", instruction));
+                String.format("expected instruction %08x to mark floating point state dirty", instruction));
     }
 
     private void enableFPU() {
@@ -116,12 +116,12 @@ public final class FloatingPointStatusTests {
 
     private void assertTrapped(final int instruction) {
         assertEquals(TRAP_VECTOR, vm.execute(instruction),
-            String.format("expected instruction %08x to trap while mstatus.FS is Off", instruction));
+                String.format("expected instruction %08x to trap while mstatus.FS is Off", instruction));
     }
 
     private void assertCompleted(final int instruction) {
         assertEquals(Vm.RAM_START + 4, vm.execute(instruction),
-            String.format("expected instruction %08x to complete while mstatus.FS is on", instruction));
+                String.format("expected instruction %08x to complete while mstatus.FS is on", instruction));
     }
 
     // The operands are all register 0/1; which registers are used does not matter, only whether the

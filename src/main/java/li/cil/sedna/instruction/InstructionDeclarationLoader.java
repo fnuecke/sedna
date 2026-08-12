@@ -33,8 +33,8 @@ public final class InstructionDeclarationLoader {
                     throw new IllegalStateException(String.format("Instruction declarations [%s] (line %d) and [%s] (line %d) have distinct pattern masks, making them ambiguous.", i1.displayName, i1.lineNumber, i2.displayName, i2.lineNumber));
                 }
                 if ((i1.patternMask & intersectMask) == i1.patternMask &&
-                    (i2.patternMask & intersectMask) == i2.patternMask &&
-                    (i1.pattern & intersectMask) == (i2.pattern & intersectMask)) {
+                        (i2.patternMask & intersectMask) == i2.patternMask &&
+                        (i1.pattern & intersectMask) == (i2.pattern & intersectMask)) {
                     throw new IllegalStateException(String.format("Instruction declarations [%s] (line %d) and [%s] (line %d) have ambiguous patterns.", i1.displayName, i1.lineNumber, i2.displayName, i2.lineNumber));
                 }
             }

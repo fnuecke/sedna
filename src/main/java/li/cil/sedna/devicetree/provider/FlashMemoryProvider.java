@@ -26,7 +26,7 @@ public final class FlashMemoryProvider implements DeviceTreeProvider {
     @Override
     public void visit(final DeviceTree node, final MemoryMap memoryMap, final Device device) {
         node
-            .addProp(DevicePropertyNames.COMPATIBLE, "cfi-flash")
-            .addProp("bank-width", 4);
+                .addProp(DevicePropertyNames.COMPATIBLE, "cfi-flash")
+                .addProp("bank-width", 4);
     }
 }

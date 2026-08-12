@@ -3,7 +3,8 @@ package li.cil.sedna.riscv;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import static li.cil.sedna.riscv.R5Assembler.*;
+import static li.cil.sedna.riscv.R5Assembler.csrrs;
+import static li.cil.sedna.riscv.R5Assembler.csrrw;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public final class SATPTests {

@@ -33,8 +33,8 @@ public class CallBenchmark {
 
         loopStart = vm.usableStart();
         final long callee = "same_page".equals(distance)
-            ? loopStart + 128
-            : loopStart + Vm.PAGE_SIZE;
+                ? loopStart + 128
+                : loopStart + Vm.PAGE_SIZE;
 
         // Loop: decrement x5, call the callee, loop while x5 != 0, then spin.
         long address = loopStart;

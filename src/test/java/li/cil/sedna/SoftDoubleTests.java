@@ -204,7 +204,7 @@ public final class SoftDoubleTests {
             if (o == null || getClass() != o.getClass()) return false;
             final OperationResult that = (OperationResult) o;
             return boolValue == that.boolValue &&
-                   doubleBits == that.doubleBits;
+                    doubleBits == that.doubleBits;
         }
 
         @Override

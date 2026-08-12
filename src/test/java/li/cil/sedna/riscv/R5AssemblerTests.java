@@ -228,8 +228,8 @@ public final class R5AssemblerTests {
         final InstructionDeclaration declaration = R5Instructions.getDecoderTree().query(instruction);
         assertNotNull(declaration, () -> String.format("%08x does not decode to any instruction", instruction));
         assertEquals(name, declaration.name,
-            () -> String.format("%08x was assembled as %s but decodes as %s",
-                instruction, name, R5Disassembler.disassemble(instruction)));
+                () -> String.format("%08x was assembled as %s but decodes as %s",
+                        instruction, name, R5Disassembler.disassemble(instruction)));
 
         for (int i = 0; i < arguments.length; i += 2) {
             final String argumentName = (String) arguments[i];
@@ -238,7 +238,7 @@ public final class R5AssemblerTests {
             final InstructionArgument argument = declaration.arguments.get(argumentName);
             assertNotNull(argument, () -> name + " has no argument named " + argumentName);
             assertEquals(expected, argument.get(instruction),
-                () -> String.format("%s of %s", argumentName, R5Disassembler.disassemble(instruction)));
+                    () -> String.format("%s of %s", argumentName, R5Disassembler.disassemble(instruction)));
         }
     }
 }

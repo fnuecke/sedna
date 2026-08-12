@@ -52,10 +52,10 @@ public class BootBenchmark {
         Sedna.initialize();
 
         final Path dir = Path.of(System.getProperty("sedna.benchmark.images",
-            "../buildroot/src/main/resources/generated"));
+                "../buildroot/src/main/resources/generated"));
         if (!Files.isRegularFile(dir.resolve("Image"))) {
             throw new IllegalStateException("Buildroot images not found in " + dir.toAbsolutePath()
-                + "; build buildroot or pass -Pjmh.images=<dir>.");
+                    + "; build buildroot or pass -Pjmh.images=<dir>.");
         }
         firmware = Files.readAllBytes(dir.resolve("fw_jump.bin"));
         kernel = Files.readAllBytes(dir.resolve("Image"));
@@ -69,9 +69,9 @@ public class BootBenchmark {
         uart = new UART16550A();
         final GoldfishRTC rtc = new GoldfishRTC(SystemTimeRealTimeCounter.get());
         final VirtIOBlockDevice hdd = new VirtIOBlockDevice(board.getMemoryMap(),
-            ByteBufferBlockDevice.createFromStream(new ByteArrayInputStream(rootfs), false));
+                ByteBufferBlockDevice.createFromStream(new ByteArrayInputStream(rootfs), false));
         final VirtIOFileSystemDevice fs = new VirtIOFileSystemDevice(board.getMemoryMap(),
-            "host_fs", new HostFileSystem(Files.createTempDirectory("sedna-jmh-9p").toFile()));
+                "host_fs", new HostFileSystem(Files.createTempDirectory("sedna-jmh-9p").toFile()));
 
         uart.getInterrupt().set(0xA, board.getInterruptController());
         rtc.getInterrupt().set(0xB, board.getInterruptController());
@@ -141,8 +141,8 @@ public class BootBenchmark {
             }
         }
         throw new AssertionError("login prompt not reached within " + MAX_CYCLES
-            + " cycles; " + sampleState()
-            + "; UART tail:\n" + new String(tail, 0, tailLength, StandardCharsets.US_ASCII));
+                + " cycles; " + sampleState()
+                + "; UART tail:\n" + new String(tail, 0, tailLength, StandardCharsets.US_ASCII));
     }
 
     private String sampleState() {

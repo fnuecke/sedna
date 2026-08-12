@@ -30,7 +30,8 @@ public final class R5CoreLocalInterrupter implements Steppable, InterruptSource,
 
     private final Int2ObjectMap<Interrupt> msips = new Int2ObjectArrayMap<>();
     private final Int2ObjectMap<Interrupt> mtips = new Int2ObjectArrayMap<>();
-    @Serialized private final Int2LongArrayMap mtimecmps = new Int2LongArrayMap();
+    @Serialized
+    private final Int2LongArrayMap mtimecmps = new Int2LongArrayMap();
 
     public R5CoreLocalInterrupter(final RealTimeCounter rtc) {
         this.rtc = rtc;
@@ -68,7 +69,7 @@ public final class R5CoreLocalInterrupter implements Steppable, InterruptSource,
     @Override
     public int getSupportedSizes() {
         return (1 << Sizes.SIZE_32_LOG2) |
-            (1 << Sizes.SIZE_64_LOG2);
+                (1 << Sizes.SIZE_64_LOG2);
     }
 
     public long load(final int offset, final int sizeLog2) {
