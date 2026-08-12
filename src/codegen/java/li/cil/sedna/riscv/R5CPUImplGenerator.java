@@ -1,5 +1,8 @@
 package li.cil.sedna.riscv;
 
+import li.cil.sedna.instruction.InstructionDeclaration;
+import li.cil.sedna.instruction.InstructionDefinition;
+import li.cil.sedna.instruction.InstructionDefinitionLoader;
 import li.cil.sedna.instruction.decoder.DecoderSourceGenerator;
 import li.cil.sedna.instruction.decoder.SourceBuilder;
 import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
@@ -7,12 +10,13 @@ import li.cil.sedna.riscv.exception.R5IllegalInstructionException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 public final class R5CPUImplGenerator {
     private R5CPUImplGenerator() {
     }
 
-    public static String generateSource() {
+    public static String generateSource() throws IOException {
         final SourceBuilder src = new SourceBuilder();
 
         src.line("/*");
@@ -48,12 +52,15 @@ public final class R5CPUImplGenerator {
         return src.toString();
     }
 
-    private static void emitVariant(final SourceBuilder src, final String variant, final R5Instructions.Spec spec) {
+    private static void emitVariant(final SourceBuilder src, final String variant, final R5Instructions.Spec spec) throws IOException {
+        final Map<InstructionDeclaration, InstructionDefinition> definitions =
+                InstructionDefinitionLoader.load(R5CPUBase.class, spec.getDeclarations());
+
         // The decode section content sits at depth 5: class body (1), method body (2), for loop (3),
         // decode block (4), content (5).
         final SourceBuilder decode = new SourceBuilder(5);
         final DecoderSourceGenerator generator = new DecoderSourceGenerator(
-                spec.getDecoderTree(), spec::getDefinition, R5IllegalInstructionException.class,
+                spec.getDecoderTree(), definitions::get, R5IllegalInstructionException.class,
                 "interpretTrace" + variant, decode);
         generator.generate();
 

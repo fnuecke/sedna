@@ -34,8 +34,7 @@ final class R5CPUImpl extends R5CPUBase {
                 mcycle++;
                 minstret++;
 
-                decode:
-                {
+                decode: {
                     switch (inst & 0x3) {
                         case 0: {
                             interpretTrace32$instructionGroup0(inst, pc);
@@ -1401,8 +1400,7 @@ final class R5CPUImpl extends R5CPUBase {
                 mcycle++;
                 minstret++;
 
-                decode:
-                {
+                decode: {
                     switch (inst & 0x3) {
                         case 0: {
                             interpretTrace64$instructionGroup0(inst, pc);

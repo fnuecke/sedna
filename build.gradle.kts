@@ -19,6 +19,14 @@ group = packageGroup
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
+val codegen by sourceSets.creating {
+    compileClasspath += sourceSets.main.get().output
+    runtimeClasspath += sourceSets.main.get().output
+}
+
+configurations[codegen.implementationConfigurationName].extendsFrom(configurations.implementation.get())
+configurations[codegen.runtimeOnlyConfigurationName].extendsFrom(configurations.runtimeOnly.get())
+
 repositories {
     mavenCentral()
     maven {
@@ -39,10 +47,14 @@ dependencies {
     implementation("it.unimi.dsi:fastutil:8.5.6")
     implementation("org.apache.commons:commons-lang3:3.12.0")
     implementation("org.apache.logging.log4j:log4j-api:2.15.0")
-    implementation("org.ow2.asm:asm:9.10.1")
 
     implementation("li.cil.ceres:ceres:0.0.4")
 
+    codegen.implementationConfigurationName("org.ow2.asm:asm:9.10.1")
+    codegen.compileOnlyConfigurationName("com.google.code.findbugs:jsr305:3.0.2")
+
+    testImplementation(codegen.output)
+    testImplementation("org.ow2.asm:asm:9.10.1")
     testImplementation("org.mockito:mockito-core:4.1.0")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.2")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.2")
@@ -80,9 +92,16 @@ tasks.test {
 tasks.register<JavaExec>("generateDecoder") {
     group = "build"
     description = "Regenerates src/main/java/li/cil/sedna/riscv/R5CPUImpl.java from the instruction declarations."
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = codegen.runtimeClasspath
     mainClass.set("li.cil.sedna.riscv.R5CPUImplGenerator")
     workingDir = projectDir
+}
+
+tasks.register<JavaExec>("printDecoderTree") {
+    group = "build"
+    description = "Prints the RV64 decoder tree."
+    classpath = codegen.runtimeClasspath
+    mainClass.set("li.cil.sedna.riscv.R5DecoderTreePrinter")
 }
 
 jmh {
