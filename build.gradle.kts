@@ -17,7 +17,7 @@ fun getGitRef(): String {
 version = "${semver}+${getGitRef()}"
 group = packageGroup
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 repositories {
     mavenCentral()
