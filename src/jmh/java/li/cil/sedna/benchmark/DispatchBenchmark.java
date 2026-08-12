@@ -22,7 +22,7 @@ public class DispatchBenchmark {
     @Param({"nop", "add", "mul", "mulh", "mulhsu", "mulhu", "ld", "sd",
         "fadd_s", "fadd_d", "fmul_d", "fdiv_d", "fsqrt_d", "fmadd_d",
         "amoadd_w", "amoadd_d", "amoswap_d", "lr_sc_w", "lr_sc_d",
-        "c_addi", "c_mv"})
+        "c_addi", "c_mv", "csrrs_time", "csrrs_mscratch"})
     public String instruction;
 
     private Vm vm;
@@ -101,6 +101,8 @@ public class DispatchBenchmark {
             case "lr_sc_d" -> new int[]{R5Assembler.lrD(2, 1), R5Assembler.scD(2, 1, 4)};
             case "c_addi" -> new int[]{R5Assembler.cAddi(6, 1)};
             case "c_mv" -> new int[]{R5Assembler.cMv(6, 5)};
+            case "csrrs_time" -> new int[]{R5Assembler.csrrs(5, 0xC01, 0)};
+            case "csrrs_mscratch" -> new int[]{R5Assembler.csrrs(5, 0x340, 0)};
             default -> throw new IllegalArgumentException(instruction);
         };
     }
