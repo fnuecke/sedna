@@ -199,9 +199,9 @@ public final class SoftFloat {
             if (mantissaA == 0) { // 0 * b
                 return pack(sign, 0, 0);
             } else { // subnormal
-                final int2 exponentAndMantissa = normalizeSubnormal(mantissaA);
-                exponentA = exponentAndMantissa.a;
-                mantissaA = exponentAndMantissa.b;
+                final int shift = subnormalShift(mantissaA);
+                exponentA = 1 - shift;
+                mantissaA <<= shift;
             }
         } else { // normal, make implicit leading 1 explicit
             mantissaA |= MANTISSA_IMPLICIT_BIT;
@@ -210,9 +210,9 @@ public final class SoftFloat {
             if (mantissaB == 0) { // a * 0
                 return pack(sign, 0, 0);
             } else { // subnormal
-                final int2 exponentAndMantissa = normalizeSubnormal(mantissaB);
-                exponentB = exponentAndMantissa.a;
-                mantissaB = exponentAndMantissa.b;
+                final int shift = subnormalShift(mantissaB);
+                exponentB = 1 - shift;
+                mantissaB <<= shift;
             }
         } else { // normal, make implicit leading 1 explicit
             mantissaB |= MANTISSA_IMPLICIT_BIT;
@@ -220,8 +220,8 @@ public final class SoftFloat {
 
         final int exponent = exponentA + exponentB - (1 << (EXPONENT_SIZE - 1)) + 2;
 
-        final int2 mantissaHighAndLow = multiply(mantissaA << RND_SIZE, mantissaB << (RND_SIZE + 1));
-        final int mantissa = mantissaHighAndLow.a | (mantissaHighAndLow.b != 0 ? 1 : 0);
+        final long product = Integer.toUnsignedLong(mantissaA << RND_SIZE) * Integer.toUnsignedLong(mantissaB << (RND_SIZE + 1));
+        final int mantissa = (int) (product >>> SIZE) | ((int) product != 0 ? 1 : 0);
 
         return normalize(sign, exponent, mantissa, rm, flags);
     }
@@ -276,9 +276,9 @@ public final class SoftFloat {
                     return c;
                 }
             } else { // subnormal
-                final int2 exponentAndMantissa = normalizeSubnormal(mantissaA);
-                exponentA = exponentAndMantissa.a;
-                mantissaA = exponentAndMantissa.b;
+                final int shift = subnormalShift(mantissaA);
+                exponentA = 1 - shift;
+                mantissaA <<= shift;
             }
         } else { // normal, make implicit leading 1 explicit
             mantissaA |= MANTISSA_IMPLICIT_BIT;
@@ -296,9 +296,9 @@ public final class SoftFloat {
                     return c;
                 }
             } else { // subnormal
-                final int2 exponentAndMantissa = normalizeSubnormal(mantissaB);
-                exponentB = exponentAndMantissa.a;
-                mantissaB = exponentAndMantissa.b;
+                final int shift = subnormalShift(mantissaB);
+                exponentB = 1 - shift;
+                mantissaB <<= shift;
             }
         } else { // normal, make implicit leading 1 explicit
             mantissaB |= MANTISSA_IMPLICIT_BIT;
@@ -306,9 +306,9 @@ public final class SoftFloat {
 
         int exponent = exponentA + exponentB - (1 << EXPONENT_SIZE - 1) + 3;
 
-        final int2 mantissaHighAndLow = multiply(mantissaA << RND_SIZE, mantissaB << RND_SIZE);
-        int mantissa0 = mantissaHighAndLow.b;
-        int mantissa1 = mantissaHighAndLow.a;
+        final long product = Integer.toUnsignedLong(mantissaA << RND_SIZE) * Integer.toUnsignedLong(mantissaB << RND_SIZE);
+        int mantissa0 = (int) product;
+        int mantissa1 = (int) (product >>> SIZE);
         if (mantissa1 < (1 << (SIZE - 3))) {
             mantissa1 = (mantissa1 << 1) | (mantissa0 >>> (SIZE - 1));
             mantissa0 = mantissa0 << 1;
@@ -319,9 +319,9 @@ public final class SoftFloat {
             if (mantissaC == 0) { // a * b + c
                 return normalize(sign, exponent, mantissa1, rm, flags);
             } else { // subnormal
-                final int2 exponentAndMantissa = normalizeSubnormal(mantissaC);
-                exponentC = exponentAndMantissa.a;
-                mantissaC = exponentAndMantissa.b;
+                final int shift = subnormalShift(mantissaC);
+                exponentC = 1 - shift;
+                mantissaC <<= shift;
             }
         } else { // normal, make implicit leading 1 explicit
             mantissaC |= MANTISSA_IMPLICIT_BIT;
@@ -419,9 +419,9 @@ public final class SoftFloat {
                     return pack(sign, EXPONENT_MASK, 0);
                 }
             } else { // subnormal
-                final int2 exponentAndMantissa = normalizeSubnormal(mantissaB);
-                exponentB = exponentAndMantissa.a;
-                mantissaB = exponentAndMantissa.b;
+                final int shift = subnormalShift(mantissaB);
+                exponentB = 1 - shift;
+                mantissaB <<= shift;
             }
         } else { // normal, make implicit leading 1 explicit
             mantissaB |= MANTISSA_IMPLICIT_BIT;
@@ -430,9 +430,9 @@ public final class SoftFloat {
             if (mantissaA == 0) { // 0 / b
                 return pack(sign, 0, 0);
             } else { // subnormal
-                final int2 exponentAndMantissa = normalizeSubnormal(mantissaA);
-                exponentA = exponentAndMantissa.a;
-                mantissaA = exponentAndMantissa.b;
+                final int shift = subnormalShift(mantissaA);
+                exponentA = 1 - shift;
+                mantissaA <<= shift;
             }
         } else { // normal, make implicit leading 1 explicit
             mantissaA |= MANTISSA_IMPLICIT_BIT;
@@ -440,8 +440,9 @@ public final class SoftFloat {
 
         final int exponent = exponentA - exponentB + (1 << (EXPONENT_SIZE - 1)) - 1;
 
-        final int2 mantissaAndRemainder = divideAndRemainder(mantissaA, mantissaB << 2);
-        final int mantissa = mantissaAndRemainder.a | (mantissaAndRemainder.b != 0 ? 1 : 0);
+        final long dividend = Integer.toUnsignedLong(mantissaA) << SIZE;
+        final long quotient = dividend / (mantissaB << 2);
+        final int mantissa = (int) quotient | (quotient * (mantissaB << 2) != dividend ? 1 : 0);
 
         return normalize(sign, exponent, mantissa, rm, flags);
     }
@@ -478,9 +479,9 @@ public final class SoftFloat {
             if (mantissaA == 0) { // zero
                 return pack(0, 0, 0);
             } else { // subnormal
-                final int2 exponentAndMantissa = normalizeSubnormal(mantissaA);
-                exponentA = exponentAndMantissa.a;
-                mantissaA = exponentAndMantissa.b;
+                final int shift = subnormalShift(mantissaA);
+                exponentA = 1 - shift;
+                mantissaA <<= shift;
             }
         } else { // normal, make implicit leading 1 explicit
             mantissaA |= MANTISSA_IMPLICIT_BIT;
@@ -496,13 +497,7 @@ public final class SoftFloat {
         exponentA = (exponentA >> 1) + BIAS;
         mantissaA = mantissaA << (SIZE - 4 - MANTISSA_SIZE);
 
-        final int2 sqrtAndInexact = sqrtAndRemainder(mantissaA);
-        mantissaA = sqrtAndInexact.a;
-        if (sqrtAndInexact.b != 0) {
-            mantissaA |= 1;
-        }
-
-        return normalize(signA, exponentA, mantissaA, rm, flags);
+        return normalize(signA, exponentA, sqrtAndJam(mantissaA), rm, flags);
     }
 
     public int min(final int a, final int b) {
@@ -780,40 +775,20 @@ public final class SoftFloat {
         return result;
     }
 
-    /**
-     * Multiplies two unsigned integers and returns the high and low words of
-     * the result (in that order).
-     *
-     * @param a the first operand.
-     * @param b the second operand.
-     * @return the result of the multiplication, with {@code {a=high, b=low}}.
-     */
-    private static int2 multiply(final int a, final int b) {
-        final long r = Integer.toUnsignedLong(a) * Integer.toUnsignedLong(b);
-        return int2.of((int) (r >>> SIZE), (int) r);
-    }
-
-    private static int2 divideAndRemainder(final int ah, final int b) {
-        final long a = Integer.toUnsignedLong(ah) << SIZE;
-        return int2.of((int) (a / b), (int) (a % b));
-    }
-
-    private static int2 sqrtAndRemainder(final int ah) {
-        final int l;
-        if (ah != 0) {
-            l = 2 * SIZE - Integer.numberOfLeadingZeros(ah - 1);
-        } else {
-            return int2.of(0, 0);
+    private static int sqrtAndJam(final int value) {
+        if (value == 0) {
+            return 0;
         }
 
-        final long a = Integer.toUnsignedLong(ah) << SIZE;
-        long u = 1L << ((l + 1) / 2);
-        long s;
-        do {
+        final long a = Integer.toUnsignedLong(value) << SIZE;
+        long s = (long) Math.sqrt((double) a) + 2;
+        long u = (a / s + s) >>> 1;
+        while (u < s) {
             s = u;
-            u = ((a / s) + s) / 2;
-        } while (u < s);
-        return int2.of((int) s, (a - s * s) != 0 ? 1 : 0);
+            u = (a / s + s) >>> 1;
+        }
+
+        return (int) s | (s * s != a ? 1 : 0);
     }
 
     private int handleMinMaxNaN(final int a, final int b) {
@@ -841,9 +816,8 @@ public final class SoftFloat {
         return isNaN(a) && (a & QUIET_NAN_MASK) == 0;
     }
 
-    static int2 normalizeSubnormal(final int mantissa) {
-        final int shift = MANTISSA_SIZE - (SIZE - 1 - Integer.numberOfLeadingZeros(mantissa));
-        return int2.of(1 - shift, mantissa << shift);
+    static int subnormalShift(final int mantissa) {
+        return MANTISSA_SIZE - (SIZE - 1 - Integer.numberOfLeadingZeros(mantissa));
     }
 
     static int normalize(final int sign, final int exponent, final int mantissa, final int rm, final Flags flags) {
@@ -955,18 +929,5 @@ public final class SoftFloat {
 
     static int getMantissa(final int a) {
         return a & MANTISSA_MASK;
-    }
-
-    static final class int2 {
-        private static final ThreadLocal<int2> INSTANCE = ThreadLocal.withInitial(int2::new);
-
-        public static int2 of(final int a, final int b) {
-            final int2 instance = INSTANCE.get();
-            instance.a = a;
-            instance.b = b;
-            return instance;
-        }
-
-        public int a, b;
     }
 }
