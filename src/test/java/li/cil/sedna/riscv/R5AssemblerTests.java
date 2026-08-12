@@ -222,7 +222,7 @@ public final class R5AssemblerTests {
         assertThrows(IllegalArgumentException.class, () -> lui(1, -1), "upper immediate is a raw field, not a value");
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
 
     private static void assertInstruction(final int instruction, final String name, final Object... arguments) {
         final InstructionDeclaration declaration = R5Instructions.getDecoderTree().query(instruction);

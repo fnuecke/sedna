@@ -120,7 +120,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         return interrupt;
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Configuration
 
     /**
@@ -268,7 +268,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         }
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Initialization hooks
 
     /**
@@ -334,7 +334,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         return true;
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // State and virtqueue access
 
     /**
@@ -394,7 +394,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         notifyConfigChanged();
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Virtqueues
 
     /**
@@ -571,7 +571,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         return null;
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // MemoryMappedDevice
 
     @Override
@@ -742,7 +742,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         }
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // InterruptSource
 
     @Override
@@ -750,7 +750,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         return singletonList(interrupt);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Resettable
 
     @Override
@@ -770,7 +770,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         initializeConfig();
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
 
     private void updateInterrupts() {
         // 2.1.2: Do not send notifications before DRIVER_OK.

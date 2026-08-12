@@ -87,7 +87,7 @@ public final class GDBStub {
         }
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Connection
 
     private boolean tryConnect() {
@@ -142,7 +142,7 @@ public final class GDBStub {
         state = waitingForAttach ? State.STOPPED : State.DISCONNECTED;
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Receiving
 
     private void receive() {
@@ -299,7 +299,7 @@ public final class GDBStub {
         }
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Stopping
 
     private void handleBreakpointHit(final long address) {
@@ -311,7 +311,7 @@ public final class GDBStub {
         pendingStopSignal = signal;
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Commands
 
     private void sendPacket(final String contents) {

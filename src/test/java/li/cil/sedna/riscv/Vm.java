@@ -68,7 +68,7 @@ public final class Vm {
         memoryMap.addDevice(address, device);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Memory
 
     public void store(final long address, final long value, final int sizeLog2) {
@@ -107,7 +107,7 @@ public final class Vm {
         }
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Execution
 
     public void setScratchAddress(final long address) {
@@ -125,7 +125,7 @@ public final class Vm {
         return programCounter();
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Control and status registers
 
     public long readCSR(final int csr) {
@@ -150,7 +150,7 @@ public final class Vm {
         execute(csrrc(0, csr, SCRATCH_REGISTER));
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Privilege and translation
 
     public void enterSupervisor(final long satp, final long pc) {

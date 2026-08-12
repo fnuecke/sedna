@@ -37,7 +37,7 @@ public final class R5Assembler {
     private static final int FMT_S = 0b00;
     private static final int FMT_D = 0b01;
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Ready-made encodings
 
     public static final int NOP = addi(0, 0, 0);
@@ -54,7 +54,7 @@ public final class R5Assembler {
     public static final int FENCE = fence(0b1111, 0b1111);
     public static final int FENCE_I = (0b001 << 12) | MISC_MEM;
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV32I/RV64I: control transfer
 
     public static int jal(final int rd, final int offset) {
@@ -89,7 +89,7 @@ public final class R5Assembler {
         return bType(offset, rs2, rs1, 0b111, BRANCH);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV32I/RV64I: integer computation
 
     public static int lui(final int rd, final int imm) {
@@ -176,7 +176,7 @@ public final class R5Assembler {
         return rType(FUNCT7_BASE, rs2, rs1, 0b111, rd, OP);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV64I: 32 bit integer computation
 
     public static int addiw(final int rd, final int rs1, final int imm) {
@@ -215,7 +215,7 @@ public final class R5Assembler {
         return rType(FUNCT7_ALT, rs2, rs1, 0b101, rd, OP_32);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV32I/RV64I: loads and stores
 
     public static int lb(final int rd, final int rs1, final int offset) {
@@ -262,7 +262,7 @@ public final class R5Assembler {
         return sType(offset, rs2, rs1, 0b011, STORE);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // M extension
 
     public static int mul(final int rd, final int rs1, final int rs2) {
@@ -317,7 +317,7 @@ public final class R5Assembler {
         return rType(FUNCT7_MULDIV, rs2, rs1, 0b111, rd, OP_32);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // A extension
 
     public static int lrW(final int rd, final int rs1) {
@@ -352,7 +352,7 @@ public final class R5Assembler {
         return amoType(0b00000, rs2, rs1, 0b011, rd);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // F and D extensions: loads and stores
 
     public static int flw(final int rd, final int rs1, final int offset) {
@@ -371,7 +371,7 @@ public final class R5Assembler {
         return sType(offset, rs2, rs1, 0b011, STORE_FP);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // F and D extensions: arithmetic
 
     public static int faddS(final int rd, final int rs1, final int rs2) {
@@ -426,7 +426,7 @@ public final class R5Assembler {
         return fpType(0b0101101, 0b00000, rs1, rm, rd);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // F and D extensions: fused multiply-add
 
     public static int fmaddS(final int rd, final int rs1, final int rs2, final int rs3, final int rm) {
@@ -461,7 +461,7 @@ public final class R5Assembler {
         return r4Type(rs3, FMT_D, rs2, rs1, rm, rd, NMADD);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // F and D extensions: comparison, conversion and moves
 
     public static int feqS(final int rd, final int rs1, final int rs2) {
@@ -528,7 +528,7 @@ public final class R5Assembler {
         return fpType(0b1110001, 0b00000, rs1, 0b000, rd);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Zicsr
 
     public static int csrrw(final int rd, final int csr, final int rs1) {
@@ -555,7 +555,7 @@ public final class R5Assembler {
         return csrType(csr, checkUnsigned(uimm, 5, "uimm"), 0b111, rd);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Privileged and memory ordering
 
     public static int sfenceVma(final int rs1) {
@@ -572,7 +572,7 @@ public final class R5Assembler {
             | MISC_MEM;
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // C extension. These return 16 bit encodings in the low half of the int.
 
     public static final int C_NOP = 0x0001;
@@ -589,7 +589,7 @@ public final class R5Assembler {
         return (0b1000 << 12) | (regNonZero(rd) << 7) | (regNonZero(rs2) << 2) | 0b10;
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Instruction formats
 
     private static int rType(final int funct7, final int rs2, final int rs1, final int funct3, final int rd, final int opcode) {
@@ -655,7 +655,7 @@ public final class R5Assembler {
             | (reg(rs1) << 15) | (funct3 << 12) | (reg(rd) << 7) | opcode;
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Argument validation
 
     private static int reg(final int register) {

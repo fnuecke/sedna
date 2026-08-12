@@ -134,7 +134,7 @@ public final class MMIOTLBTests {
             "the remapped page must resolve to the new device");
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
 
     private long read(final long address) {
         final long[] registers = vm.registers();

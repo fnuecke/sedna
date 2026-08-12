@@ -234,7 +234,7 @@ public final class GDBStubTests {
         assertEquals(0xDEADBEEFL, Long.reverseBytes(Long.parseUnsignedLong(pc, 16)));
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
 
     private void poll() {
         assertTimeoutPreemptively(MUST_NOT_BLOCK, () -> stub.poll(),

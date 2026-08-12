@@ -83,7 +83,7 @@ public final class DecoderSourceGenerator {
         return groupMethods;
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Emission context
 
     private final class Context {
@@ -161,7 +161,7 @@ public final class DecoderSourceGenerator {
         }
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Expressions
 
     /** The value of an operand, as an expression over the current instruction word. */
@@ -210,7 +210,7 @@ public final class DecoderSourceGenerator {
         return "0x" + Integer.toHexString(value);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Tree walking
 
     private final class NodeVisitor implements DecoderTreeVisitor {
@@ -375,7 +375,7 @@ public final class DecoderSourceGenerator {
         }
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Nodes
 
     private abstract class HoistingVisitor {
@@ -697,7 +697,7 @@ public final class DecoderSourceGenerator {
         return internalName.replace('/', '.');
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Support types
 
     private record MaskField(int srcMSB, int srcLSB) {

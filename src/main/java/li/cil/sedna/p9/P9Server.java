@@ -126,7 +126,7 @@ public final class P9Server {
         closeFilesAndClearFIDs();
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Message handlers
 
     private void version(final ByteBuffer request, final ByteBuffer reply) throws IOException {
@@ -493,7 +493,7 @@ public final class P9Server {
         fileSystem.unlink(path);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Message framing
 
     private static final int READ_WRITE_SUM_REQUEST_RESPONSE_HEADER_SIZE = 34;
@@ -517,7 +517,7 @@ public final class P9Server {
         return message;
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Protocol primitives
 
     private static int convertFlags(final int flags) {
@@ -578,7 +578,7 @@ public final class P9Server {
         buffer.putLong(qid.path);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // fid table
 
     private FileSystemFile establishFID(final int fid, final Path path) throws IOException {

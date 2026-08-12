@@ -75,14 +75,14 @@ public abstract class R5CPUBase implements R5CPU {
     // without sun.misc.Unsafe, in which case no entry is ever flagged.
     protected static final Unsafe UNSAFE = UnsafeGetter.get();
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV32I / RV64I
     protected long pc; // Program counter.
     private byte mxl; // Current MXLEN, stored to restore after privilege change.
     private int xlen; // Current XLEN, allows switching between RV32I and RV64I.
     private final long[] x = new long[32]; // Integer registers. We use sign-extended longs for 32 bit mode.
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV64FD
     private final long[] f = new long[32]; // Float registers.
     private final SoftFloat.Flags fflags = new SoftFloat.Flags(); // flags = fcsr[4:0] := NV . DZ . OF . UF . NX
@@ -92,11 +92,11 @@ public abstract class R5CPUBase implements R5CPU {
     private final transient SoftFloat fpu32 = new SoftFloat(fflags);
     private final transient SoftDouble fpu64 = new SoftDouble(fflags);
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV64A
     private long reservation_set = -1L; // Reservation set for RV64A's LR/SC.
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // User-level CSRs
     /**
      * Cycles elapsed. Advances while the hart is idle in WFI, since the clock keeps running, which
@@ -136,12 +136,12 @@ public abstract class R5CPUBase implements R5CPU {
     private long stval; // Supervisor Trap Value Register
     private long satp; // Supervisor Address Translation and Protection Register
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Misc. state
     private int priv; // Current privilege level.
     private boolean waitingForInterrupt;
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Memory access
 
     // Translation look-aside buffers, stored as structure-of-arrays: a lookup reads one long from
@@ -192,7 +192,7 @@ public abstract class R5CPUBase implements R5CPU {
     private transient MappedMemoryRange pteRange;
     private transient long pteRangeHostAddress;
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Stepping
     private int cycleDebt; // Traces may lead to us running more cycles than given, remember to pay it back.
 
@@ -200,7 +200,7 @@ public abstract class R5CPUBase implements R5CPU {
     // is below this, which ensures guest loops still yield (allowing interrupts e.g.).
     protected transient long cycleLimit;
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Real time counter -- at least in RISC-V Linux 5.1 the mtime CSR is needed in add_device_randomness
     // where it doesn't use the SBI. Not implementing it would cause an illegal instruction exception
     // halting the system.
@@ -376,7 +376,7 @@ public abstract class R5CPUBase implements R5CPU {
         cycleDebt += (int) (mcycle - cycleLimit);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Interpretation
 
     private long misa() {
@@ -454,7 +454,7 @@ public abstract class R5CPUBase implements R5CPU {
         return new R5IllegalInstructionException();
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // CSR
 
     private boolean csrrwx(final int rd, final long newValue, final int csr) throws R5IllegalInstructionException {
@@ -987,7 +987,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Misc
 
     private long getStatus(final long mask) {
@@ -1063,7 +1063,7 @@ public abstract class R5CPUBase implements R5CPU {
         return rm;
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Exceptions
 
     protected void raiseException(final long exception, final long value) {
@@ -1171,7 +1171,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // MMU
 
     private int fetchPage(final long address) throws R5MemoryAccessException {
@@ -1513,7 +1513,7 @@ public abstract class R5CPUBase implements R5CPU {
         };
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // PTE
 
     private long loadPTE(final long pteAddress, final int pteSizeLog2) {
@@ -1578,7 +1578,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // TLB
 
     private static int tlbIndex(final long address) {
@@ -1668,7 +1668,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV32I Base Instruction Set
 
     @Instruction("LUI")
@@ -2060,7 +2060,7 @@ public abstract class R5CPUBase implements R5CPU {
         raiseException(R5.EXCEPTION_BREAKPOINT);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV64I Base Instruction Set
 
     @Instruction("AUIPCW")
@@ -2209,7 +2209,7 @@ public abstract class R5CPUBase implements R5CPU {
         store64(x[rs1] + imm, x[rs2]);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV32/RV64 Zifencei Standard Extension
 
     @Instruction("FENCE.I")
@@ -2217,7 +2217,7 @@ public abstract class R5CPUBase implements R5CPU {
         // no-op
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV32/RV64 Zicsr Standard Extension
 
     @Instruction("CSRRW")
@@ -2262,7 +2262,7 @@ public abstract class R5CPUBase implements R5CPU {
         return csrrscx(rd, rs1, csr, rs1, false);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV32M Standard Extension
 
     @Instruction("MUL")
@@ -2365,7 +2365,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV64M Standard Extension
 
     @Instruction("MULW")
@@ -2460,7 +2460,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV32A Standard Extension
 
     @Instruction("LR.W")
@@ -2631,7 +2631,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV64A Standard Extension
 
     @Instruction("LR.D")
@@ -2801,7 +2801,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Privileged Instructions
 
     @Instruction("SRET")
@@ -2884,7 +2884,7 @@ public abstract class R5CPUBase implements R5CPU {
         return true; // Exit trace, need to re-fetch.
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV32F Standard Extension
 
     private static int checkFloat(final long value) {
@@ -3171,7 +3171,7 @@ public abstract class R5CPUBase implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV64F Standard Extension
 
     @Instruction("FCVT.L.S")
@@ -3220,7 +3220,7 @@ public abstract class R5CPUBase implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV32D Standard Extension
 
     @Instruction("FLD")
@@ -3500,7 +3500,7 @@ public abstract class R5CPUBase implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // RV64D Standard Extension
 
     @Instruction("FCVT.L.D")
@@ -3566,7 +3566,7 @@ public abstract class R5CPUBase implements R5CPU {
         fs = R5.FS_DIRTY;
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
 
     private enum MemoryAccessType {
         LOAD(R5.PTE_R_MASK),

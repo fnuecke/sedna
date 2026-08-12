@@ -178,7 +178,7 @@ public final class Vm implements AutoCloseable {
         cpu.getDebugInterface().setProgramCounter(pc);
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Memory
 
     public void fill(final long address, final int lengthInBytes, final int instruction) {
@@ -229,7 +229,7 @@ public final class Vm implements AutoCloseable {
         }
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
     // Privilege and translation
 
     public void execute(final int instruction) {
@@ -327,7 +327,7 @@ public final class Vm implements AutoCloseable {
         return (value + divisor - 1) / divisor;
     }
 
-    ///////////////////////////////////////////////////////////////////
+    // ------------------------------------------------------------- //
 
     /**
      * Links one node per page into a single cycle, visiting the pages in a strided order so that
