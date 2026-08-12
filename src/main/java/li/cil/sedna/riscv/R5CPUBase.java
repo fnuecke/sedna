@@ -185,6 +185,13 @@ public abstract class R5CPUBase implements R5CPU {
     // Access to physical memory for load/store operations.
     private final transient MemoryMap physicalMemory;
 
+    // The memory range the last page table walk read its PTEs from; in practice the RAM stick
+    // holding the page tables. Validated with contains() on every use, so it can only ever be
+    // useless (a miss), not wrong (because invalidateCaches() clears it when the memory map
+    // changes, same contract as the TLBs). Host address is non-zero only for direct memory.
+    private transient MappedMemoryRange pteRange;
+    private transient long pteRangeHostAddress;
+
     ///////////////////////////////////////////////////////////////////
     // Stepping
     private int cycleDebt; // Traces may lead to us running more cycles than given, remember to pay it back.
@@ -294,6 +301,8 @@ public abstract class R5CPUBase implements R5CPU {
     public void invalidateCaches() {
         flushTLB();
         updateTLBTags();
+        pteRange = null;
+        pteRangeHostAddress = 0;
     }
 
     @Override
@@ -1431,12 +1440,7 @@ public abstract class R5CPUBase implements R5CPU {
             final int vpn = (int) ((virtualAddress >>> vpnShift) & xpnMask);
             pteAddress += ((long) vpn) << pteSizeLog2; // equivalent to vpn * PTE size
 
-            long pte;
-            try {
-                pte = physicalMemory.load(pteAddress, pteSizeLog2); // 2.
-            } catch (final MemoryAccessException e) {
-                pte = 0;
-            }
+            final long pte = loadPTE(pteAddress, pteSizeLog2); // 2.
 
             if ((pte & R5.PTE_V_MASK) == 0 || ((pte & R5.PTE_R_MASK) == 0 && (pte & R5.PTE_W_MASK) != 0)) { // 3.
                 throw getPageFaultException(accessType, virtualAddress);
@@ -1482,12 +1486,8 @@ public abstract class R5CPUBase implements R5CPU {
 
             // 7. Update accessed and dirty flags.
             final long updated_pte = pte | R5.PTE_A_MASK | (accessType == MemoryAccessType.STORE ? R5.PTE_D_MASK : 0);
-            if (pte != updated_pte) {
-                try {
-                    physicalMemory.store(pteAddress, updated_pte, pteSizeLog2);
-                } catch (final MemoryAccessException e) {
-                    throw getPageFaultException(accessType, virtualAddress);
-                }
+            if (pte != updated_pte && !storePTE(pteAddress, updated_pte, pteSizeLog2)) {
+                throw getPageFaultException(accessType, virtualAddress);
             }
 
             // 8. physical address = pte.ppn[LEVELS-1:i], va.vpn[i-1:0], va.pgoff
@@ -1505,6 +1505,71 @@ public abstract class R5CPUBase implements R5CPU {
             case STORE -> new R5MemoryAccessException(address, R5.EXCEPTION_STORE_PAGE_FAULT);
             case FETCH -> new R5MemoryAccessException(address, R5.EXCEPTION_FETCH_PAGE_FAULT);
         };
+    }
+
+    ///////////////////////////////////////////////////////////////////
+    // PTE
+
+    private long loadPTE(final long pteAddress, final int pteSizeLog2) {
+        final MappedMemoryRange range = pteRange;
+        if (range != null && range.contains(pteAddress)
+            && (range.device.getSupportedSizes() & (1 << pteSizeLog2)) != 0) {
+            final long hostAddress = pteRangeHostAddress;
+            if (hostAddress != 0 && range.contains(pteAddress + (1 << pteSizeLog2) - 1)) {
+                final long host = hostAddress + (pteAddress - range.start);
+                return pteSizeLog2 == Sizes.SIZE_32_LOG2 ? UNSAFE.getInt(host) : UNSAFE.getLong(host);
+            }
+            try {
+                return range.device.load((int) (pteAddress - range.start), pteSizeLog2);
+            } catch (final MemoryAccessException e) {
+                return 0; // the PTE_V_MASK bit check turns this into a page fault.
+            }
+        }
+        return loadPTESlow(pteAddress, pteSizeLog2);
+    }
+
+    private long loadPTESlow(final long pteAddress, final int pteSizeLog2) {
+        final MappedMemoryRange range = physicalMemory.getMemoryRange(pteAddress);
+        if (range == null || (range.device.getSupportedSizes() & (1 << pteSizeLog2)) == 0) {
+            return 0; // the PTE_V_MASK bit check turns this into a page fault.
+        }
+        pteRange = range;
+        pteRangeHostAddress = UNSAFE != null && range.device instanceof PhysicalMemory
+            ? ((PhysicalMemory) range.device).getHostAddress() : 0;
+        try {
+            return range.device.load((int) (pteAddress - range.start), pteSizeLog2);
+        } catch (final MemoryAccessException e) {
+            return 0; // the PTE_V_MASK bit check turns this into a page fault.
+        }
+    }
+
+    private boolean storePTE(final long pteAddress, final long value, final int pteSizeLog2) {
+        final MappedMemoryRange range = pteRange;
+        if (range != null && range.contains(pteAddress)
+            && (range.device.getSupportedSizes() & (1 << pteSizeLog2)) != 0) {
+            final long hostAddress = pteRangeHostAddress;
+            if (hostAddress != 0 && range.contains(pteAddress + (1 << pteSizeLog2) - 1)) {
+                final long host = hostAddress + (pteAddress - range.start);
+                if (pteSizeLog2 == Sizes.SIZE_32_LOG2) {
+                    UNSAFE.putInt(host, (int) value);
+                } else {
+                    UNSAFE.putLong(host, value);
+                }
+                return true;
+            }
+            try {
+                range.device.store((int) (pteAddress - range.start), value, pteSizeLog2);
+                return true;
+            } catch (final MemoryAccessException e) {
+                return false;
+            }
+        }
+        try {
+            physicalMemory.store(pteAddress, value, pteSizeLog2);
+            return true;
+        } catch (final MemoryAccessException e) {
+            return false;
+        }
     }
 
     ///////////////////////////////////////////////////////////////////
