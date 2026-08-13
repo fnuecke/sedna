@@ -40,7 +40,7 @@ dependencies {
     implementation("org.apache.commons:commons-lang3:3.12.0")
     implementation("org.apache.logging.log4j:log4j-api:2.15.0")
 
-    implementation("li.cil.ceres:ceres:0.0.4")
+    implementation("li.cil.ceres:ceres:0.0.6")
 
     codegen.implementationConfigurationName("org.ow2.asm:asm:9.10.1")
     codegen.compileOnlyConfigurationName("com.google.code.findbugs:jsr305:3.0.2")
