@@ -74,27 +74,17 @@ Note that an additional tests may be included from this fork: https://github.com
 
 ## Maven
 
-Sedna can be included into a project via the Github Package Repository. See [the documentation][GithubPackagesGradle]
-for more information on how to set that up. In short, you'll want to add your username and a public access token into
-your `~/.gradle/gradle.properties` and use those variables in your repository declaration. Note that the public access
-token will need `read:packages` permissions.
+Sedna is published to Maven Central.
 
-For example, using Gradle:
-
-```groovy
+```kotlin
 repositories {
-  maven {
-    url = uri("https://maven.pkg.github.com/fnuecke/sedna")
-    credentials {
-      username = project.findProperty("gpr.user") ?: System.getenv("USERNAME")
-      password = project.findProperty("gpr.key") ?: System.getenv("TOKEN")
-    }
-  }
+    mavenCentral()
 }
 
 dependencies {
-  implementation 'li.cil.ceres:sedna:2.0.0'
+    implementation("li.cil.sedna:sedna:2.0.10")
 }
 ```
 
-[GithubPackagesGradle]: https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-gradle-registry
+The Linux images Sedna boots are built separately and published as
+[sedna-buildroot](https://github.com/fnuecke/buildroot).
