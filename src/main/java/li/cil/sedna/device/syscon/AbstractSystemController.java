@@ -8,7 +8,8 @@ public abstract class AbstractSystemController implements MemoryMappedDevice {
 
     @Override
     public int getLength() {
-        return 4;
+        // OpenSBI >= 1.0 requires 8+ bytes per device.
+        return 8;
     }
 
     @Override
