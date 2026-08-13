@@ -72,6 +72,12 @@ Note that an additional tests may be included from this fork: https://github.com
 - A test for page misaligned access (e.g. loads spanning multiple pages) has been contributed by @ja2142 on
   branch [page_misaligned_access_test](https://github.com/fnuecke/riscv-tests/tree/page_misaligned_access_test).
 
+## Benchmarks
+
+There's also a decent number of benchmarks for different usecases now; pure memory throughput, instruction fetch, specific instructions, mmio...
+
+They use the [Java Microbenchmark Harness](https://github.com/openjdk/jmh) and can be run via `./gradlew jmh`.
+
 ## Maven
 
 Sedna is published to Maven Central.
