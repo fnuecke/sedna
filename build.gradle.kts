@@ -1,6 +1,6 @@
 plugins {
     java
-    `maven-publish`
+    id("com.vanniktech.maven.publish") version "0.34.0"
     id("me.champeau.jmh") version "0.7.2"
 }
 
@@ -29,14 +29,6 @@ configurations[codegen.runtimeOnlyConfigurationName].extendsFrom(configurations.
 
 repositories {
     mavenCentral()
-    maven {
-        url = uri("https://maven.pkg.github.com/fnuecke/ceres")
-        credentials {
-            username = project.findProperty("gpr.user") as String? ?: System.getenv("GPR_USER") ?: System.getenv("GITHUB_ACTOR")
-            password = project.findProperty("gpr.key") as String? ?: System.getenv("GPR_KEY") ?: System.getenv("GITHUB_TOKEN")
-        }
-        content { includeGroup("li.cil.ceres") }
-    }
 }
 
 dependencies {
@@ -61,26 +53,38 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.8.2")
 }
 
-publishing {
-    publications {
-        create<MavenPublication>("mavenJava") {
-            groupId = packageGroup
-            artifactId = project.name
-            version = semver
-            from(components["java"])
-        }
+tasks.withType<AbstractArchiveTask>().configureEach {
+    archiveVersion.set(semver)
+}
+
+mavenPublishing {
+    publishToMavenCentral()
+    if (providers.gradleProperty("signingInMemoryKey").isPresent) {
+        signAllPublications()
     }
-    repositories {
-        val githubMavenUrl = System.getenv("GITHUB_MAVEN_URL")
-        if (!githubMavenUrl.isNullOrEmpty()) {
-            maven {
-                name = "GitHubPackages"
-                url = uri(githubMavenUrl)
-                credentials {
-                    username = System.getenv("GITHUB_ACTOR")
-                    password = System.getenv("GITHUB_TOKEN")
-                }
+
+    coordinates(packageGroup, project.name, semver)
+
+    pom {
+        name.set("Sedna")
+        description.set("A RISC-V emulator written in plain Java.")
+        url.set("https://github.com/fnuecke/sedna")
+        licenses {
+            license {
+                name.set("MIT License")
+                url.set("https://github.com/fnuecke/sedna/blob/main/LICENSE")
             }
+        }
+        developers {
+            developer {
+                id.set("fnuecke")
+                name.set("Florian Nücke")
+            }
+        }
+        scm {
+            connection.set("scm:git:https://github.com/fnuecke/sedna.git")
+            developerConnection.set("scm:git:ssh://git@github.com/fnuecke/sedna.git")
+            url.set("https://github.com/fnuecke/sedna")
         }
     }
 }
