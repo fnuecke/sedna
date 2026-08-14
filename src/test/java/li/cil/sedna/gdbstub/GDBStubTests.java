@@ -8,6 +8,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -18,13 +19,16 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.LongConsumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 public final class GDBStubTests {
     private static final Duration MUST_NOT_BLOCK = Duration.ofSeconds(5);
+    private static final String SUPPORTED = "PacketSize=2000;qXfer:features:read+";
 
     private FakeCPU cpu;
     private ServerSocketChannel channel;
@@ -194,7 +198,117 @@ public final class GDBStubTests {
             poll();
         }
 
-        assertEquals("PacketSize=2000", readPacket(), "a dribbled packet must still be understood");
+        assertEquals(SUPPORTED, readPacket(), "a dribbled packet must still be understood");
+    }
+
+    @Test
+    public void theStubOffersTheTargetDescription() throws Exception {
+        connect();
+        poll();
+        readPacket();
+
+        send("qSupported:multiprocess+");
+        poll();
+
+        assertTrue(readPacket().contains("qXfer:features:read+"),
+                "a debugger only asks for the target description if we say we have one");
+    }
+
+    @Test
+    public void theTargetDescriptionIsServedInChunks() throws Exception {
+        // Long enough that it cannot be sent in one packet, so the debugger has to ask twice.
+        final String description = "A".repeat(5000);
+        cpu.targetDescription = description.getBytes(StandardCharsets.US_ASCII);
+        connect();
+        poll();
+        readPacket();
+
+        send("qXfer:features:read:target.xml:0,1000");
+        poll();
+        final String first = readPacket();
+        assertEquals('m', first.charAt(0), "'m' says more is to come");
+
+        final int sent = first.length() - 1;
+        assertTrue(sent > 0 && sent < description.length(), "the first chunk must be a real prefix");
+
+        send("qXfer:features:read:target.xml:%x,1000".formatted(sent));
+        poll();
+        final String second = readPacket();
+        assertEquals('l', second.charAt(0), "'l' says this was the last chunk");
+
+        assertEquals(description, first.substring(1) + second.substring(1),
+                "the chunks must reassemble into the description");
+    }
+
+    @Test
+    public void bytesThatWouldConfuseTheProtocolAreEscaped() throws Exception {
+        cpu.targetDescription = "#$}*".getBytes(StandardCharsets.US_ASCII);
+        connect();
+        poll();
+        readPacket();
+
+        send("qXfer:features:read:target.xml:0,1000");
+        poll();
+
+        // Escaped as '}' + byte^0x20: '#'->0x03, '$'->0x04, '}'->0x5d (']'), '*'->0x0a ('\n').
+        assertEquals("l}\u0003}\u0004}]}\n", readPacket(),
+                "every byte escaped, and 'l' because it all fits in one chunk");
+    }
+
+    @Test
+    public void unknownTargetDescriptionIsAnError() throws Exception {
+        connect();
+        poll();
+        readPacket();
+
+        send("qXfer:features:read:nope.xml:0,1000");
+        poll();
+
+        assertEquals("E00", readPacket());
+    }
+
+    @Test
+    public void readingASingleRegisterReportsItsOwnWidth() throws Exception {
+        cpu.addRegister(65, 4, 0x1234); // Something narrower than a general register.
+        connect();
+        poll();
+        readPacket();
+
+        send("p41");
+        poll();
+
+        assertEquals("34120000", readPacket(), "4 bytes, little endian");
+    }
+
+    @Test
+    public void unknownRegistersAreRejected() throws Exception {
+        connect();
+        poll();
+        readPacket();
+
+        send("p999");
+        poll();
+        assertEquals("E01", readPacket(), "reading a register the CPU does not have must fail");
+
+        send("P999=0000000000000000");
+        poll();
+        assertEquals("E01", readPacket(), "and so must writing one");
+    }
+
+    @Test
+    public void singleRegisterRoundTrips() throws Exception {
+        connect();
+        poll();
+        readPacket();
+
+        send("P5=efbeadde00000000");
+        poll();
+        assertEquals("OK", readPacket());
+        assertEquals(0xDEADBEEFL, cpu.registers[5], "the write must reach the CPU");
+
+        send("p5");
+        poll();
+        assertEquals("efbeadde00000000", readPacket(), "and read back little endian");
     }
 
     @Test
@@ -286,11 +400,23 @@ public final class GDBStubTests {
     }
 
     private static final class FakeCPU implements CPUDebugInterface {
+        static final int REG_PC = 32;
+
         final long[] registers = new long[32];
         final LongSet breakpoints = new LongOpenHashSet();
         final List<LongConsumer> listeners = new ArrayList<>();
+        // Registers beyond the general ones, as id -> (size, value). Empty unless a test adds one.
+        final Map<Integer, Integer> extraRegisterSizes = new HashMap<>();
+        final Map<Integer, Long> extraRegisters = new HashMap<>();
+        @Nullable
+        byte[] targetDescription = "<target></target>".getBytes(StandardCharsets.US_ASCII);
         long pc;
         int steps;
+
+        void addRegister(final int id, final int size, final long value) {
+            extraRegisterSizes.put(id, size);
+            extraRegisters.put(id, value);
+        }
 
         void hitBreakpoint(final long address) {
             for (final LongConsumer listener : listeners) {
@@ -316,6 +442,43 @@ public final class GDBStubTests {
         @Override
         public long[] getGeneralRegisters() {
             return registers;
+        }
+
+        @Nullable
+        @Override
+        public byte[] getTargetDescription() {
+            return targetDescription;
+        }
+
+        @Override
+        public int getRegisterSize(final int id) {
+            if (id >= 0 && id < registers.length) return 8;
+            if (id == REG_PC) return 8;
+            return extraRegisterSizes.getOrDefault(id, 0);
+        }
+
+        @Override
+        public long getRegister(final int id) {
+            if (id >= 0 && id < registers.length) return registers[id];
+            if (id == REG_PC) return pc;
+            return extraRegisters.getOrDefault(id, 0L);
+        }
+
+        @Override
+        public boolean setRegister(final int id, final long value) {
+            if (id >= 0 && id < registers.length) {
+                registers[id] = value;
+                return true;
+            }
+            if (id == REG_PC) {
+                pc = value;
+                return true;
+            }
+            if (!extraRegisterSizes.containsKey(id)) {
+                return false;
+            }
+            extraRegisters.put(id, value);
+            return true;
         }
 
         @Override

@@ -19,9 +19,13 @@ import li.cil.sedna.riscv.exception.R5MemoryAccessException;
 import li.cil.sedna.utils.SoftDouble;
 import li.cil.sedna.utils.SoftFloat;
 import li.cil.sedna.utils.UnsafeGetter;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import sun.misc.Unsafe;
 
 import javax.annotation.Nullable;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -3583,6 +3587,38 @@ public abstract class R5CPUBase implements R5CPU {
     private record PageAccess(MemoryMappedDevice device, long toOffset) {
     }
 
+    // Must be kept in sync with target-riscv64.xml
+    private static final int REG_X_FIRST = 0;
+    private static final int REG_X_LAST = 31;
+    private static final int REG_PC = 32;
+    private static final int REG_F_FIRST = 33;
+    private static final int REG_F_LAST = 64;
+    private static final int REG_FFLAGS = 65;
+    private static final int REG_FRM = 66;
+    private static final int REG_FCSR = 67;
+    private static final int REG_PRIV = 68;
+    private static final int REG_CSR_FIRST = 0x1000;
+    private static final int REG_CSR_LAST = 0x1FFF;
+
+    private static final class TargetDescription {
+        private static final Logger LOGGER = LogManager.getLogger(TargetDescription.class);
+
+        private static final String RESOURCE_PATH = "/gdb/target-riscv64.xml";
+
+        @Nullable
+        static final byte[] VALUE = load();
+
+        @Nullable
+        private static byte[] load() {
+            try (final InputStream stream = R5CPUBase.class.getResourceAsStream(RESOURCE_PATH)) {
+                return stream != null ? stream.readAllBytes() : null;
+            } catch (final IOException e) {
+                LOGGER.warn("Failed loading GDB target description", e);
+                return null; // Debugger has to fall back to the general registers.
+            }
+        }
+    }
+
     final class DebugInterface implements CPUDebugInterface {
         private final Collection<LongConsumer> breakpointListeners = new ArrayList<>();
         private final LongSortedSet breakpoints = new LongAVLTreeSet();
@@ -3605,6 +3641,95 @@ public abstract class R5CPUBase implements R5CPU {
         @Override
         public long[] getGeneralRegisters() {
             return x;
+        }
+
+        @Nullable
+        @Override
+        public byte[] getTargetDescription() {
+            return TargetDescription.VALUE;
+        }
+
+        @Override
+        public int getRegisterSize(final int id) {
+            if (id >= REG_X_FIRST && id <= REG_X_LAST) return 8;
+            if (id == REG_PC) return 8;
+            if (id >= REG_F_FIRST && id <= REG_F_LAST) return 8;
+            if (id == REG_FFLAGS || id == REG_FRM || id == REG_FCSR) return 4;
+            if (id == REG_PRIV) return 8;
+            if (id >= REG_CSR_FIRST && id <= REG_CSR_LAST) {
+                final int csr = id - REG_CSR_FIRST;
+                if (csr == R5CSR.SEDNA_SWITCH_TO_XLEN32) return 8;
+                try {
+                    readCSR(csr);
+                    return 8;
+                } catch (final R5IllegalInstructionException e) {
+                    return 0; // Not implemented, or not readable in the state the machine is in.
+                }
+            }
+            return 0;
+        }
+
+        @Override
+        public long getRegister(final int id) {
+            if (id >= REG_X_FIRST && id <= REG_X_LAST) return x[id - REG_X_FIRST];
+            if (id == REG_PC) return pc;
+            if (id >= REG_F_FIRST && id <= REG_F_LAST) return f[id - REG_F_FIRST];
+            if (id == REG_FFLAGS) return fpu32.flags.value;
+            if (id == REG_FRM) return frm;
+            if (id == REG_FCSR) return (frm << 5) | fpu32.flags.value;
+            if (id == REG_PRIV) return priv;
+            if (id >= REG_CSR_FIRST && id <= REG_CSR_LAST) {
+                final int csr = id - REG_CSR_FIRST;
+
+                // This is a write-only register, which GDB doesn't understand. We're
+                // special casing it so GDB (which always does a read before it writes) can
+                // write to it
+                if (csr == R5CSR.SEDNA_SWITCH_TO_XLEN32) return 0;
+
+                try {
+                    return readCSR(csr);
+                } catch (final R5IllegalInstructionException e) {
+                    return 0;
+                }
+            }
+            return 0;
+        }
+
+        @Override
+        public boolean setRegister(final int id, final long value) {
+            if (id >= REG_X_FIRST && id <= REG_X_LAST) {
+                if (id != REG_X_FIRST) { // x0 is hardwired to zero.
+                    x[id - REG_X_FIRST] = value;
+                }
+                return true;
+            }
+            if (id == REG_PC) {
+                pc = value;
+                return true;
+            }
+            if (id >= REG_F_FIRST && id <= REG_F_LAST) {
+                f[id - REG_F_FIRST] = value;
+                return true;
+            }
+            if (id == REG_PRIV) {
+                if (value < R5.PRIVILEGE_U || value > R5.PRIVILEGE_M) {
+                    return false;
+                }
+                setPrivilege((int) value);
+                return true;
+            }
+            final int csr;
+            if (id == REG_FFLAGS) csr = R5CSR.FFLAGS;
+            else if (id == REG_FRM) csr = R5CSR.FRM;
+            else if (id == REG_FCSR) csr = R5CSR.FCSR;
+            else if (id >= REG_CSR_FIRST && id <= REG_CSR_LAST) csr = id - REG_CSR_FIRST;
+            else return false;
+            try {
+                writeCSR(csr, value);
+                return true;
+            } catch (final R5IllegalInstructionException e) {
+                return false;
+            }
         }
 
         @Override

@@ -2,6 +2,7 @@ package li.cil.sedna.api.debug;
 
 import li.cil.sedna.api.memory.MemoryAccessException;
 
+import javax.annotation.Nullable;
 import java.util.function.LongConsumer;
 
 /**
@@ -21,6 +22,36 @@ public interface CPUDebugInterface {
      * The integer registers, as a live array: writes to it are writes to the CPU.
      */
     long[] getGeneralRegisters();
+
+    /**
+     * Describes the registers reachable via {@link #getRegister} and {@link #setRegister}, in the
+     * format a debugger expects, or {@code null} if the CPU cannot describe itself. Debuggers that
+     * get no description are limited to {@link #getGeneralRegisters} and the program counter.
+     * <p>
+     * The array may be shared between CPUs, and must not be modified.
+     */
+    @Nullable
+    byte[] getTargetDescription();
+
+    /**
+     * The size of register {@code id} in bytes, or zero if there is no such register.
+     * <p>
+     * Register numbering is the debugger's, as laid out by {@link #getTargetDescription}.
+     */
+    int getRegisterSize(int id);
+
+    /**
+     * Reads a register. Only meaningful when {@link #getRegisterSize} reported a non-zero size for
+     * {@code id}; the value is zero-extended into the returned long.
+     */
+    long getRegister(int id);
+
+    /**
+     * Writes a register.
+     *
+     * @return {@code false} if there is no such register, or it cannot be written.
+     */
+    boolean setRegister(int id, long value);
 
     /**
      * Reads up to {@code size} bytes. A short result means the read ran into memory that could not
