@@ -7,7 +7,7 @@ package li.cil.sedna.device.virtio;
  */
 public final class VirtIODeviceSpec {
     private static final int MAX_CONFIG_SPACE_SIZE = 256;
-    private static final int MAX_VIRTQUEUE_COUNT = 16;
+    static final int MAX_VIRTQUEUE_COUNT = 16;
 
     public final int deviceId;
     public final int vendorId;
