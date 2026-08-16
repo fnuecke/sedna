@@ -6,8 +6,9 @@ package li.cil.sedna.device.virtio;
  * Create instances of this type using a builder obtained by calling {@link #builder(int)}.
  */
 public final class VirtIODeviceSpec {
-    private static final int MAX_CONFIG_SPACE_SIZE = 256;
+    public static final int DEFAULT_QUEUE_SIZE_MAX = AbstractVirtqueue.VIRTQ_MAX_QUEUE_SIZE;
     static final int MAX_VIRTQUEUE_COUNT = 16;
+    private static final int MAX_CONFIG_SPACE_SIZE = 256;
 
     public final int deviceId;
     public final int vendorId;
@@ -62,7 +63,7 @@ public final class VirtIODeviceSpec {
         private long features;
         private int configSpaceSizeInBytes;
         private int virtQueueCount;
-        private int virtQueueSizeMax = AbstractVirtqueue.VIRTQ_MAX_QUEUE_SIZE;
+        private int virtQueueSizeMax = DEFAULT_QUEUE_SIZE_MAX;
 
         /**
          * Configures the vendor id for devices with this device spec.

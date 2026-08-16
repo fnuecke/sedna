@@ -98,11 +98,16 @@ public final class VirtIONetworkDevice extends AbstractVirtIODevice {
     private byte[] mac = new byte[6];
 
     public VirtIONetworkDevice(final MemoryMap memoryMap) {
+        this(memoryMap, VirtIODeviceSpec.DEFAULT_QUEUE_SIZE_MAX);
+    }
+
+    public VirtIONetworkDevice(final MemoryMap memoryMap, final int queueSizeMax) {
         super(memoryMap, VirtIODeviceSpec
                 .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_NETWORK_CARD)
                 .features(VIRTIO_NET_F_MAC)
                 .configSpaceSize(6 + 2) // mac + status
                 .queueCount(2)
+                .queueSizeMax(queueSizeMax)
                 .build());
 
         // One of the OUI patterns safe for local use:

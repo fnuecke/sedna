@@ -1,6 +1,7 @@
 package li.cil.sedna.device.virtio;
 
 import li.cil.ceres.BinarySerialization;
+import li.cil.ceres.api.SerializationException;
 import li.cil.sedna.Sedna;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.memory.MemoryMap;
@@ -12,8 +13,7 @@ import org.junit.jupiter.api.Test;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 public final class VirtIOSerializationTests {
     private static final int VIRTIO_MMIO_DRIVER_FEATURES = 0x020;
@@ -70,20 +70,31 @@ public final class VirtIOSerializationTests {
     }
 
     @Test
-    public void anOlderSmallerConfigSpaceDoesNotShrinkTheDevice() {
+    public void configSpaceOfADifferentSizeIsRefused() {
         final TestDevice small = new TestDevice(new SimpleMemoryMap(), 4);
         small.writeConfig(0, 0x11223344);
         final ByteBuffer data = BinarySerialization.serialize(small);
 
         final TestDevice grown = new TestDevice(new SimpleMemoryMap(), 8);
-        BinarySerialization.deserialize(data, grown);
+        assertThrows(SerializationException.class, () -> BinarySerialization.deserialize(data, grown));
+    }
 
-        assertEquals(8, grown.getConfiguration().capacity(),
-                "an old save must not redefine the config space size");
-        assertEquals(0x11223344, grown.getConfiguration().getInt(0),
-                "the bytes the old save did carry must still be restored");
-        assertDoesNotThrow(() -> grown.writeConfig(4, 0x55667788),
-                "writing the part of the config space the old save knew nothing about must work");
+    @Test
+    public void refusedRestoreLeavesAUsableDevice() {
+        final TestDevice small = new TestDevice(new SimpleMemoryMap(), 4);
+        final ByteBuffer data = BinarySerialization.serialize(small);
+
+        final TestDevice grown = new TestDevice(new SimpleMemoryMap(), 8);
+        try {
+            BinarySerialization.deserialize(data, grown);
+        } catch (final SerializationException ignored) {
+        }
+
+        assertEquals(8, grown.getConfiguration().capacity());
+        assertDoesNotThrow(() -> {
+            grown.reset();
+            grown.writeConfig(4, 0x55667788);
+        }, "the whole config space must still be writable after a refused restore");
     }
 
     @Test
@@ -112,9 +123,9 @@ public final class VirtIOSerializationTests {
                 "the serialized bytes of a VirtIO device changed, which means the savestate format changed");
     }
 
-    private static final int EXPECTED_SERIALIZED_SIZE = 134;
+    private static final int EXPECTED_SERIALIZED_SIZE = 138;
     private static final String EXPECTED_SERIALIZED_DIGEST =
-            "b401eadce750e616b433df2cc4bcae5855b33434547719ccd66a163b2ec02f99";
+            "0ac96cab1712f9301396642e102723b6f012cc000e4b5824f2dc3c21bcc512cf";
 
     private static String toHex(final byte[] value) {
         final StringBuilder sb = new StringBuilder(value.length * 2);

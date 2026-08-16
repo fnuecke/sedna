@@ -112,9 +112,18 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     }
 
     public VirtIOBlockDevice(final MemoryMap memoryMap, final BlockDevice block) {
+        this(memoryMap, block, VirtIODeviceSpec.DEFAULT_QUEUE_SIZE_MAX);
+    }
+
+    public VirtIOBlockDevice(final MemoryMap memoryMap, final boolean readonly, final int queueSizeMax) {
+        this(memoryMap, NullBlockDevice.get(readonly), queueSizeMax);
+    }
+
+    public VirtIOBlockDevice(final MemoryMap memoryMap, final BlockDevice block, final int queueSizeMax) {
         super(memoryMap, VirtIODeviceSpec.builder(VirtIODeviceType.VIRTIO_DEVICE_ID_BLOCK_DEVICE)
                 .configSpaceSize(56)
                 .queueCount(1)
+                .queueSizeMax(queueSizeMax)
                 .features((block.isReadonly() ? VIRTIO_BLK_F_RO : 0) |
                         VIRTIO_BLK_F_SIZE_MAX |
                         VIRTIO_BLK_F_SEG_MAX |

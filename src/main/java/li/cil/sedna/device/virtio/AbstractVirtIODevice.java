@@ -8,6 +8,7 @@ import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.Resettable;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
+import li.cil.sedna.utils.FixedSizeByteBuffer;
 
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
@@ -94,7 +95,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
     private final transient VirtIODeviceSpec spec;
     private final transient Interrupt interrupt = new Interrupt();
     private final transient VirtqueueContext queueContext = new QueueContext();
-    private final ByteBuffer configuration;
+    private final FixedSizeByteBuffer configuration;
     private final SplitVirtqueue[] queues;
 
     private int status = 0;
@@ -108,8 +109,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
     protected AbstractVirtIODevice(final MemoryMap memoryMap, final VirtIODeviceSpec spec) {
         this.memoryMap = memoryMap;
         this.spec = spec;
-        this.configuration = ByteBuffer.allocate(spec.configSpaceSizeInBytes);
-        configuration.order(ByteOrder.LITTLE_ENDIAN);
+        this.configuration = new FixedSizeByteBuffer(spec.configSpaceSizeInBytes, ByteOrder.LITTLE_ENDIAN);
         queues = new SplitVirtqueue[spec.virtQueueCount];
         for (int i = 0; i < queues.length; i++) {
             queues[i] = new SplitVirtqueue(memoryMap, queueContext);
@@ -147,7 +147,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
      * @return the buffer with device configuration.
      */
     protected final ByteBuffer getConfiguration() {
-        return configuration;
+        return configuration.buffer();
     }
 
     /**
@@ -159,7 +159,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
      * @param value  the value to write.
      */
     protected final void setConfigValue(final int offset, final byte value) {
-        configuration.put(offset, value);
+        getConfiguration().put(offset, value);
         notifyConfigChanged();
     }
 
@@ -172,7 +172,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
      * @param value  the value to write.
      */
     protected final void setConfigValue(final int offset, final short value) {
-        configuration.putShort(offset, value);
+        getConfiguration().putShort(offset, value);
         notifyConfigChanged();
     }
 
@@ -185,7 +185,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
      * @param value  the value to write.
      */
     protected final void setConfigValue(final int offset, final int value) {
-        configuration.putInt(offset, value);
+        getConfiguration().putInt(offset, value);
         notifyConfigChanged();
     }
 
@@ -199,7 +199,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
      */
     protected final void setConfigValue(final int offset, final byte[] value) {
         for (int i = 0; i < value.length; i++) {
-            configuration.put(offset + i, value[i]);
+            getConfiguration().put(offset + i, value[i]);
         }
         notifyConfigChanged();
     }
@@ -217,18 +217,18 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
     protected int loadConfig(final int offset, final int sizeLog2) {
         switch (sizeLog2) {
             case Sizes.SIZE_8_LOG2 -> {
-                if (offset >= 0 && offset < configuration.limit()) {
-                    return configuration.get(offset);
+                if (offset >= 0 && offset < configuration.capacity()) {
+                    return getConfiguration().get(offset);
                 }
             }
             case Sizes.SIZE_16_LOG2 -> {
-                if (offset >= 0 && offset < configuration.limit() - 1) {
-                    return configuration.getShort(offset);
+                if (offset >= 0 && offset < configuration.capacity() - 1) {
+                    return getConfiguration().getShort(offset);
                 }
             }
             case Sizes.SIZE_32_LOG2 -> {
-                if (offset >= 0 && offset < configuration.limit() - 3) {
-                    return configuration.getInt(offset);
+                if (offset >= 0 && offset < configuration.capacity() - 3) {
+                    return getConfiguration().getInt(offset);
                 }
             }
         }
@@ -248,23 +248,23 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
     protected void storeConfig(final int offset, final long value, final int sizeLog2) {
         switch (sizeLog2) {
             case Sizes.SIZE_8_LOG2 -> {
-                if (offset >= 0 && offset < configuration.limit()) {
-                    configuration.put(offset, (byte) value);
+                if (offset >= 0 && offset < configuration.capacity()) {
+                    getConfiguration().put(offset, (byte) value);
                 }
             }
             case Sizes.SIZE_16_LOG2 -> {
-                if (offset >= 0 && offset < configuration.limit() - 1) {
-                    configuration.putShort(offset, (short) value);
+                if (offset >= 0 && offset < configuration.capacity() - 1) {
+                    getConfiguration().putShort(offset, (short) value);
                 }
             }
             case Sizes.SIZE_32_LOG2 -> {
-                if (offset >= 0 && offset < configuration.limit() - 3) {
-                    configuration.putInt(offset, (int) value);
+                if (offset >= 0 && offset < configuration.capacity() - 3) {
+                    getConfiguration().putInt(offset, (int) value);
                 }
             }
             case Sizes.SIZE_64_LOG2 -> {
-                if (offset >= 0 && offset < configuration.limit() - 7) {
-                    configuration.putLong(offset, value);
+                if (offset >= 0 && offset < configuration.capacity() - 7) {
+                    getConfiguration().putLong(offset, value);
                 }
             }
         }

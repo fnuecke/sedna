@@ -39,10 +39,15 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
     private boolean hasPendingRequest;
 
     public VirtIOFileSystemDevice(final MemoryMap memoryMap, final String tag, final FileSystem fileSystem) {
+        this(memoryMap, tag, fileSystem, VirtIODeviceSpec.DEFAULT_QUEUE_SIZE_MAX);
+    }
+
+    public VirtIOFileSystemDevice(final MemoryMap memoryMap, final String tag, final FileSystem fileSystem, final int queueSizeMax) {
         super(memoryMap, VirtIODeviceSpec
                 .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_9P_TRANSPORT)
                 .features(VIRTIO_9P_F_MOUNT_TAG)
                 .queueCount(1)
+                .queueSizeMax(queueSizeMax)
                 .configSpaceSize(2 + Math.min(tag.length(), 0xFFFF))
                 .build());
         this.tag = tag;

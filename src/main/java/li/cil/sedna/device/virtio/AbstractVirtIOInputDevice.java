@@ -43,9 +43,14 @@ public abstract class AbstractVirtIOInputDevice extends AbstractVirtIODevice {
     private DescriptorChain event;
 
     protected AbstractVirtIOInputDevice(final MemoryMap memoryMap) {
+        this(memoryMap, VirtIODeviceSpec.DEFAULT_QUEUE_SIZE_MAX);
+    }
+
+    protected AbstractVirtIOInputDevice(final MemoryMap memoryMap, final int queueSizeMax) {
         super(memoryMap, VirtIODeviceSpec.builder(VirtIODeviceType.VIRTIO_DEVICE_ID_INPUT_DEVICE)
                 .configSpaceSize(256)
                 .queueCount(2)
+                .queueSizeMax(queueSizeMax)
                 .build());
     }
 

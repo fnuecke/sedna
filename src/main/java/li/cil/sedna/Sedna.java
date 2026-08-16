@@ -16,6 +16,7 @@ import li.cil.sedna.devicetree.DeviceTreeRegistry;
 import li.cil.sedna.devicetree.provider.*;
 import li.cil.sedna.p9.FileSystemFileMap;
 import li.cil.sedna.riscv.R5CPU;
+import li.cil.sedna.utils.FixedSizeByteBuffer;
 import li.cil.sedna.riscv.device.R5CoreLocalInterrupter;
 import li.cil.sedna.riscv.device.R5PlatformLevelInterruptController;
 import li.cil.sedna.riscv.devicetree.R5CoreLocalInterrupterProvider;
@@ -40,6 +41,7 @@ public final class Sedna {
 
         Ceres.putSerializer(BitSet.class, new BitSetSerializer());
         Ceres.putSerializer(ByteArrayFIFOQueue.class, new ByteArrayFIFOQueueSerializer());
+        Ceres.putSerializer(FixedSizeByteBuffer.class, new FixedSizeByteBufferSerializer());
         Ceres.putSerializer(FileSystemFileMap.class, new FileSystemFileMapSerializer());
         Ceres.putSerializer(Int2LongArrayMap.class, new Int2LongArrayMapSerializer());
         Ceres.putSerializer(R5CPU.class, new R5CPUSerializer());

@@ -14,6 +14,10 @@ public final class VirtIOKeyboardDevice extends AbstractVirtIOInputDevice {
         super(memoryMap);
     }
 
+    public VirtIOKeyboardDevice(final MemoryMap memoryMap, final int queueSizeMax) {
+        super(memoryMap, queueSizeMax);
+    }
+
     public void sendKeyEvent(final int keycode, final boolean isDown) {
         putEvent(EvdevEvents.EV_KEY, keycode, isDown ? 1 : 0);
         putSyn();
