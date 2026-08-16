@@ -82,6 +82,7 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
     private boolean isHandshakeComplete;
 
     private final transient boolean isMultiport;
+    private final transient PortView[] portViews;
     private final transient ByteBuffer inboundMessage =
             ByteBuffer.allocate(CONTROL_MESSAGE_SIZE).order(ByteOrder.LITTLE_ENDIAN);
     private final transient ByteBuffer outboundMessage =
@@ -91,15 +92,18 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
         super(memoryMap, buildSpec(0));
         this.isMultiport = false;
         this.ports = new Port[]{new Port()};
+        this.portViews = new PortView[]{new PortView(0)};
     }
 
     public VirtIOConsoleDevice(final MemoryMap memoryMap, final String... portNames) {
         super(memoryMap, buildSpec(validatePortNames(portNames).length));
         this.isMultiport = true;
         this.ports = new Port[portNames.length];
+        this.portViews = new PortView[portNames.length];
         for (int i = 0; i < portNames.length; i++) {
             ports[i] = new Port();
             ports[i].name = portNames[i];
+            portViews[i] = new PortView(i);
         }
     }
 
@@ -110,8 +114,7 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
     }
 
     public PortView getPort(final int port) {
-        checkPort(port);
-        return new PortView(port);
+        return portViews[checkPort(port)];
     }
 
     @Override
