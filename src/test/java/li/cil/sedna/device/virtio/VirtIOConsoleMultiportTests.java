@@ -221,15 +221,18 @@ public final class VirtIOConsoleMultiportTests {
         createDevice("first", "second");
         bringUp();
 
+        final var port0 = device.getPort(0);
+        final var port1 = device.getPort(1);
+
         publishGuestData(transmitQueue(1), new byte[]{'h', 'i'});
-        assertEquals(-1, device.read(0), "port 0 must not see port 1's data");
-        assertEquals('h', device.read(1));
-        assertEquals('i', device.read(1));
-        assertEquals(-1, device.read(1));
+        assertEquals(-1, port0.read(), "port 0 must not see port 1's data");
+        assertEquals('h', port1.read());
+        assertEquals('i', port1.read());
+        assertEquals(-1, port1.read());
 
         final int index = publish(receiveQueue(1), BUFFER_SIZE, true);
-        device.putByte(1, (byte) 'X');
-        device.flush(1);
+        port1.putByte((byte) 'X');
+        port1.flush();
         assertEquals('X', readDeviceWrite(receiveQueue(1), 0, index),
                 "host byte did not land on the port's own receive queue");
     }
@@ -294,7 +297,7 @@ public final class VirtIOConsoleMultiportTests {
         // No QUEUE_NOTIFY this time: after a savegame restore nothing kicks the control
         // queue again, and the only thing still running is the host polling the data
         // path. That has to be enough to finish the handshake.
-        assertEquals(-1, device.read(0), "no guest data was queued");
+        assertEquals(-1, device.read(), "no guest data was queued");
 
         final ControlMessage added = readControlMessage(0);
         assertNotNull(added, "handshake must advance from a data-path poll alone");

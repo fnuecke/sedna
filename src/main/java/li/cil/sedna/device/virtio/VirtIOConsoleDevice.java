@@ -109,8 +109,9 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
         return ports.length;
     }
 
-    public boolean isPortOpen(final int port) {
-        return ports[checkPort(port)].guestOpen;
+    public PortView getPort(final int port) {
+        checkPort(port);
+        return new PortView(port);
     }
 
     @Override
@@ -118,7 +119,7 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
         return read(0);
     }
 
-    public int read(final int port) {
+    private int read(final int port) {
         if (hasDeviceFailed()) {
             return -1;
         }
@@ -154,7 +155,7 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
         return canPutByte(0);
     }
 
-    public boolean canPutByte(final int port) {
+    private boolean canPutByte(final int port) {
         if (hasDeviceFailed()) {
             return false;
         }
@@ -169,7 +170,7 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
         putByte(0, value);
     }
 
-    public void putByte(final int port, final byte value) {
+    private void putByte(final int port, final byte value) {
         if (hasDeviceFailed()) {
             return;
         }
@@ -189,7 +190,7 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
         flush(0);
     }
 
-    public void flush(final int port) {
+    private void flush(final int port) {
         if (hasDeviceFailed()) {
             return;
         }
@@ -485,5 +486,37 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
 
     private static int transmitQueue(final int port) {
         return port == 0 ? 1 : (port * 2 + 3);
+    }
+
+    public final class PortView implements SerialDevice {
+        private final int port;
+
+        PortView(final int port) {
+            this.port = port;
+        }
+
+        public boolean isPortOpen() {
+            return VirtIOConsoleDevice.this.ports[checkPort(port)].guestOpen;
+        }
+
+        @Override
+        public int read() {
+            return VirtIOConsoleDevice.this.read(port);
+        }
+
+        @Override
+        public boolean canPutByte() {
+            return VirtIOConsoleDevice.this.canPutByte(port);
+        }
+
+        @Override
+        public void putByte(final byte value) {
+            VirtIOConsoleDevice.this.putByte(port, value);
+        }
+
+        @Override
+        public void flush() {
+            VirtIOConsoleDevice.this.flush(port);
+        }
     }
 }
