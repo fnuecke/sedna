@@ -12,6 +12,8 @@ import li.cil.sedna.api.memory.MemoryAccessException;
 abstract class AbstractVirtqueue implements VirtqueueIterator {
     static final int VIRTQ_MAX_QUEUE_SIZE = 256; // Size of descriptor rings.
 
+    transient int maxSize = VIRTQ_MAX_QUEUE_SIZE;
+
     int ready;
     int num = VIRTQ_MAX_QUEUE_SIZE; // Guaranteed to be a power of two.
     long desc; // Descriptor Area - used for describing buffers.
@@ -22,7 +24,7 @@ abstract class AbstractVirtqueue implements VirtqueueIterator {
 
     void reset() {
         ready = 0; // 4.2.2.1: Must set to zero on reset.
-        num = VIRTQ_MAX_QUEUE_SIZE;
+        num = maxSize;
         desc = 0;
         driver = 0;
         device = 0;

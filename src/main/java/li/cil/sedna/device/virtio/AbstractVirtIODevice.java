@@ -74,7 +74,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
     private static final int VIRTIO_MMIO_DRIVER_FEATURES = 0x020; // W
     private static final int VIRTIO_MMIO_DRIVER_FEATURES_SEL = 0x024; // W
     private static final int VIRTIO_MMIO_QUEUE_SEL = 0x030; // W
-    private static final int VIRTIO_MMIO_QUEUE_NUM_MAX = 0x034; // R
+    private static final int VIRTIO_MMIO_QUEUE_SIZE_MAX = 0x034; // R
     private static final int VIRTIO_MMIO_QUEUE_NUM = 0x038; // W
     private static final int VIRTIO_MMIO_QUEUE_READY = 0x044; // RW
     private static final int VIRTIO_MMIO_QUEUE_NOTIFY = 0x050; // W
@@ -113,6 +113,8 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
         queues = new SplitVirtqueue[spec.virtQueueCount];
         for (int i = 0; i < queues.length; i++) {
             queues[i] = new SplitVirtqueue(memoryMap, queueContext);
+            queues[i].maxSize = spec.virtQueueSizeMax;
+            queues[i].num = spec.virtQueueSizeMax;
         }
     }
 
@@ -616,8 +618,8 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                     return (int) (spec.features >>> shift);
                 }
             }
-            case VIRTIO_MMIO_QUEUE_NUM_MAX: {
-                return AbstractVirtqueue.VIRTQ_MAX_QUEUE_SIZE;
+            case VIRTIO_MMIO_QUEUE_SIZE_MAX: {
+                return spec.virtQueueSizeMax;
             }
             case VIRTIO_MMIO_QUEUE_READY: {
                 return queues[queueSel].ready;
@@ -666,8 +668,10 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                 }
             }
             case VIRTIO_MMIO_QUEUE_NUM -> {
-                // 2.6: Queue size is always a power of 2. The maximum Queue Size value is 32768.
-                if (intValue <= (1 << 15) && Integer.bitCount(intValue) == 1) {
+                // 2.6: Queue size is always a power of 2. 4.2.2.2: The driver MUST write a value
+                // to QueueSize which is less than or equal to the value presented by the device
+                // in QueueSizeMax.
+                if (intValue <= queues[queueSel].maxSize && Integer.bitCount(intValue) == 1) {
                     queues[queueSel].num = intValue;
                 }
             }

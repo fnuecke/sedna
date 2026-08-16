@@ -26,6 +26,7 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
     private static final short DEFAULT_ROW_COUNT = 25;
 
     private static final int BUFFER_SIZE = 4 * 1024;
+    private static final int QUEUE_SIZE = 4; // 16kib -> well enough for a console/serial port
 
     private static final long VIRTIO_CONSOLE_F_SIZE = 1L << 0; // Configuration for cols and rows.
     private static final long VIRTIO_CONSOLE_F_MULTIPORT = 1L << 1; // Configuration max_nr_ports, control virtqueues.
@@ -472,12 +473,14 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
             return builder
                     .features(VIRTIO_CONSOLE_F_SIZE)
                     .queueCount(2)
+                    .queueSizeMax(QUEUE_SIZE)
                     .configSpaceSize(4)
                     .build();
         } else {
             return builder
                     .features(VIRTIO_CONSOLE_F_MULTIPORT)
                     .queueCount(portCount * 2 + 2)
+                    .queueSizeMax(QUEUE_SIZE)
                     .configSpaceSize(8) // through max_nr_ports
                     .build();
         }

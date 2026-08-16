@@ -14,12 +14,14 @@ public final class VirtIODeviceSpec {
     public final long features;
     public final int configSpaceSizeInBytes;
     public final int virtQueueCount;
+    public final int virtQueueSizeMax;
 
     VirtIODeviceSpec(final int deviceId,
                      final int vendorId,
                      final long features,
                      final int configSpaceSizeInBytes,
-                     final int virtQueueCount) {
+                     final int virtQueueCount,
+                     final int virtQueueSizeMax) {
         if (configSpaceSizeInBytes < 0 || configSpaceSizeInBytes > MAX_CONFIG_SPACE_SIZE) {
             throw new IndexOutOfBoundsException();
         }
@@ -30,8 +32,15 @@ public final class VirtIODeviceSpec {
         this.deviceId = deviceId;
         this.vendorId = vendorId;
         this.features = features | AbstractVirtIODevice.VIRTIO_F_VERSION_1;
+        if (virtQueueSizeMax < 1 || virtQueueSizeMax > AbstractVirtqueue.VIRTQ_MAX_QUEUE_SIZE
+                || Integer.bitCount(virtQueueSizeMax) != 1) {
+            throw new IllegalArgumentException("Queue size must be a power of two in [1, "
+                    + AbstractVirtqueue.VIRTQ_MAX_QUEUE_SIZE + "].");
+        }
+
         this.configSpaceSizeInBytes = configSpaceSizeInBytes;
         this.virtQueueCount = virtQueueCount;
+        this.virtQueueSizeMax = virtQueueSizeMax;
     }
 
     /**
@@ -53,6 +62,7 @@ public final class VirtIODeviceSpec {
         private long features;
         private int configSpaceSizeInBytes;
         private int virtQueueCount;
+        private int virtQueueSizeMax = AbstractVirtqueue.VIRTQ_MAX_QUEUE_SIZE;
 
         /**
          * Configures the vendor id for devices with this device spec.
@@ -108,12 +118,32 @@ public final class VirtIODeviceSpec {
         }
 
         /**
+         * Configures the largest descriptor ring devices with this spec offer the driver.
+         * <p>
+         * Linux drivers generally take whatever maximum is offered and then fill the
+         * receive ring with page-sized buffers, so this effectively controls how much
+         * <em>guest</em> memory the device costs: a 256-entry ring is a megabyte per
+         * receive queue.
+         *
+         * @param size the maximum ring size; a power of two, at most
+         *             {@link AbstractVirtqueue#VIRTQ_MAX_QUEUE_SIZE}.
+         * @return this builder for method chaining.
+         */
+        public Builder queueSizeMax(final int size) {
+            if (size < 1 || size > AbstractVirtqueue.VIRTQ_MAX_QUEUE_SIZE || Integer.bitCount(size) != 1) {
+                throw new IllegalArgumentException();
+            }
+            this.virtQueueSizeMax = size;
+            return this;
+        }
+
+        /**
          * Finishes construction of a {@link VirtIODeviceSpec} and returns it.
          *
          * @return the spec configured using this builder.
          */
         public VirtIODeviceSpec build() {
-            return new VirtIODeviceSpec(deviceId, vendorId, features, configSpaceSizeInBytes, virtQueueCount);
+            return new VirtIODeviceSpec(deviceId, vendorId, features, configSpaceSizeInBytes, virtQueueCount, virtQueueSizeMax);
         }
 
         private Builder(final int deviceId) {

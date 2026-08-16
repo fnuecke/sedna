@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public final class VirtIOSerializationTests {
@@ -37,11 +38,19 @@ public final class VirtIOSerializationTests {
 
     private static final class TestDevice extends AbstractVirtIODevice {
         TestDevice(final MemoryMap memoryMap) {
+            this(memoryMap, 8);
+        }
+
+        TestDevice(final MemoryMap memoryMap, final int configSpaceSize) {
             super(memoryMap, VirtIODeviceSpec
                     .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_CONSOLE)
                     .queueCount(2)
-                    .configSpaceSize(8)
+                    .configSpaceSize(configSpaceSize)
                     .build());
+        }
+
+        void writeConfig(final int offset, final int value) {
+            setConfigValue(offset, value);
         }
     }
 
@@ -61,6 +70,36 @@ public final class VirtIOSerializationTests {
     }
 
     @Test
+    public void anOlderSmallerConfigSpaceDoesNotShrinkTheDevice() {
+        final TestDevice small = new TestDevice(new SimpleMemoryMap(), 4);
+        small.writeConfig(0, 0x11223344);
+        final ByteBuffer data = BinarySerialization.serialize(small);
+
+        final TestDevice grown = new TestDevice(new SimpleMemoryMap(), 8);
+        BinarySerialization.deserialize(data, grown);
+
+        assertEquals(8, grown.getConfiguration().capacity(),
+                "an old save must not redefine the config space size");
+        assertEquals(0x11223344, grown.getConfiguration().getInt(0),
+                "the bytes the old save did carry must still be restored");
+        assertDoesNotThrow(() -> grown.writeConfig(4, 0x55667788),
+                "writing the part of the config space the old save knew nothing about must work");
+    }
+
+    @Test
+    public void byteOrderSurvivesTheRoundTrip() {
+        final TestDevice original = new TestDevice(new SimpleMemoryMap());
+        original.writeConfig(0, 0x01020304);
+        final ByteBuffer data = BinarySerialization.serialize(original);
+
+        final TestDevice restored = new TestDevice(new SimpleMemoryMap());
+        BinarySerialization.deserialize(data, restored);
+
+        assertEquals(original.getConfiguration().order(), restored.getConfiguration().order());
+        assertEquals(0x01020304, restored.getConfiguration().getInt(0));
+    }
+
+    @Test
     public void serializedLayoutIsUnchanged() throws Exception {
         final ByteBuffer data = BinarySerialization.serialize(configuredDevice());
 
@@ -73,9 +112,9 @@ public final class VirtIOSerializationTests {
                 "the serialized bytes of a VirtIO device changed, which means the savestate format changed");
     }
 
-    private static final int EXPECTED_SERIALIZED_SIZE = 151;
+    private static final int EXPECTED_SERIALIZED_SIZE = 134;
     private static final String EXPECTED_SERIALIZED_DIGEST =
-            "ba66b4ba19df667d7f8ecca47e9b99559d9b877ddeeca7ae51e65f4c5001c52d";
+            "b401eadce750e616b433df2cc4bcae5855b33434547719ccd66a163b2ec02f99";
 
     private static String toHex(final byte[] value) {
         final StringBuilder sb = new StringBuilder(value.length * 2);

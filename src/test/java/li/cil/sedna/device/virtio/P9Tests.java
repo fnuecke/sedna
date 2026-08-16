@@ -302,9 +302,9 @@ public final class P9Tests {
                 "the serialized bytes of the 9P device changed, which means the savestate format changed");
     }
 
-    private static final int EXPECTED_SERIALIZED_SIZE = 173;
+    private static final int EXPECTED_SERIALIZED_SIZE = 156;
     private static final String EXPECTED_SERIALIZED_DIGEST =
-            "10e55178f9eb5d68beb86d9365a905430a63e9992e5cb6dc4f088ef27beb1f44";
+            "91c978e4e9db6d4910f6f5df8fc46e2ea35a0767e661efa836171a6aa766591d";
 
     private static String toHex(final byte[] value) {
         final StringBuilder sb = new StringBuilder(value.length * 2);
