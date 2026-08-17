@@ -10,6 +10,8 @@ import li.cil.sedna.api.device.Resettable;
 import li.cil.sedna.api.device.Steppable;
 import li.cil.sedna.api.device.serial.SerialDevice;
 
+import java.nio.ByteBuffer;
+
 import static java.util.Collections.singleton;
 
 /**
@@ -166,7 +168,24 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
                 interruptUpdatePending = true;
             }
 
-            return value;
+            return value & 0xFF;
+        }
+    }
+
+    @Override
+    public int read(final ByteBuffer dst) {
+        synchronized (lock) {
+            // Bulk impl not worth it, buffer is so small the sync overshadows it anyway.
+            int count = 0;
+            while (dst.hasRemaining()) {
+                final int value = read();
+                if (value < 0) {
+                    break;
+                }
+                dst.put((byte) value);
+                count++;
+            }
+            return count;
         }
     }
 

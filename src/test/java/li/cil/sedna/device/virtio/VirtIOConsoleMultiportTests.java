@@ -8,6 +8,7 @@ import li.cil.sedna.memory.SimpleMemoryMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -305,8 +306,164 @@ public final class VirtIOConsoleMultiportTests {
     }
 
     // ------------------------------------------------------------- //
+    // Batch reads
+
+    @Test
+    public void batchReadSpansMultipleDescriptorChains() throws Exception {
+        bringUp();
+
+        publishGuestData(transmitQueue(0), "hello ".getBytes(StandardCharsets.UTF_8));
+        publishGuestData(transmitQueue(0), "world".getBytes(StandardCharsets.UTF_8));
+
+        final ByteBuffer dst = ByteBuffer.allocate(64);
+        assertEquals(11, device.read(dst), "one batch read must drain both chains");
+        assertEquals("hello world", asString(dst));
+
+        assertEquals(0, device.read(ByteBuffer.allocate(64)), "nothing is left");
+    }
+
+    @Test
+    public void batchReadStopsAtTheDestinationLimitAndKeepsOrder() throws Exception {
+        bringUp();
+
+        publishGuestData(transmitQueue(0), "abcdefghij".getBytes(StandardCharsets.UTF_8));
+
+        final ByteBuffer first = ByteBuffer.allocate(4);
+        assertEquals(4, device.read(first), "only as much as was asked for");
+        assertEquals("abcd", asString(first));
+
+        // What did not fit must be handed out next, in order, by either flavour of read.
+        assertEquals('e', device.read());
+
+        final ByteBuffer rest = ByteBuffer.allocate(64);
+        assertEquals(5, device.read(rest));
+        assertEquals("fghij", asString(rest));
+    }
+
+    @Test
+    public void batchReadRespectsBufferPositionAndReturnsZeroWhenIdle() throws Exception {
+        bringUp();
+
+        assertEquals(0, device.read(ByteBuffer.allocate(16)), "no data queued");
+
+        publishGuestData(transmitQueue(0), "xyz".getBytes(StandardCharsets.UTF_8));
+
+        final ByteBuffer full = ByteBuffer.allocate(4);
+        full.position(full.limit());
+        assertEquals(0, device.read(full), "a destination with no room reads nothing");
+
+        // Reading into the middle of a buffer must respect position and limit.
+        final ByteBuffer dst = ByteBuffer.allocate(8);
+        dst.position(2).limit(6);
+        assertEquals(3, device.read(dst));
+        assertEquals(5, dst.position(), "only the requested window may be written");
+
+        final byte[] backing = dst.array();
+        assertEquals(0, backing[1], "bytes before the position must be untouched");
+        assertEquals('x', backing[2]);
+        assertEquals('z', backing[4]);
+        assertEquals(0, backing[5], "bytes past what was read must be untouched");
+    }
+
+    @Test
+    public void batchReadIntoArrayRespectsOffsetAndLength() throws Exception {
+        bringUp();
+
+        publishGuestData(transmitQueue(0), "abcdef".getBytes(StandardCharsets.UTF_8));
+
+        final byte[] dst = new byte[8];
+        assertEquals(3, device.read(dst, 2, 3));
+        assertEquals(0, dst[1]);
+        assertEquals('a', dst[2]);
+        assertEquals('c', dst[4]);
+        assertEquals(0, dst[5]);
+
+        assertEquals(0, device.read(dst, 0, 0), "a zero-length read reads nothing");
+        assertThrows(IndexOutOfBoundsException.class, () -> device.read(dst, 6, 4));
+    }
+
+    @Test
+    public void batchReadYieldsEveryByteInOrderAcrossChunkSizes() throws Exception {
+        bringUp();
+
+        final byte[] expected = new byte[512];
+        for (int i = 0; i < expected.length; i++) {
+            expected[i] = (byte) (i * 37 + 11); // deterministic, and covers 0x80..0xFF
+        }
+
+        for (int offset = 0; offset < expected.length; offset += BUFFER_SIZE) {
+            publishGuestData(transmitQueue(0), java.util.Arrays.copyOfRange(
+                    expected, offset, Math.min(offset + BUFFER_SIZE, expected.length)));
+        }
+
+        final ByteBuffer actual = ByteBuffer.allocate(expected.length);
+        int chunk = 1;
+        while (actual.hasRemaining()) {
+            final int limit = actual.limit();
+            actual.limit(Math.min(actual.position() + chunk, limit));
+            final int count = device.read(actual);
+            actual.limit(limit);
+            if (count == 0) {
+                break;
+            }
+            chunk = chunk * 2 + 1; // 1, 3, 7, ... to cross chain boundaries at odd places
+        }
+
+        assertEquals(expected.length, actual.position(), "batch reads must yield every byte");
+        assertArrayEquals(expected, actual.array());
+    }
+
+    @Test
+    public void batchReadUsesThePerPortQueues() throws Exception {
+        createDevice("first", "second");
+        bringUp();
+
+        publishGuestData(transmitQueue(1), "hi".getBytes(StandardCharsets.UTF_8));
+
+        assertEquals(0, device.getPort(0).read(ByteBuffer.allocate(8)),
+                "port 0 must not see port 1's data");
+
+        final ByteBuffer dst = ByteBuffer.allocate(8);
+        assertEquals(2, device.getPort(1).read(dst));
+        assertEquals("hi", asString(dst));
+    }
+
+    @Test
+    public void batchReadResumesHandshakeFromTheDataPath() throws Exception {
+        bringUp();
+
+        sendControlMessage(VIRTIO_CONSOLE_DEVICE_READY, BAD_ID, 1);
+        postControlReceiveBuffers(4);
+
+        assertEquals(0, device.read(ByteBuffer.allocate(16)), "no guest data was queued");
+
+        final ControlMessage added = readControlMessage(0);
+        assertNotNull(added, "handshake must advance from a batch read alone");
+        assertEquals(VIRTIO_CONSOLE_DEVICE_ADD, added.event);
+    }
+
+    @Test
+    public void batchReadOnFailedDeviceReadsNothing() throws Exception {
+        bringUp();
+        publishGuestData(transmitQueue(0), "ignored".getBytes(StandardCharsets.UTF_8));
+
+        device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_FAILED, Sizes.SIZE_32_LOG2);
+
+        assertEquals(0, device.read(ByteBuffer.allocate(16)),
+                "a failed device must not touch guest memory");
+    }
+
+    // ------------------------------------------------------------- //
 
     private record ControlMessage(int id, int event, int value, String payload, int length) {
+    }
+
+    private static String asString(final ByteBuffer buffer) {
+        final ByteBuffer view = buffer.duplicate();
+        view.flip();
+        final byte[] bytes = new byte[view.remaining()];
+        view.get(bytes);
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     private void createDevice(final String... portNames) {

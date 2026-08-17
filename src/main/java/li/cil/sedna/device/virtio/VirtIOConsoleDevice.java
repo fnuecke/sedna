@@ -155,6 +155,62 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
     }
 
     @Override
+    public int read(final ByteBuffer dst) {
+        return read(0, dst);
+    }
+
+    private int read(final int port, final ByteBuffer dst) {
+        if (hasDeviceFailed()) {
+            return 0;
+        }
+
+        final ByteArrayFIFOQueue transmitBuffer = ports[checkPort(port)].transmitBuffer;
+
+        int count = 0;
+        while (dst.hasRemaining()) {
+            while (dst.hasRemaining() && !transmitBuffer.isEmpty()) {
+                dst.put(transmitBuffer.dequeueByte());
+                count++;
+            }
+
+            if (!dst.hasRemaining()) {
+                break;
+            }
+
+            resumeHandshake();
+
+            try {
+                // 5.3.6.1: The driver MUST NOT put a device-writable buffer in a transmitq.
+                final DescriptorChain transmit = validateReadOnlyDescriptorChain(transmitQueue(port), null);
+                if (transmit == null) {
+                    break;
+                }
+
+                // Copy straight into the destination as far as it goes; only what does not
+                // fit has to take the detour through our own buffer.
+                final int direct = Math.min(dst.remaining(), transmit.readableBytes());
+                if (direct > 0) {
+                    final int limit = dst.limit();
+                    dst.limit(dst.position() + direct);
+                    transmit.get(dst);
+                    dst.limit(limit);
+                    count += direct;
+                }
+
+                while (transmit.readableBytes() > 0) {
+                    transmitBuffer.enqueue(transmit.get());
+                }
+                transmit.use();
+            } catch (final VirtIODeviceException | MemoryAccessException e) {
+                error();
+                break;
+            }
+        }
+
+        return count;
+    }
+
+    @Override
     public boolean canPutByte() {
         return canPutByte(0);
     }
@@ -508,6 +564,11 @@ public final class VirtIOConsoleDevice extends AbstractVirtIODevice implements S
         @Override
         public int read() {
             return VirtIOConsoleDevice.this.read(port);
+        }
+
+        @Override
+        public int read(final ByteBuffer dst) {
+            return VirtIOConsoleDevice.this.read(port, dst);
         }
 
         @Override
