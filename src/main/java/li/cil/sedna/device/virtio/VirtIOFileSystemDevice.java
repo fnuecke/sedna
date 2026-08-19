@@ -116,19 +116,20 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
         }
         final DescriptorChain chain = queue.next();
 
-        final int processedBytes = chain.readableBytes() + chain.writableBytes();
+        final int requestBytes = chain.readableBytes();
 
-        final ByteBuffer request = ByteBuffer.allocate(chain.readableBytes()).order(ByteOrder.LITTLE_ENDIAN);
+        final ByteBuffer request = ByteBuffer.allocate(requestBytes).order(ByteOrder.LITTLE_ENDIAN);
         chain.get(request);
         request.flip();
 
         final ByteBuffer reply = server.handleRequest(request);
+        final int replyBytes = reply.remaining();
 
         chain.skip(chain.readableBytes());
         chain.put(reply);
 
         chain.use();
 
-        return processedBytes;
+        return Math.max(1, requestBytes + replyBytes);
     }
 }
