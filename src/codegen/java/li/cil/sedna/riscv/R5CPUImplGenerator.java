@@ -52,6 +52,28 @@ public final class R5CPUImplGenerator {
         return src.toString();
     }
 
+    private static void emitJumpHandler(final SourceBuilder out, final boolean mayContinue) {
+        out.line("final long jumpTarget = this.pc;");
+        out.line("if (Long.compareUnsigned(pc, jumpTarget) >= 0) {");
+        if (mayContinue) {
+            out.indent(() -> {
+                out.line("if (mcycle >= cycleLimit || ((jumpTarget ^ pc) & ~(long) R5.PAGE_ADDRESS_MASK) != 0) {");
+                out.indent(() -> out.line("return;"));
+                out.line("}");
+            });
+        } else {
+            out.indent(() -> out.line("return;"));
+        }
+        out.line("}");
+        out.line("final long jumpDelta = jumpTarget - pc;");
+        out.line("pc = jumpTarget;");
+        out.line("if ((long) (int) jumpDelta != jumpDelta) {");
+        out.indent(() -> out.line("return;"));
+        out.line("}");
+        out.line("instOffset += (int) jumpDelta;");
+        out.line("break decode;");
+    }
+
     private static void emitVariant(final SourceBuilder src, final String variant, final R5Instructions.Spec spec) throws IOException {
         final Map<InstructionDeclaration, InstructionDefinition> definitions =
                 InstructionDefinitionLoader.load(R5CPUBase.class, spec.getDeclarations());
@@ -61,7 +83,7 @@ public final class R5CPUImplGenerator {
         final SourceBuilder decode = new SourceBuilder(5);
         final DecoderSourceGenerator generator = new DecoderSourceGenerator(
                 spec.getDecoderTree(), definitions::get, R5IllegalInstructionException.class,
-                "interpretTrace" + variant, decode);
+                "interpretTrace" + variant, R5CPUImplGenerator::emitJumpHandler, decode);
         generator.generate();
 
         src.blank();

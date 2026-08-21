@@ -3,6 +3,7 @@ package li.cil.sedna.instruction;
 import li.cil.sedna.instruction.argument.ConstantInstructionArgument;
 import li.cil.sedna.instruction.argument.FieldInstructionArgument;
 import li.cil.sedna.instruction.argument.InstructionArgument;
+import li.cil.sedna.utils.BitUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -149,12 +150,14 @@ public final class InstructionDeclarationLoader {
             }
         }
 
-        final boolean isCompressedInstruction = bitIndex == 15;
-        if (isCompressedInstruction) {
-            pattern = pattern >>> 16;
-            patternMask = patternMask >>> 16;
-            unusedBits = unusedBits >>> 16;
+        final int patternBits = 31 - bitIndex;
+        if (patternBits == 0 || (patternBits % 8) != 0) {
+            throw new IllegalArgumentException(String.format("Instruction bit pattern length [%d] must be a non-zero multiple of 8 bits.", patternBits));
         }
+        final int shift = 32 - patternBits;
+        pattern = pattern >>> shift;
+        patternMask = patternMask >>> shift;
+        unusedBits = unusedBits >>> shift;
 
         final LinkedHashMap<String, InstructionArgument> arguments = new LinkedHashMap<>();
         int argumentBits = 0;
@@ -181,12 +184,16 @@ public final class InstructionDeclarationLoader {
             throw new IllegalArgumentException("Argument bits intersect pattern bits.");
         }
 
+        final int fullMask = (int) BitUtils.maskFromRange(0, patternBits - 1);
+        if ((argumentBits & ~fullMask) != 0) {
+            throw new IllegalArgumentException("Field mapping references bits beyond the instruction width.");
+        }
         final int usedBits = patternMask | unusedBits | argumentBits;
-        if (isCompressedInstruction ? usedBits != 0x0000FFFF : usedBits != 0xFFFFFFFF) {
+        if (usedBits != fullMask) {
             throw new IllegalArgumentException("Not all instruction bits have a defined use.");
         }
 
-        return new InstructionDeclaration(type, isCompressedInstruction ? 2 : 4, name, displayName, context.lineNumber, pattern, patternMask, unusedBits, arguments);
+        return new InstructionDeclaration(type, patternBits / 8, name, displayName, context.lineNumber, pattern, patternMask, unusedBits, arguments);
     }
 
     private static ParsedArgument parseArgument(final ParserContext context) {

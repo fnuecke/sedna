@@ -47,10 +47,31 @@ public final class DecoderSourceGenerator {
 
     private static final float HOIST_THRESHOLD = 0.99f;
 
+    /**
+     * Emits the top-level handling of an instruction that wrote the pc field, e.g. in-page
+     * trace continuation. This is the architecture-specific part of the emitted decode section.
+     * <p>
+     * Everything else the emitted code relies on is the trace template contract: a
+     * {@code decode:} labeled block around the decode section, an {@code int inst} local holding
+     * the current instruction word, a {@code long pc} local, an {@code int instOffset} local
+     * advanced in lockstep with {@code pc}, a writable {@code this.pc} field, and an
+     * {@code illegalInstruction()} helper. Group methods are emitted as {@code private} instance
+     * methods of the enclosing class.
+     */
+    @FunctionalInterface
+    public interface JumpHandlerEmitter {
+        /**
+         * @param mayContinue whether the jump came from a pure branch, i.e. the trace may
+         *                    continue at the target rather than having to exit.
+         */
+        void emitJumpHandler(SourceBuilder out, boolean mayContinue);
+    }
+
     private final AbstractDecoderTreeNode decoderTree;
     private final Function<InstructionDeclaration, InstructionDefinition> definitionProvider;
     private final Class<? extends Throwable> illegalInstructionExceptionClass;
     private final String methodPrefix;
+    private final JumpHandlerEmitter jumpHandlerEmitter;
     private final SourceBuilder out;
     private final List<String> groupMethods = new ArrayList<>();
 
@@ -60,11 +81,13 @@ public final class DecoderSourceGenerator {
                                   final Function<InstructionDeclaration, InstructionDefinition> definitionProvider,
                                   final Class<? extends Throwable> illegalInstructionExceptionClass,
                                   final String methodPrefix,
+                                  final JumpHandlerEmitter jumpHandlerEmitter,
                                   final SourceBuilder out) {
         this.decoderTree = decoderTree;
         this.definitionProvider = definitionProvider;
         this.illegalInstructionExceptionClass = illegalInstructionExceptionClass;
         this.methodPrefix = methodPrefix;
+        this.jumpHandlerEmitter = jumpHandlerEmitter;
         this.out = out;
     }
 
@@ -133,25 +156,7 @@ public final class DecoderSourceGenerator {
         }
 
         void emitJumpHandler(final boolean mayContinue) {
-            out.line("final long jumpTarget = this.pc;");
-            out.line("if (Long.compareUnsigned(pc, jumpTarget) >= 0) {");
-            if (mayContinue) {
-                out.indent(() -> {
-                    out.line("if (mcycle >= cycleLimit || ((jumpTarget ^ pc) & ~(long) R5.PAGE_ADDRESS_MASK) != 0) {");
-                    out.indent(() -> out.line("return;"));
-                    out.line("}");
-                });
-            } else {
-                out.indent(() -> out.line("return;"));
-            }
-            out.line("}");
-            out.line("final long jumpDelta = jumpTarget - pc;");
-            out.line("pc = jumpTarget;");
-            out.line("if ((long) (int) jumpDelta != jumpDelta) {");
-            out.indent(() -> out.line("return;"));
-            out.line("}");
-            out.line("instOffset += (int) jumpDelta;");
-            out.line("break decode;");
+            jumpHandlerEmitter.emitJumpHandler(out, mayContinue);
         }
     }
 
