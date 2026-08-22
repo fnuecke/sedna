@@ -191,7 +191,12 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
 
     @Override
     public boolean canPutByte() {
-        return receiveFifo.size() < FIFO_QUEUE_CAPACITY;
+        synchronized (lock) {
+            if ((fcr & UART_FCR_FE) != 0) {
+                return receiveFifo.size() < FIFO_QUEUE_CAPACITY;
+            }
+            return (lsr & UART_LSR_DR) == 0;
+        }
     }
 
     @Override
@@ -290,6 +295,7 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
                         } else { // No FIFO
                             result = rbr;
                             lsr &= ~(UART_LSR_DR | UART_LSR_BI);
+                            timeoutInterruptPending = false;
                         }
                         updateInterrupts();
                     }
@@ -458,7 +464,7 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
         final int niir;
         if ((ier & UART_IER_RLSI) != 0 && (lsr & UART_LSR_IRQ_MASK) != 0) {
             niir = UART_IIR_RLSI;
-        } else if ((ier & UART_IER_RDI) != 0 && timeoutInterruptPending) {
+        } else if ((ier & UART_IER_RDI) != 0 && (fcr & UART_FCR_FE) != 0 && timeoutInterruptPending) {
             niir = UART_IIR_CTI;
         } else if ((ier & UART_IER_RDI) != 0 && (lsr & UART_LSR_DR) != 0 &&
                 ((fcr & UART_FCR_FE) == 0 || receiveFifo.size() > triggerLevel)) {
