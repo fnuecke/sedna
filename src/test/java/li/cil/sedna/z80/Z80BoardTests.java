@@ -8,6 +8,7 @@ import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.device.DeviceWindow;
 import li.cil.sedna.device.block.ByteBufferBlockDevice;
 import li.cil.sedna.device.disk.WD1793;
+import li.cil.sedna.device.flash.FlashMemoryDevice;
 import li.cil.sedna.device.memory.Memory;
 import li.cil.sedna.device.serial.UART16550A;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,12 +16,13 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public final class Z80BoardTests {
     private static final int UART_PORT = 0x20;
     private static final int FDC_PORT = 0x10;
+    private static final int LATCH_PORT = 0x30;
+    private static final int ROM_SIZE = 0x100;
 
     private static final int SIDES = 1, TRACKS = 4, SECTORS = 8, SECTOR_SIZE = 128;
 
@@ -70,10 +72,10 @@ public final class Z80BoardTests {
         assertEquals("HELLO", echoed.toString());
 
         uart.putByte((byte) 0);
-        for (int i = 0; i < 100 && !board.isStopped(); i++) {
+        for (int i = 0; i < 100 && !board.isHalted(); i++) {
             board.step(1_000);
         }
-        assertTrue(board.isStopped());
+        assertTrue(board.isHalted());
     }
 
     @Test
@@ -112,10 +114,10 @@ public final class Z80BoardTests {
 
         board.getCpu().reset(true, 0x0000);
         board.setRunning(true);
-        for (int i = 0; i < 100 && !board.isStopped(); i++) {
+        for (int i = 0; i < 100 && !board.isHalted(); i++) {
             board.step(10_000);
         }
-        assertTrue(board.isStopped());
+        assertTrue(board.isHalted());
 
         for (int i = 0; i < SECTOR_SIZE; i++) {
             assertEquals(sector[i] & 0xFF, (int) board.getMemoryMap().load(0x8000 + i, Sizes.SIZE_8_LOG2) & 0xFF, "byte " + i);
@@ -253,6 +255,117 @@ public final class Z80BoardTests {
             assertEquals(sector[i] & 0xFF, (int) restored.load(3, Sizes.SIZE_8_LOG2), "byte " + i);
         }
         assertEquals(0x80, restored.load(4, Sizes.SIZE_8_LOG2));
+    }
+
+    @Test
+    public void bootRomShadowsRamAtReset() throws MemoryAccessException {
+        final FlashMemoryDevice rom = new FlashMemoryDevice(ROM_SIZE);
+        loadRom(rom, 0x0000,
+                0x3E, 0xA5,          // LD A,0xA5
+                0x32, 0x00, 0x80,    // LD (0x8000),A
+                0x76);               // HALT
+        board.setBootRom(rom);
+
+        // The same addresses in RAM hold a program writing a different marker; it must not run.
+        load(0x0000,
+                0x3E, 0x5A,          // LD A,0x5A
+                0x32, 0x00, 0x80,    // LD (0x8000),A
+                0x76);               // HALT
+
+        run(0x0000);
+
+        assertEquals(0xA5, memory.load(0x8000, Sizes.SIZE_8_LOG2) & 0xFF);
+    }
+
+    @Test
+    public void clearingLatchUnmapsBootRom() throws MemoryAccessException {
+        final FlashMemoryDevice rom = new FlashMemoryDevice(ROM_SIZE);
+        loadRom(rom, 0x0000,
+                0xC3, 0x00, 0x80);   // JP 0x8000
+        board.setBootRom(rom);
+        assertTrue(board.addPortDevice(LATCH_PORT, new BootRomLatch(board)));
+
+        memory.store(0x0000, 0x5A, Sizes.SIZE_8_LOG2);
+
+        // Runs above the ROM, so clearing the latch does not pull the code out from under it.
+        load(0x8000,
+                0x3A, 0x00, 0x00,    // LD A,(0x0000)   -- boot ROM
+                0x32, 0x00, 0x81,    // LD (0x8100),A
+                0xAF,                // XOR A
+                0xD3, LATCH_PORT,    // OUT (LATCH),A   -- unmap
+                0x3A, 0x00, 0x00,    // LD A,(0x0000)   -- RAM
+                0x32, 0x01, 0x81,    // LD (0x8101),A
+                0x76);               // HALT
+
+        run(0x0000);
+
+        assertEquals(0xC3, memory.load(0x8100, Sizes.SIZE_8_LOG2) & 0xFF);
+        assertEquals(0x5A, memory.load(0x8101, Sizes.SIZE_8_LOG2) & 0xFF);
+        assertFalse(board.isBootRomMapped());
+    }
+
+    @Test
+    public void latchReadsBackStateAndResetRemapsBootRom() throws MemoryAccessException {
+        final FlashMemoryDevice rom = new FlashMemoryDevice(ROM_SIZE);
+        board.setBootRom(rom);
+        final BootRomLatch latch = new BootRomLatch(board);
+        assertTrue(board.addPortDevice(LATCH_PORT, latch));
+
+        assertEquals(1, latch.load(0, Sizes.SIZE_8_LOG2));
+
+        latch.store(0, 0, Sizes.SIZE_8_LOG2);
+        assertFalse(board.isBootRomMapped());
+        assertEquals(0, latch.load(0, Sizes.SIZE_8_LOG2));
+
+        board.reset();
+        assertTrue(board.isBootRomMapped());
+    }
+
+    @Test
+    public void bootRomWritesAreDroppedWhileMapped() throws MemoryAccessException {
+        final FlashMemoryDevice rom = new FlashMemoryDevice(ROM_SIZE);
+        loadRom(rom, 0x0000, 0xC3);
+        board.setBootRom(rom);
+
+        board.getMemoryMap().store(0x0000, 0x11, Sizes.SIZE_8_LOG2);
+
+        assertEquals(0xC3, board.getMemoryMap().load(0x0000, Sizes.SIZE_8_LOG2) & 0xFF);
+        assertEquals(0x00, memory.load(0x0000, Sizes.SIZE_8_LOG2));
+    }
+
+    @Test
+    public void bootRomLatchStateSurvivesSerialization() {
+        Sedna.initialize();
+
+        final FlashMemoryDevice rom = new FlashMemoryDevice(ROM_SIZE);
+        board.setBootRom(rom);
+        board.setBootRomMapped(false);
+
+        final ByteBuffer serialized = BinarySerialization.serialize(board);
+
+        final Z80Board restored = new Z80Board();
+        assertTrue(restored.addDevice(0, Memory.create(0x10000)));
+        restored.setBootRom(new FlashMemoryDevice(ROM_SIZE));
+        assertTrue(restored.isBootRomMapped());
+
+        BinarySerialization.deserialize(serialized, restored);
+
+        assertFalse(restored.isBootRomMapped());
+    }
+
+    private void run(final int pc) {
+        board.getCpu().reset(true, pc);
+        board.setRunning(true);
+        for (int i = 0; i < 100 && !board.isHalted(); i++) {
+            board.step(1_000);
+        }
+        assertTrue(board.isHalted());
+    }
+
+    private static void loadRom(final FlashMemoryDevice rom, final int address, final int... program) {
+        for (int i = 0; i < program.length; i++) {
+            rom.getData().put(address + i, (byte) program[i]);
+        }
     }
 
     private static WD1793 newFloppy() {
