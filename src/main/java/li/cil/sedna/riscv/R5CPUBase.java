@@ -306,16 +306,6 @@ public abstract class R5CPUBase implements R5CPU {
     }
 
     @Override
-    public long getTime() {
-        return mcycle;
-    }
-
-    @Override
-    public long getInstructionsRetired() {
-        return minstret;
-    }
-
-    @Override
     public int getFrequency() {
         return cycleFrequency;
     }
@@ -326,8 +316,18 @@ public abstract class R5CPUBase implements R5CPU {
     }
 
     @Override
+    public long getInstructionsRetired() {
+        return minstret;
+    }
+
+    @Override
     public CPUDebugInterface getDebugInterface() {
         return debugInterface;
+    }
+
+    @Override
+    public long getTime() {
+        return mcycle;
     }
 
     @Override

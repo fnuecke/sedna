@@ -11,5 +11,6 @@ fun substituteLocal(propertyName: String, libraryName: String) {
 }
 
 substituteLocal("ceresDir", "li.cil.ceres:ceres")
+substituteLocal("ceresJsonDir", "li.cil.ceres:ceres-json")
 
 rootProject.name = "sedna"

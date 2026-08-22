@@ -1,0 +1,8 @@
+[submodule "src/test/data/z80/singlesteptests"]
+	path = src/test/data/z80/singlesteptests
+	url = https://github.com/SingleStepTests/z80.git
+	shallow = true
+[submodule "src/test/data/z80/z80exer"]
+	path = src/test/data/z80/z80exer
+	url = https://github.com/begoon/z80exer.git
+	shallow = true

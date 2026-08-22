@@ -46,6 +46,7 @@ dependencies {
     codegen.compileOnlyConfigurationName("com.google.code.findbugs:jsr305:3.0.2")
 
     testImplementation(codegen.output)
+    testImplementation("li.cil.ceres:ceres-json:0.0.1")
     testImplementation("org.ow2.asm:asm:9.10.1")
     testImplementation("org.mockito:mockito-core:4.1.0")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.2")
@@ -101,6 +102,14 @@ tasks.register<JavaExec>("generateDecoder") {
     workingDir = projectDir
 }
 
+tasks.register<JavaExec>("generateZ80Decoder") {
+    group = "build"
+    description = "Regenerates src/main/java/li/cil/sedna/z80/Z80CPUImpl.java from the instruction declarations."
+    classpath = codegen.runtimeClasspath
+    mainClass.set("li.cil.sedna.z80.Z80CPUImplGenerator")
+    workingDir = projectDir
+}
+
 tasks.register<JavaExec>("printDecoderTree") {
     group = "build"
     description = "Prints the RV64 decoder tree."
@@ -126,5 +135,6 @@ jmh {
     resultFormat = "TEXT"
     includeTests = false
     jvmArgs = listOf("-XX:MaxDirectMemorySize=4g") +
-        ((project.findProperty("jmh.images") as String?)?.let { listOf("-Dsedna.benchmark.images=$it") } ?: emptyList())
+            ((project.findProperty("jmh.images") as String?)?.let { listOf("-Dsedna.benchmark.images=$it") }
+                ?: emptyList())
 }

@@ -20,8 +20,6 @@ public interface R5CPU extends Steppable, Resettable, RealTimeCounter, Interrupt
 
     long getISA();
 
-    long getInstructionsRetired();
-
     void setXLEN(int value);
 
     void reset(boolean hard, long pc);
@@ -29,6 +27,8 @@ public interface R5CPU extends Steppable, Resettable, RealTimeCounter, Interrupt
     void invalidateCaches();
 
     void setFrequency(int value);
+
+    long getInstructionsRetired();
 
     CPUDebugInterface getDebugInterface();
 }

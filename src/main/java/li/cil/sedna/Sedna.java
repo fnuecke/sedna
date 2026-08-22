@@ -22,6 +22,7 @@ import li.cil.sedna.riscv.device.R5PlatformLevelInterruptController;
 import li.cil.sedna.riscv.devicetree.R5CoreLocalInterrupterProvider;
 import li.cil.sedna.riscv.devicetree.R5PlatformLevelInterruptControllerProvider;
 import li.cil.sedna.serialization.serializers.*;
+import li.cil.sedna.z80.Z80CPU;
 
 import java.util.BitSet;
 
@@ -46,6 +47,7 @@ public final class Sedna {
         Ceres.putSerializer(Int2LongArrayMap.class, new Int2LongArrayMapSerializer());
         Ceres.putSerializer(R5CPU.class, new R5CPUSerializer());
         Ceres.putSerializer(SparseBlockDevice.SparseBlockMap.class, new SparseBlockMapSerializer());
+        Ceres.putSerializer(Z80CPU.class, new Z80CPUSerializer());
 
         DeviceTreeRegistry.putProvider(FlashMemoryDevice.class, new FlashMemoryProvider());
         DeviceTreeRegistry.putProvider(GoldfishRTC.class, new GoldfishRTCProvider());

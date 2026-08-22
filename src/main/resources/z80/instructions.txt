@@ -1,0 +1,234 @@
+# Z80 instruction declarations.
+#
+# Instructions are decoded from a 32-bit word fetched little-endian at the program counter: the
+# first fetched byte sits in bits 7:0, the second in bits 15:8, and so on. Patterns are written
+# most-significant bit first, so the LAST byte group on a line is the FIRST byte of the
+# instruction. Instruction size equals the declared pattern width; trailing bytes of shorter
+# instructions are simply not part of the pattern.
+#
+# Prefixes are not decoded separately: prefixed instructions are declared as wider patterns.
+# Opcodes a DD/FD prefix does not modify are declared again as prefixed variants sharing the
+# unprefixed semantics methods (see the DD/FD section); prefix chains re-decode from the second
+# byte via XY_CHAIN/XY_ED.
+#
+# field spec: [s]<msb>[:<lsb>][@<dstlsb>], s = sign-extend.
+
+# Byte 0 fields.
+field y 5:3
+field z 2:0
+field rp 5:4
+field q 4
+field cc2 4:3
+field xy 5
+
+# Operand bytes following a 1-byte opcode.
+field n 15:8
+field nn 23:8
+field d s15:8
+
+# Byte 1 fields (CB/ED/DD/FD pages).
+field yb 13:11
+field zb 10:8
+field rpb 13:12
+field cc2b 12:11
+field qb 12
+field hlb 11
+
+# Operand bytes following a 2-byte opcode.
+field n2 23:16
+field nn2 31:16
+field d2 s23:16
+field n3 31:24
+
+# Byte 3 fields (DDCB/FDCB page).
+field yq 29:27
+field zq 26:24
+
+# ------------------------------------------------------------------ #
+# Main page.
+
+inst NOP        |                   00000000
+inst LD_RP_NN   | ........ ........ 00..0001 | rp nn
+inst LD_BCDE_A  |                   000.0010 | q
+inst INC_RP     |                   00..0011 | rp
+inst INC_R      |                   00...100 | y
+inst DEC_R      |                   00...101 | y
+inst LD_R_N     |          ........ 00...110 | y n
+inst RLCA       |                   00000111
+inst EX_AF_AF2  |                   00001000
+inst ADD_HL_RP  |                   00..1001 | rp
+inst LD_A_BCDE  |                   000.1010 | q
+inst DEC_RP     |                   00..1011 | rp
+inst RRCA       |                   00001111
+inst DJNZ       |          ........ 00010000 | d
+inst RLA        |                   00010111
+inst JR         |          ........ 00011000 | d
+inst RRA        |                   00011111
+inst JR_CC      |          ........ 001..000 | cc=cc2 d
+inst LD_INN_HL  | ........ ........ 00100010 | nn
+inst DAA        |                   00100111
+inst LD_HL_INN  | ........ ........ 00101010 | nn
+inst CPL        |                   00101111
+inst LD_INN_A   | ........ ........ 00110010 | nn
+inst INC_HLI    |                   00110100
+inst DEC_HLI    |                   00110101
+inst LD_HLI_N   |          ........ 00110110 | n
+inst SCF        |                   00110111
+inst LD_A_INN   | ........ ........ 00111010 | nn
+inst CCF        |                   00111111
+
+inst LD_R_R     |                   01...... | y z
+inst LD_R_HLI   |                   01...110 | y
+inst LD_HLI_R   |                   01110... | z
+inst HALT       |                   01110110
+
+inst ALU_A_R    |                   10...... | alu=y z
+inst ALU_A_HLI  |                   10...110 | alu=y
+
+inst RET_CC     |                   11...000 | cc=y
+inst POP_RP2    |                   11..0001 | rp
+inst JP_CC      | ........ ........ 11...010 | cc=y nn
+inst JP_NN      | ........ ........ 11000011 | nn
+inst CALL_CC    | ........ ........ 11...100 | cc=y nn
+inst PUSH_RP2   |                   11..0101 | rp
+inst ALU_A_N    |          ........ 11...110 | alu=y n
+inst RST        |                   11...111 | t=y
+inst RET        |                   11001001
+inst CALL_NN    | ........ ........ 11001101 | nn
+inst OUT_N_A    |          ........ 11010011 | n
+inst EXX        |                   11011001
+inst IN_A_N     |          ........ 11011011 | n
+inst EX_SP_HL   |                   11100011
+inst JP_HL      |                   11101001
+inst EX_DE_HL   |                   11101011
+inst DI         |                   11110011
+inst LD_SP_HL   |                   11111001
+inst EI         |                   11111011
+
+# ------------------------------------------------------------------ #
+# CB page. Total: every second-byte value is defined.
+
+inst ROT_R      | 00...... 11001011 | op=yb r=zb
+inst ROT_HLI    | 00...110 11001011 | op=yb
+inst BIT_R      | 01...... 11001011 | b=yb r=zb
+inst BIT_HLI    | 01...110 11001011 | b=yb
+inst RES_R      | 10...... 11001011 | b=yb r=zb
+inst RES_HLI    | 10...110 11001011 | b=yb
+inst SET_R      | 11...... 11001011 | b=yb r=zb
+inst SET_HLI    | 11...110 11001011 | b=yb
+
+# ------------------------------------------------------------------ #
+# ED page. ED_NONI catches every slot not declared here (8T no-op).
+
+inst IN_R_C     |                   01...000 11101101 | y=yb
+inst OUT_C_R    |                   01...001 11101101 | y=yb
+inst SBC_HL_RP  |                   01..0010 11101101 | rp=rpb
+inst ADC_HL_RP  |                   01..1010 11101101 | rp=rpb
+inst LD_INN_RP  | ........ ........ 01..0011 11101101 | rp=rpb nn=nn2
+inst LD_RP_INN  | ........ ........ 01..1011 11101101 | rp=rpb nn=nn2
+inst NEG        |                   01***100 11101101
+inst RETI_RETN  |                   01***101 11101101
+inst IM_Y       |                   01...110 11101101 | y=yb
+inst LD_I_A     |                   01000111 11101101
+inst LD_R_A     |                   01001111 11101101
+inst LD_A_I     |                   01010111 11101101
+inst LD_A_R     |                   01011111 11101101
+inst RRD        |                   01100111 11101101
+inst RLD        |                   01101111 11101101
+inst LDX        |                   101..000 11101101 | rep=qb dir=hlb
+inst CPX        |                   101..001 11101101 | rep=qb dir=hlb
+inst INX        |                   101..010 11101101 | rep=qb dir=hlb
+inst OUTX       |                   101..011 11101101 | rep=qb dir=hlb
+# The undefined slots, enumerated with masked patterns rather than one catch-all so the decoder
+# tree keeps a usable mask intersection for this page.
+inst ED_NONI    |                   00****** 11101101
+inst ED_NONI    |                   0111*111 11101101
+inst ED_NONI    |                   100***** 11101101
+inst ED_NONI    |                   101**1** 11101101
+inst ED_NONI    |                   11****** 11101101
+
+# ------------------------------------------------------------------ #
+# DD/FD page; xy selects IX (0) or IY (1). On real hardware a prefix in front of an opcode it
+# does not apply to executes as a 4T no-op and the opcode runs unmodified. Here those slots are
+# instead declared as prefixed variants of the main-page instructions, sharing the semantics
+# methods (operand fields shift one byte; relative jumps use the instruction size). Only the
+# prefix's extra 4T are not accounted for. Prefix chains (DD DD ..., DD ED ...) re-decode from
+# the second byte via XY_CHAIN/XY_ED.
+
+inst ADD_XY_RP  |                   00..1001 11.11101 | xy rp=rpb
+inst LD_XY_NN   | ........ ........ 00100001 11.11101 | xy nn=nn2
+inst LD_INN_XY  | ........ ........ 00100010 11.11101 | xy nn=nn2
+inst INC_XY     |                   00100011 11.11101 | xy
+inst INC_XY8    |                   0010.100 11.11101 | xy hl=hlb
+inst DEC_XY8    |                   0010.101 11.11101 | xy hl=hlb
+inst LD_XY8_N   |          ........ 0010.110 11.11101 | xy hl=hlb n=n2
+inst LD_XY_INN  | ........ ........ 00101010 11.11101 | xy nn=nn2
+inst DEC_XY     |                   00101011 11.11101 | xy
+inst INC_XYD    |          ........ 00110100 11.11101 | xy d=d2
+inst DEC_XYD    |          ........ 00110101 11.11101 | xy d=d2
+inst LD_XYD_N   | ........ ........ 00110110 11.11101 | xy d=d2 n=n3
+inst LD_R_R_XY  |                   01...... 11.11101 | xy y=yb z=zb
+inst LD_R_XYD   |          ........ 01...110 11.11101 | xy y=yb d=d2
+inst LD_XYD_R   |          ........ 01110... 11.11101 | xy z=zb d=d2
+inst XY_HALT    |                   01110110 11*11101
+inst ALU_A_XY8  |                   10...... 11.11101 | xy alu=yb z=zb
+inst ALU_A_XYD  |          ........ 10...110 11.11101 | xy alu=yb d=d2
+inst POP_XY     |                   11100001 11.11101 | xy
+inst EX_SP_XY   |                   11100011 11.11101 | xy
+inst PUSH_XY    |                   11100101 11.11101 | xy
+inst JP_XY      |                   11101001 11.11101 | xy
+inst LD_SP_XY   |                   11111001 11.11101 | xy
+
+# Prefixed variants of main-page instructions the prefix does not modify.
+inst NOP        |                   00000000 11*11101
+inst LD_RP_NN   | ........ ........ 00..0001 11*11101 | rp=rpb nn=nn2
+inst LD_BCDE_A  |                   000.0010 11*11101 | q=qb
+inst INC_RP     |                   00..0011 11*11101 | rp=rpb
+inst INC_R      |                   00...100 11*11101 | y=yb
+inst DEC_R      |                   00...101 11*11101 | y=yb
+inst LD_R_N     |          ........ 00...110 11*11101 | y=yb n=n2
+inst RLCA       |                   00000111 11*11101
+inst EX_AF_AF2  |                   00001000 11*11101
+inst LD_A_BCDE  |                   000.1010 11*11101 | q=qb
+inst DEC_RP     |                   00..1011 11*11101 | rp=rpb
+inst RRCA       |                   00001111 11*11101
+inst DJNZ       |          ........ 00010000 11*11101 | d=d2
+inst RLA        |                   00010111 11*11101
+inst JR         |          ........ 00011000 11*11101 | d=d2
+inst RRA        |                   00011111 11*11101
+inst JR_CC      |          ........ 001..000 11*11101 | cc=cc2b d=d2
+inst DAA        |                   00100111 11*11101
+inst CPL        |                   00101111 11*11101
+inst LD_INN_A   | ........ ........ 00110010 11*11101 | nn=nn2
+inst SCF        |                   00110111 11*11101
+inst LD_A_INN   | ........ ........ 00111010 11*11101 | nn=nn2
+inst CCF        |                   00111111 11*11101
+inst RET_CC     |                   11...000 11*11101 | cc=yb
+inst POP_RP2    |                   11..0001 11*11101 | rp=rpb
+inst JP_CC      | ........ ........ 11...010 11*11101 | cc=yb nn=nn2
+inst JP_NN      | ........ ........ 11000011 11*11101 | nn=nn2
+inst CALL_CC    | ........ ........ 11...100 11*11101 | cc=yb nn=nn2
+inst PUSH_RP2   |                   11..0101 11*11101 | rp=rpb
+inst ALU_A_N    |          ........ 11...110 11*11101 | alu=yb n=n2
+inst RST        |                   11...111 11*11101 | t=yb
+inst RET        |                   11001001 11*11101
+inst CALL_NN    | ........ ........ 11001101 11*11101 | nn=nn2
+inst OUT_N_A    |          ........ 11010011 11*11101 | n=n2
+inst EXX        |                   11011001 11*11101
+inst IN_A_N     |          ........ 11011011 11*11101 | n=n2
+inst EX_DE_HL   |                   11101011 11*11101
+inst DI         |                   11110011 11*11101
+inst EI         |                   11111011 11*11101
+
+# Prefix chains: execute the first prefix as a no-op and re-decode from the following byte.
+inst XY_ED      | 11101101 11*11101
+inst XY_CHAIN   | 11*11101 11*11101
+
+# ------------------------------------------------------------------ #
+# DDCB/FDCB page: prefix, CB, displacement, opcode. Total. Non-(HL) register slots of rotate,
+# RES and SET are the undocumented copy-result-to-register forms; BIT ignores the register bits.
+
+inst QROT       | 00...... ........ 11001011 11.11101 | xy op=yq r=zq d=d2
+inst QBIT       | 01...*** ........ 11001011 11.11101 | xy b=yq d=d2
+inst QRES       | 10...... ........ 11001011 11.11101 | xy b=yq r=zq d=d2
+inst QSET       | 11...... ........ 11001011 11.11101 | xy b=yq r=zq d=d2

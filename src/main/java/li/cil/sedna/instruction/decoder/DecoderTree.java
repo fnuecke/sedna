@@ -64,7 +64,12 @@ public final class DecoderTree {
                             final int localMaskB = maskLessSpecific & ~maskIntersect;
 
                             final int overlapMask = localMaskA | localMaskB;
-                            assert (moreSpecific.pattern & overlapMask) == (lessSpecific.pattern & overlapMask) : "Expected overlapping patterns to match or have landed in different groups otherwise.";
+                            // Only bits defined in *both* masks can force the pair apart; pattern
+                            // bits outside a declaration's mask are irrelevant zeros.
+                            final int sharedMask = localMaskA & localMaskB;
+                            assert (moreSpecific.pattern & sharedMask) == (lessSpecific.pattern & sharedMask)
+                                    : String.format("Expected overlapping patterns to match or have landed in different groups otherwise: [%s] (line %d) and [%s] (line %d).",
+                                    moreSpecific.displayName, moreSpecific.lineNumber, lessSpecific.displayName, lessSpecific.lineNumber);
 
                             final int patternA = localMaskA & moreSpecific.pattern;
                             final int patternB = localMaskB & lessSpecific.pattern;
@@ -118,7 +123,10 @@ public final class DecoderTree {
 
     private static AbstractDecoderTreeNode postProcess(final AbstractDecoderTreeNode node) {
         if (node instanceof final DecoderTreeSwitchNode switchNode) {
-            if (switchNode.children.length < 3) {
+            // A branch case tests (inst & child.mask) == child.pattern, which is only valid when
+            // every instruction in the child shares that pattern; a composite child dispatching
+            // further on bits of its mask must stay behind a switch.
+            if (switchNode.children.length < 3 && Arrays.stream(switchNode.children).allMatch(DecoderTree::hasUniformPattern)) {
                 return new DecoderTreeBranchNode(switchNode.children);
             } else {
                 for (int i = 0; i < switchNode.children.length; i++) {
@@ -131,5 +139,12 @@ public final class DecoderTree {
             }
         }
         return node;
+    }
+
+    private static boolean hasUniformPattern(final AbstractDecoderTreeNode node) {
+        final int mask = node.getMask();
+        return node.getInstructions()
+                .mapToInt(declaration -> declaration.pattern & mask)
+                .distinct().count() == 1;
     }
 }
