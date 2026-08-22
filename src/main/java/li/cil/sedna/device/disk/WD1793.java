@@ -73,6 +73,8 @@ public final class WD1793 implements MemoryMappedDevice, Resettable {
 
     private static final int LOST_DATA_TIMEOUT = 255;
 
+    public static final int MAX_UNITS = 4;
+
     private int status, track, sector, data, system;
     private int drive, side, ioSide;
     private int irqFlags;
@@ -82,22 +84,49 @@ public final class WD1793 implements MemoryMappedDevice, Resettable {
     private byte[] buffer = new byte[0];
     private int bufferIndex;
 
-    private transient BlockDevice disk;
-    private transient int sides, tracks, sectorsPerTrack, sectorSize;
+    private transient int unitCount = 1;
+    private final transient BlockDevice[] disks = new BlockDevice[MAX_UNITS];
+    private final transient int[] unitSides = new int[MAX_UNITS];
+    private final transient int[] unitTracks = new int[MAX_UNITS];
+    private final transient int[] unitSectorsPerTrack = new int[MAX_UNITS];
+    private final transient int[] unitSectorSize = new int[MAX_UNITS];
+
+    public int getUnitCount() {
+        return unitCount;
+    }
+
+    public void setUnitCount(final int value) {
+        if (value < 1 || value > MAX_UNITS) {
+            throw new IllegalArgumentException("Unit count out of range.");
+        }
+        unitCount = value;
+    }
+
+    public boolean hasMedia(final int unit) {
+        requireUnit(unit);
+        return disks[unit] != null;
+    }
+
+    public void setDisk(final int unit, final BlockDevice disk, final int sides, final int tracks, final int sectorsPerTrack, final int sectorSize) {
+        requireUnit(unit);
+        disks[unit] = disk;
+        unitSides[unit] = sides;
+        unitTracks[unit] = tracks;
+        unitSectorsPerTrack[unit] = sectorsPerTrack;
+        unitSectorSize[unit] = sectorSize;
+    }
 
     public void setDisk(final BlockDevice disk, final int sides, final int tracks, final int sectorsPerTrack, final int sectorSize) {
-        this.disk = disk;
-        this.sides = sides;
-        this.tracks = tracks;
-        this.sectorsPerTrack = sectorsPerTrack;
-        this.sectorSize = sectorSize;
-        buffer = new byte[sectorSize];
-        reset();
+        setDisk(0, disk, sides, tracks, sectorsPerTrack, sectorSize);
+    }
+
+    public void removeDisk(final int unit) {
+        requireUnit(unit);
+        disks[unit] = null;
     }
 
     public void removeDisk() {
-        disk = null;
-        reset();
+        removeDisk(0);
     }
 
     @Override
@@ -233,7 +262,7 @@ public final class WD1793 implements MemoryMappedDevice, Resettable {
 
     private void seekTrack(final int target, final int command, final boolean updateRegister) {
         final BlockDevice disk = getDisk();
-        if (disk == null || target < 0 || target >= tracks) {
+        if (disk == null || target < 0 || target >= tracks()) {
             status = S_SEEK_ERROR;
             setInterrupt();
             return;
@@ -270,10 +299,14 @@ public final class WD1793 implements MemoryMappedDevice, Resettable {
             ioSide = side;
         }
 
-        if (ioSide >= sides || track >= tracks || sector >= sectorsPerTrack) {
+        if (ioSide >= sides() || track >= tracks() || sector >= sectorsPerTrack()) {
             status = S_RECORD_NOT_FOUND;
             setInterrupt();
             return 0;
+        }
+
+        if (buffer.length != sectorSize()) {
+            buffer = new byte[sectorSize()];
         }
 
         status |= S_DATA_REQUEST;
@@ -281,21 +314,21 @@ public final class WD1793 implements MemoryMappedDevice, Resettable {
         waitTimeout = LOST_DATA_TIMEOUT;
 
         if ((command & C_ARG_MULTIPLE) != 0) {
-            return (sectorsPerTrack - sector) * sectorSize;
+            return (sectorsPerTrack() - sector) * sectorSize();
         } else {
-            return sectorSize;
+            return sectorSize();
         }
     }
 
     private int readData() {
         if (readsLeft > 0) {
             // Media may have changed geometry across a save/load boundary mid-transfer.
-            if (buffer.length != sectorSize) {
+            if (buffer.length != sectorSize()) {
                 abortTransfer(S_LOST_DATA);
                 return 0xFF;
             }
 
-            if (bufferIndex == sectorSize) {
+            if (bufferIndex == sectorSize()) {
                 sector++;
                 if (!loadSector()) {
                     abortTransfer(S_RECORD_NOT_FOUND);
@@ -318,13 +351,13 @@ public final class WD1793 implements MemoryMappedDevice, Resettable {
         data = value;
 
         if (writesLeft > 0) {
-            if (buffer.length != sectorSize) {
+            if (buffer.length != sectorSize()) {
                 abortTransfer(S_LOST_DATA);
                 return;
             }
 
             buffer[bufferIndex++] = (byte) value;
-            final boolean sectorComplete = bufferIndex == sectorSize;
+            final boolean sectorComplete = bufferIndex == sectorSize();
             if (sectorComplete && !storeSector()) {
                 abortTransfer(S_RECORD_NOT_FOUND);
                 return;
@@ -360,9 +393,31 @@ public final class WD1793 implements MemoryMappedDevice, Resettable {
 
     // ------------------------------------------------------------- //
 
+    private int sides() {
+        return unitSides[drive];
+    }
+
+    private int tracks() {
+        return unitTracks[drive];
+    }
+
+    private int sectorsPerTrack() {
+        return unitSectorsPerTrack[drive];
+    }
+
+    private int sectorSize() {
+        return unitSectorSize[drive];
+    }
+
+    private void requireUnit(final int unit) {
+        if (unit < 0 || unit >= unitCount) {
+            throw new IllegalArgumentException("No such unit: " + unit);
+        }
+    }
+
     @Nullable
     private BlockDevice getDisk() {
-        return drive == 0 ? disk : null;
+        return drive < unitCount ? disks[drive] : null;
     }
 
     private boolean isBusy() {
@@ -385,16 +440,16 @@ public final class WD1793 implements MemoryMappedDevice, Resettable {
     }
 
     private long sectorOffset() {
-        return (((long) ioSide * tracks + track) * sectorsPerTrack + sector) * sectorSize;
+        return (((long) ioSide * tracks() + track) * sectorsPerTrack() + sector) * sectorSize();
     }
 
     private boolean loadSector() {
         final BlockDevice disk = getDisk();
-        if (disk == null || sector >= sectorsPerTrack) {
+        if (disk == null || sector >= sectorsPerTrack()) {
             return false;
         }
         try (final InputStream stream = disk.getInputStream(sectorOffset())) {
-            if (stream.readNBytes(buffer, 0, sectorSize) < sectorSize) {
+            if (stream.readNBytes(buffer, 0, sectorSize()) < sectorSize()) {
                 return false;
             }
         } catch (final IOException e) {
@@ -406,11 +461,11 @@ public final class WD1793 implements MemoryMappedDevice, Resettable {
 
     private boolean storeSector() {
         final BlockDevice disk = getDisk();
-        if (disk == null || sector >= sectorsPerTrack) {
+        if (disk == null || sector >= sectorsPerTrack()) {
             return false;
         }
         try (final OutputStream stream = disk.getOutputStream(sectorOffset())) {
-            stream.write(buffer, 0, sectorSize);
+            stream.write(buffer, 0, sectorSize());
         } catch (final IOException e) {
             return false;
         }

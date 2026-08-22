@@ -12,24 +12,32 @@ import li.cil.sedna.api.memory.MemoryRange;
 import li.cil.sedna.memory.SimpleMemoryMap;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 @Serialized
 public final class Z80Board implements Steppable, Resettable {
     private static final int ADDRESS_SPACE_SIZE = 0x10000;
     private static final int PORT_SPACE_SIZE = 0x100;
 
+    /**
+     * Port {@code FF} is never handed out: a device enumerator reports it as "not port-mapped", so
+     * a device sitting there would be indistinguishable from an absent one.
+     */
+    private static final int RESERVED_PORT = 0xFF;
+
     // ------------------------------------------------------------- //
 
     private final transient ShadowingMemoryMap memoryMap = new ShadowingMemoryMap();
     private final transient MemoryMap portMap = new EightBitPortMap();
-    private final transient List<MemoryMappedDevice> devices = new ArrayList<>();
-    private final transient List<Resettable> resettableDevices = new ArrayList<>();
-    private final transient List<Steppable> steppableDevices = new ArrayList<>();
+    private final transient List<MemoryMappedDevice> devices = new CopyOnWriteArrayList<>();
+    private final transient List<Resettable> resettableDevices = new CopyOnWriteArrayList<>();
+    private final transient List<Steppable> steppableDevices = new CopyOnWriteArrayList<>();
 
     private final Z80CPU cpu;
+    private final Z80InterruptController interruptController;
     private boolean isRunning;
     private boolean isBootRomMapped;
 
@@ -37,6 +45,7 @@ public final class Z80Board implements Steppable, Resettable {
 
     public Z80Board() {
         cpu = Z80CPU.create(memoryMap, portMap);
+        interruptController = new Z80InterruptController(cpu);
         steppableDevices.add(cpu);
     }
 
@@ -54,7 +63,19 @@ public final class Z80Board implements Steppable, Resettable {
         return portMap;
     }
 
+    public Z80InterruptController getInterruptController() {
+        return interruptController;
+    }
+
+    public List<MemoryMappedDevice> getDevices() {
+        return Collections.unmodifiableList(devices);
+    }
+
     public void setBootRom(@Nullable final MemoryMappedDevice rom) {
+        if (rom != null && (rom.getLength() <= 0 || rom.getLength() > ADDRESS_SPACE_SIZE)) {
+            throw new IllegalArgumentException("Boot ROM does not fit the address space.");
+        }
+
         memoryMap.setRom(rom);
         isBootRomMapped = rom != null;
         cpu.invalidateCaches();
@@ -78,7 +99,7 @@ public final class Z80Board implements Steppable, Resettable {
     }
 
     public boolean addPortDevice(final int port, final MemoryMappedDevice device) {
-        if (port + device.getLength() > PORT_SPACE_SIZE) {
+        if (port + device.getLength() > RESERVED_PORT) {
             return false;
         }
         return addDevice(portMap, port, device);
@@ -125,6 +146,7 @@ public final class Z80Board implements Steppable, Resettable {
     public void reset() {
         isBootRomMapped = memoryMap.hasRom();
         cpu.invalidateCaches();
+        interruptController.reset();
         cpu.reset();
         for (final Resettable device : resettableDevices) {
             device.reset();

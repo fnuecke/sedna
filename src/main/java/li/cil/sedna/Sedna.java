@@ -6,7 +6,15 @@ import li.cil.ceres.Ceres;
 import li.cil.sedna.api.device.InterruptSource;
 import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.PhysicalMemory;
+import li.cil.sedna.api.device.bus.DeviceClass;
+import li.cil.sedna.api.device.bus.DeviceDescription;
+import li.cil.sedna.api.device.bus.DeviceDescriptionProvider;
+import li.cil.sedna.device.DeviceWindow;
 import li.cil.sedna.device.block.SparseBlockDevice;
+import li.cil.sedna.device.bus.DeviceDescriptionRegistry;
+import li.cil.sedna.device.bus.DeviceEnumerator;
+import li.cil.sedna.device.bus.provider.WD1793DescriptionProvider;
+import li.cil.sedna.device.disk.WD1793;
 import li.cil.sedna.device.flash.FlashMemoryDevice;
 import li.cil.sedna.device.rtc.GoldfishRTC;
 import li.cil.sedna.device.serial.UART16550A;
@@ -16,12 +24,13 @@ import li.cil.sedna.devicetree.DeviceTreeRegistry;
 import li.cil.sedna.devicetree.provider.*;
 import li.cil.sedna.p9.FileSystemFileMap;
 import li.cil.sedna.riscv.R5CPU;
-import li.cil.sedna.utils.FixedSizeByteBuffer;
 import li.cil.sedna.riscv.device.R5CoreLocalInterrupter;
 import li.cil.sedna.riscv.device.R5PlatformLevelInterruptController;
 import li.cil.sedna.riscv.devicetree.R5CoreLocalInterrupterProvider;
 import li.cil.sedna.riscv.devicetree.R5PlatformLevelInterruptControllerProvider;
 import li.cil.sedna.serialization.serializers.*;
+import li.cil.sedna.utils.FixedSizeByteBuffer;
+import li.cil.sedna.z80.BootRomLatch;
 import li.cil.sedna.z80.Z80CPU;
 
 import java.util.BitSet;
@@ -48,6 +57,16 @@ public final class Sedna {
         Ceres.putSerializer(R5CPU.class, new R5CPUSerializer());
         Ceres.putSerializer(SparseBlockDevice.SparseBlockMap.class, new SparseBlockMapSerializer());
         Ceres.putSerializer(Z80CPU.class, new Z80CPUSerializer());
+
+        DeviceDescriptionRegistry.putProvider(DeviceEnumerator.class,
+            DeviceDescriptionProvider.of(new DeviceDescription(DeviceClass.BUS, "SEDBUS")));
+        DeviceDescriptionRegistry.putProvider(UART16550A.class,
+            DeviceDescriptionProvider.of(new DeviceDescription(DeviceClass.CHARACTER, "UART")));
+        DeviceDescriptionRegistry.putProvider(WD1793.class, new WD1793DescriptionProvider());
+        DeviceDescriptionRegistry.putProvider(BootRomLatch.class,
+            DeviceDescriptionProvider.of(new DeviceDescription(DeviceClass.BOOT_ROM, "BOOTRM")));
+        DeviceDescriptionRegistry.putProvider(DeviceWindow.class,
+            device -> DeviceDescriptionRegistry.getDescriptions(((DeviceWindow) device).getDevice()));
 
         DeviceTreeRegistry.putProvider(FlashMemoryDevice.class, new FlashMemoryProvider());
         DeviceTreeRegistry.putProvider(GoldfishRTC.class, new GoldfishRTCProvider());

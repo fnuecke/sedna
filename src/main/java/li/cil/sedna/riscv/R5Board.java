@@ -26,10 +26,10 @@ import li.cil.sedna.riscv.exception.R5SystemResetException;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.OptionalLong;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class R5Board implements Board {
     private static final long SYSCON_ADDRESS = 0x01000000L;
@@ -44,8 +44,8 @@ public final class R5Board implements Board {
     private final MemoryMap memoryMap;
     private final RealTimeCounter rtc;
     private final FlashMemoryDevice flash;
-    private final List<MemoryMappedDevice> devices = new ArrayList<>();
-    private final List<Steppable> steppableDevices = new ArrayList<>();
+    private final List<MemoryMappedDevice> devices = new CopyOnWriteArrayList<>();
+    private final List<Steppable> steppableDevices = new CopyOnWriteArrayList<>();
     private MemoryMappedDevice standardOutputDevice;
     private GDBStub gdbStub;
 

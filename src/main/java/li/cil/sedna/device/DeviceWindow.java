@@ -1,22 +1,30 @@
 package li.cil.sedna.device;
 
+import li.cil.sedna.api.Interrupt;
+import li.cil.sedna.api.device.InterruptSource;
 import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.Resettable;
 import li.cil.sedna.api.device.Steppable;
 import li.cil.sedna.api.memory.MemoryAccessException;
+
+import java.util.List;
 
 /**
  * Exposes a device under a smaller mapped length than the device itself declares, e.g. to fit a
  * device that pads its reported length to a page into a Z80 board's 256-port I/O space. Stepping
  * and reset are forwarded; the wrapper itself holds no state.
  */
-public final class DeviceWindow implements MemoryMappedDevice, Steppable, Resettable {
+public final class DeviceWindow implements MemoryMappedDevice, Steppable, Resettable, InterruptSource {
     private final MemoryMappedDevice device;
     private final int length;
 
     public DeviceWindow(final MemoryMappedDevice device, final int length) {
         this.device = device;
         this.length = length;
+    }
+
+    public MemoryMappedDevice getDevice() {
+        return device;
     }
 
     @Override
@@ -56,5 +64,10 @@ public final class DeviceWindow implements MemoryMappedDevice, Steppable, Resett
         if (device instanceof final Resettable resettable) {
             resettable.reset();
         }
+    }
+
+    @Override
+    public Iterable<Interrupt> getInterrupts() {
+        return device instanceof final InterruptSource source ? source.getInterrupts() : List.of();
     }
 }
