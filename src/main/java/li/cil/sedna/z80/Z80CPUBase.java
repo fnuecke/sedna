@@ -340,24 +340,16 @@ public abstract class Z80CPUBase implements Z80CPU {
     }
 
     private int ioRead(final int port) {
-        final MappedMemoryRange range = ioMap.getMemoryRange(port & 0xFFFF);
-        if (range == null) {
-            return 0xFF;
-        }
         try {
-            return (int) range.device.load((int) ((port & 0xFFFF) - range.start), Sizes.SIZE_8_LOG2) & 0xFF;
+            return (int) ioMap.load(port & 0xFFFF, Sizes.SIZE_8_LOG2) & 0xFF;
         } catch (final MemoryAccessException e) {
             return 0xFF;
         }
     }
 
     private void ioWrite(final int port, final int value) {
-        final MappedMemoryRange range = ioMap.getMemoryRange(port & 0xFFFF);
-        if (range == null) {
-            return;
-        }
         try {
-            range.device.store((int) ((port & 0xFFFF) - range.start), value & 0xFF, Sizes.SIZE_8_LOG2);
+            ioMap.store(port & 0xFFFF, value & 0xFF, Sizes.SIZE_8_LOG2);
         } catch (final MemoryAccessException ignored) {
         }
     }
