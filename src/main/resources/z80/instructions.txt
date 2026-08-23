@@ -11,7 +11,7 @@
 # unprefixed semantics methods (see the DD/FD section); prefix chains re-decode from the second
 # byte via XY_CHAIN/XY_ED.
 #
-# field spec: [s]<msb>[:<lsb>][@<dstlsb>], s = sign-extend.
+# See the RISC-V instruction sets for a full documentation of the field format/syntax.
 
 # Byte 0 fields.
 field y 5:3

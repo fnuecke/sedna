@@ -46,9 +46,10 @@ repository ([R5CPUImpl](src/main/java/li/cil/sedna/riscv/R5CPUImpl.java)). This 
 instructions and to experiment with different switch layouts to improve performance, while keeping the code that
 actually runs readable, debuggable and visible to profilers. After changing instruction declarations or definitions,
 regenerate it with `./gradlew generateDecoder`; a test fails if the checked-in file is out of date. The instruction
-loader and switch generator are technically general purpose, i.e. they have no direct dependencies on the RISC-V part
-of this project. However, there are some assumptions on how instructions are defined and processed baked into their
-design.
+loader and switch generator are technically general purpose, i.e. they have no direct dependencies on the RISC-V part of
+this project. There are some assumptions on how instructions are defined and processed baked into the design, i.e. the
+core interpreter loop has to follow a fixed convention. But as a proof of concept the decoder generator has already also
+been applied for the [Z80](src/main/java/li/cil/sedna/z80/Z80CPUImpl.java) emulator that's also in the project.
 
 The current set of supported RISC-V instructions is declared in
 [instructions64.txt](src/main/resources/riscv/instructions64.txt) and
