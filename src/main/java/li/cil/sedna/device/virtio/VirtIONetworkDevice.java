@@ -1,7 +1,6 @@
 package li.cil.sedna.device.virtio;
 
 import li.cil.ceres.api.Serialized;
-import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 
 import javax.annotation.Nullable;
@@ -81,14 +80,16 @@ public final class VirtIONetworkDevice extends AbstractVirtIODevice {
 
     // struct virtio_net_hdr {
     private static final int HEADER_SIZE =
-            1 + // u8 flags;
-                    1 + // u8 gso_type;
-                    2 + // le16 hdr_len;
-                    2 + // le16 gso_size;
-                    2 + // le16 csum_start;
-                    2 + // le16 csum_offset;
-                    2;  // le16 num_buffers;
+        1 + // u8 flags;
+            1 + // u8 gso_type;
+            2 + // le16 hdr_len;
+            2 + // le16 gso_size;
+            2 + // le16 csum_start;
+            2 + // le16 csum_offset;
+            2;  // le16 num_buffers;
     // };
+
+    private static final int MAX_FRAME_SIZE = 14 + 4 + 9000;
 
     private static final int VIRTQ_RECEIVE = 0; // receiveq1
     private static final int VIRTQ_TRANSMIT = 1; // transmitq1
@@ -103,12 +104,12 @@ public final class VirtIONetworkDevice extends AbstractVirtIODevice {
 
     public VirtIONetworkDevice(final MemoryMap memoryMap, final int queueSizeMax) {
         super(memoryMap, VirtIODeviceSpec
-                .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_NETWORK_CARD)
-                .features(VIRTIO_NET_F_MAC)
-                .configSpaceSize(6 + 2) // mac + status
-                .queueCount(2)
-                .queueSizeMax(queueSizeMax)
-                .build());
+            .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_NETWORK_CARD)
+            .features(VIRTIO_NET_F_MAC)
+            .configSpaceSize(6 + 2) // mac + status
+            .queueCount(2)
+            .queueSizeMax(queueSizeMax)
+            .build());
 
         // One of the OUI patterns safe for local use:
         //xE-xx-xx-xx-xx-xx
@@ -135,9 +136,19 @@ public final class VirtIONetworkDevice extends AbstractVirtIODevice {
                 return null;
             }
 
+            if (transmit.readableBytes() < HEADER_SIZE) {
+                transmit.use(); // Malformed frame, drop it.
+                return null;
+            }
+
             // We completely ignore the header. We don't have any flags that would require us checking it.
             for (int i = 0; i < HEADER_SIZE; i++) {
                 transmit.get();
+            }
+
+            if (transmit.readableBytes() > MAX_FRAME_SIZE) {
+                transmit.use(); // Oversized frame, drop it.
+                return null;
             }
 
             final byte[] packet = new byte[transmit.readableBytes()];
@@ -146,7 +157,7 @@ public final class VirtIONetworkDevice extends AbstractVirtIODevice {
             transmit.use();
 
             return packet;
-        } catch (final VirtIODeviceException | MemoryAccessException e) {
+        } catch (final Throwable e) {
             error();
             return null;
         }
@@ -163,6 +174,11 @@ public final class VirtIONetworkDevice extends AbstractVirtIODevice {
                 return;
             }
 
+            if (receive.writableBytes() < HEADER_SIZE + packet.length) {
+                receive.use(); // Buffer too small for the frame, drop it.
+                return;
+            }
+
             // We don't use any flags that require us to provide a header, so just write an empty one.
             for (int i = 0; i < HEADER_SIZE; i++) {
                 receive.put((byte) 0);
@@ -170,7 +186,7 @@ public final class VirtIONetworkDevice extends AbstractVirtIODevice {
 
             receive.put(packet, 0, packet.length);
             receive.use();
-        } catch (final VirtIODeviceException | MemoryAccessException e) {
+        } catch (final Throwable e) {
             error();
         }
     }
