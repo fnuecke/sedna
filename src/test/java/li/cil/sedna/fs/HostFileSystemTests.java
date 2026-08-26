@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 public final class HostFileSystemTests {
     @TempDir
@@ -25,6 +26,32 @@ public final class HostFileSystemTests {
         Files.write(exported.resolve("visible"), "ok".getBytes());
 
         fileSystem = new HostFileSystem(exported.toFile());
+    }
+
+    @Test
+    public void symbolicLinkToADirectoryOutsideIsRefused() {
+        createSymbolicLink(exported.resolve("escape"), tempDir.resolve("secrets"));
+
+        final Path viaLink = new Path(Arrays.asList("escape", "password"));
+        assertThrows(SecurityException.class, () -> fileSystem.exists(viaLink),
+            "a symbolic link inside the exported directory must not be traversed");
+    }
+
+    @Test
+    public void symbolicLinkToAFileOutsideIsRefused() {
+        createSymbolicLink(exported.resolve("escape"), tempDir.resolve("secrets").resolve("password"));
+
+        final Path viaLink = new Path().resolve("escape");
+        assertThrows(SecurityException.class, () -> fileSystem.exists(viaLink),
+            "a symbolic link inside the exported directory must not be traversed");
+    }
+
+    private static void createSymbolicLink(final java.nio.file.Path link, final java.nio.file.Path target) {
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (final IOException | UnsupportedOperationException | SecurityException e) {
+            assumeTrue(false, "this system does not allow creating symbolic links");
+        }
     }
 
     @Test

@@ -85,9 +85,9 @@ public final class HostFileSystem implements FileSystem {
         final java.nio.file.Path hostPath = toHost(path);
         if (Files.isDirectory(hostPath)) {
             final List<DirectoryEntry> entries = Files.list(hostPath)
-                    .map(java.nio.file.Path::toFile)
-                    .map(DirectoryEntry::create)
-                    .collect(Collectors.toList());
+                .map(java.nio.file.Path::toFile)
+                .map(DirectoryEntry::create)
+                .collect(Collectors.toList());
             return new FileHandle() {
                 @Override
                 public int read(final long offset, final ByteBuffer buffer) throws IOException {
@@ -165,7 +165,14 @@ public final class HostFileSystem implements FileSystem {
         result = result.normalize();
         if (!result.startsWith(rootPath)) {
             throw new SecurityException(String.format(
-                    "Path [%s] resolves outside of the exported directory [%s].", path, rootPath));
+                "Path [%s] resolves outside of the exported directory [%s].", path, rootPath));
+        }
+
+        for (java.nio.file.Path current = result; current != null && !current.equals(rootPath); current = current.getParent()) {
+            if (Files.isSymbolicLink(current)) {
+                throw new SecurityException(String.format(
+                    "Path [%s] traverses the symbolic link [%s] in the exported directory [%s].", path, current, rootPath));
+            }
         }
 
         return result;

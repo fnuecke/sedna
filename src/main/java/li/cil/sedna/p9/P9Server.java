@@ -4,6 +4,8 @@ import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.fs.*;
 
 import java.io.IOException;
+import java.nio.BufferOverflowException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
@@ -23,6 +25,9 @@ import java.util.List;
  * concern.
  */
 public final class P9Server {
+    private static final int MAX_FIDS = 1024; // Max live fids, because we don't trust guests.
+    private static final int MAX_OPEN_FILES = 128; // Max concurrently open handles, for the same reason.
+
     private final FileSystem fileSystem;
     private final FileSystemFileMap files;
 
@@ -42,16 +47,24 @@ public final class P9Server {
      *                               {@link IOException}, so this must be caught before that.
      */
     public ByteBuffer handleRequest(final ByteBuffer request) throws MemoryAccessException {
-        // version(5): the server responds with a message no larger than the negotiated maximum, and
-        // the request is already using part of that budget.
-        final ByteBuffer reply = ByteBuffer
-                .allocate(P9.MAX_MESSAGE_SIZE - request.remaining())
-                .order(ByteOrder.LITTLE_ENDIAN);
+        if (request.remaining() < P9.HEADER_SIZE) {
+            return lerror(P9.NOTAG, P9.ERRNO_EPROTO);
+        }
 
         // struct p9_fcall { u32 size; u8 id; u16 tag; ... };
         request.getInt(); // size, unused
         final byte id = request.get();
         final short tag = request.getShort();
+
+        // version(5): the server responds with a message no larger than the negotiated maximum, and
+        // the request is already using part of that budget.
+        if (request.remaining() > P9.MAX_MESSAGE_SIZE - P9.HEADER_SIZE) {
+            return lerror(tag, P9.ERRNO_EPROTO);
+        }
+
+        final ByteBuffer reply = ByteBuffer
+            .allocate(P9.MAX_MESSAGE_SIZE - request.remaining())
+            .order(ByteOrder.LITTLE_ENDIAN);
 
         try {
             switch (id) {
@@ -93,6 +106,12 @@ public final class P9Server {
             }
         } catch (final MemoryAccessException e) {
             throw e;
+        } catch (final ErrnoException e) {
+            return lerror(tag, e.errno);
+        } catch (final BufferUnderflowException | BufferOverflowException e) {
+            return lerror(tag, P9.ERRNO_EPROTO);
+        } catch (final IndexOutOfBoundsException e) {
+            return lerror(tag, P9.ERRNO_EINVAL);
         } catch (final SecurityException e) {
             return lerror(tag, P9.ERRNO_EPERM);
         } catch (final IllegalArgumentException e) {
@@ -294,6 +313,7 @@ public final class P9Server {
         final int flags = request.getInt();
 
         final FileSystemFile file = getFile(fid);
+        checkOpenFileBudget(file);
         file.close();
 
         final Path path = file.getPath();
@@ -315,6 +335,8 @@ public final class P9Server {
         request.getInt(); // gid, ignored.
 
         final FileSystemFile file = getFile(fid);
+        checkOpenFileBudget(file);
+
         final Path path = file.getPath().resolve(name);
         final int convertedFlags = convertFlags(flags);
         final FileHandle handle = fileSystem.create(path, convertedFlags);
@@ -410,15 +432,21 @@ public final class P9Server {
         final Path path = dir.getPath();
         final List<DirectoryEntry> entries = dir.readdir(fileSystem);
 
+        if (offset < 0) {
+            throw new ErrnoException(P9.ERRNO_EINVAL);
+        }
+
+        final int start = (int) Math.min(offset, entries.size());
+
         reply.putInt(0); // count, filled in later.
         final int dataStart = reply.position();
-        for (int i = (int) offset; i < entries.size(); i++) {
+        for (int i = start; i < entries.size(); i++) {
             final DirectoryEntry entry = entries.get(i);
             final int length = 13 // qid[13]
-                    + 8 // offset[8]
-                    + 1 // type[1]
-                    + 2 // nname[2]
-                    + entry.name.length(); // name[nname]
+                + 8 // offset[8]
+                + 1 // type[1]
+                + 2 // nname[2]
+                + entry.name.length(); // name[nname]
             if (reply.position() - dataStart + length > count) {
                 break;
             }
@@ -495,15 +523,15 @@ public final class P9Server {
 
     private static ByteBuffer lerror(final short tag, final int error) {
         return message(P9.MSG_TLERROR, tag,
-                ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(error));
+            ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(error));
     }
 
     private static ByteBuffer message(final byte messageId, final short tag, final ByteBuffer data) {
         data.flip();
         final int dataLength = data.remaining();
         final ByteBuffer message = ByteBuffer
-                .allocate(P9.HEADER_SIZE + dataLength)
-                .order(ByteOrder.LITTLE_ENDIAN);
+            .allocate(P9.HEADER_SIZE + dataLength)
+            .order(ByteOrder.LITTLE_ENDIAN);
         message.putInt(message.remaining());
         message.put((byte) (messageId + 1)); // Reply message type is always message type + 1.
         message.putShort(tag);
@@ -581,6 +609,10 @@ public final class P9Server {
             throw new IOException();
         }
 
+        if (files.size() >= MAX_FIDS) {
+            throw new ErrnoException(P9.ERRNO_ENFILE);
+        }
+
         final FileSystemFile reference = new FileSystemFile(fid, path);
         files.put(fid, reference);
         return reference;
@@ -591,6 +623,19 @@ public final class P9Server {
             return files.get(fid);
         } else {
             throw new IOException();
+        }
+    }
+
+    private void checkOpenFileBudget(final FileSystemFile replaced) throws ErrnoException {
+        int count = 0;
+        for (final FileSystemFile file : files.values()) {
+            if (file != replaced && file.isOpen()) {
+                count++;
+            }
+        }
+
+        if (count >= MAX_OPEN_FILES) {
+            throw new ErrnoException(P9.ERRNO_EMFILE);
         }
     }
 
@@ -609,5 +654,13 @@ public final class P9Server {
             file.close();
         }
         files.clear();
+    }
+
+    private static final class ErrnoException extends IOException {
+        final int errno;
+
+        ErrnoException(final int errno) {
+            this.errno = errno;
+        }
     }
 }

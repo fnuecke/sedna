@@ -21,6 +21,7 @@ import java.nio.file.Files;
 import java.security.MessageDigest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public final class P9Tests {
@@ -70,6 +71,13 @@ public final class P9Tests {
 
 
     private static final int LINUX_ERRNO_ENOENT = 2;
+    private static final int LINUX_ERRNO_EINVAL = 22;
+    private static final int LINUX_ERRNO_ENFILE = 23;
+    private static final int LINUX_ERRNO_EMFILE = 24;
+    private static final int LINUX_ERRNO_EPROTO = 71;
+
+    private static final int MAX_FIDS = 1024;
+    private static final int MAX_OPEN_FILES = 128;
 
     private static final int ROOT_FID = 0;
     private static final int FILE_FID = 1;
@@ -283,6 +291,155 @@ public final class P9Tests {
     }
 
     @Test
+    public void fidTableIsCapped() throws Exception {
+        attachRoot(); // Establishes ROOT_FID, so one of the budget is already spent.
+
+        int refusedAt = -1;
+        for (int i = 1; i <= MAX_FIDS; i++) {
+            final int fid = ROOT_FID + i;
+            final ByteBuffer reply = request(P9_TATTACH, 2, body -> {
+                body.putInt(fid);
+                body.putInt(-1); // afid, NOFID
+                putString(body, "root");
+                putString(body, "");
+                body.putInt(0);
+            });
+
+            if (reply.get(4) == P9_TLERROR + 1) {
+                refusedAt = i;
+                reply.position(7);
+                assertEquals(LINUX_ERRNO_ENFILE, reply.getInt(), "exceeding the fid cap must report ENFILE");
+                break;
+            }
+        }
+
+        assertEquals(MAX_FIDS, refusedAt, "the fid table must stop growing at the cap");
+        assertFalse(hasDeviceFailed(), "refusing a fid must not fail the device");
+    }
+
+    @Test
+    public void openFileHandlesAreCapped() throws Exception {
+        attachRoot();
+
+        int refusedAt = -1;
+        for (int i = 0; i <= MAX_OPEN_FILES; i++) {
+            final int fid = FILE_FID + i;
+            request(P9_TWALK, 3, body -> {
+                body.putInt(ROOT_FID);
+                body.putInt(fid);
+                body.putShort((short) 1);
+                putString(body, "greeting");
+            });
+
+            final ByteBuffer reply = request(P9_TLOPEN, 4, body -> {
+                body.putInt(fid);
+                body.putInt(0); // O_RDONLY
+            });
+
+            if (reply.get(4) == P9_TLERROR + 1) {
+                refusedAt = i;
+                reply.position(7);
+                assertEquals(LINUX_ERRNO_EMFILE, reply.getInt(), "exceeding the open file cap must report EMFILE");
+                break;
+            }
+        }
+
+        assertEquals(MAX_OPEN_FILES, refusedAt, "concurrently open handles must stop growing at the cap");
+        assertFalse(hasDeviceFailed(), "refusing an open must not fail the device");
+    }
+
+    @Test
+    public void negativeReaddirOffsetIsRejected() throws Exception {
+        attachRoot();
+
+        final ByteBuffer openReply = request(P9_TLOPEN, 3, body -> {
+            body.putInt(ROOT_FID);
+            body.putInt(0);
+        });
+        assertEquals(P9_TLOPEN + 1, openReply.get(4), "opening the root directory must succeed");
+
+        final ByteBuffer reply = request(P9_TREADDIR, 4, body -> {
+            body.putInt(ROOT_FID);
+            body.putLong(-1L); // offset, unsigned in the protocol
+            body.putInt(2048);
+        });
+
+        assertEquals(P9_TLERROR + 1, reply.get(4), "an out of range readdir offset must be an error reply");
+        reply.position(7);
+        assertEquals(LINUX_ERRNO_EINVAL, reply.getInt());
+        assertFalse(hasDeviceFailed(), "an out of range readdir offset must not fail the device");
+    }
+
+    @Test
+    public void truncatedMessageIsRejected() throws Exception {
+        attachRoot();
+
+        final ByteBuffer reply = request(P9_TSTATFS, 3, body -> {
+        }); // The fid the handler reads is missing.
+
+        assertEquals(P9_TLERROR + 1, reply.get(4), "a truncated message must be an error reply");
+        reply.position(7);
+        assertEquals(LINUX_ERRNO_EPROTO, reply.getInt());
+        assertFalse(hasDeviceFailed(), "a truncated message must not fail the device");
+    }
+
+    @Test
+    public void readdirOffsetPastTheEndReturnsNoEntries() throws Exception {
+        attachRoot();
+
+        final ByteBuffer openReply = request(P9_TLOPEN, 3, body -> {
+            body.putInt(ROOT_FID);
+            body.putInt(0);
+        });
+        assertEquals(P9_TLOPEN + 1, openReply.get(4), "opening the root directory must succeed");
+
+        // The directory may shrink between two reads, so an offset we handed out can go stale.
+        final ByteBuffer reply = request(P9_TREADDIR, 4, body -> {
+            body.putInt(ROOT_FID);
+            body.putLong(1000);
+            body.putInt(2048);
+        });
+
+        assertEquals(P9_TREADDIR + 1, reply.get(4), "an offset past the end is the end, not an error");
+        reply.position(7);
+        assertEquals(0, reply.getInt(), "no entries remain past the end");
+    }
+
+    @Test
+    public void undersizedReplyBufferDoesNotFailTheDevice() throws Exception {
+        attachRoot();
+
+        // A statfs reply does not fit in four bytes.
+        final ByteBuffer message = ByteBuffer.allocate(1024).order(ByteOrder.LITTLE_ENDIAN);
+        message.putInt(0);
+        message.put(P9_TSTATFS);
+        message.putShort((short) 3);
+        message.putInt(ROOT_FID);
+        message.putInt(0, message.position());
+        message.flip();
+
+        final int length = message.remaining();
+        for (int i = 0; i < length; i++) {
+            memoryMap.store(REQUEST + i, message.get(i), Sizes.SIZE_8_LOG2);
+        }
+
+        writeDescriptor(0, REQUEST, length, VIRTQ_DESC_F_NEXT, 1);
+        writeDescriptor(1, REPLY, 4, VIRTQ_DESC_F_WRITE, 0);
+
+        memoryMap.store(AVAIL + 4 + (availIdx & (QUEUE_SIZE - 1)) * 2L, 0, Sizes.SIZE_16_LOG2);
+        availIdx++;
+        memoryMap.store(AVAIL + 2, availIdx, Sizes.SIZE_16_LOG2);
+
+        device.store(VIRTIO_MMIO_QUEUE_NOTIFY, 0, Sizes.SIZE_32_LOG2);
+        device.step(1_000_000);
+
+        assertFalse(hasDeviceFailed(), "an undersized reply buffer must not brick the 9P mount");
+
+        final ByteBuffer reply = request(P9_TSTATFS, 4, body -> body.putInt(ROOT_FID));
+        assertEquals(P9_TSTATFS + 1, reply.get(4), "the device must still serve requests afterwards");
+    }
+
+    @Test
     public void fidTableSerializationIsUnchanged() throws Exception {
         attachRoot();
         request(P9_TWALK, 3, body -> {
@@ -312,6 +469,10 @@ public final class P9Tests {
             sb.append(String.format("%02x", b));
         }
         return sb.toString();
+    }
+
+    private boolean hasDeviceFailed() {
+        return (device.getStatus() & AbstractVirtIODevice.VIRTIO_STATUS_FAILED) != 0;
     }
 
     private void attachRoot() throws Exception {

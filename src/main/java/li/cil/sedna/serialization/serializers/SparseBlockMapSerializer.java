@@ -32,7 +32,7 @@ public final class SparseBlockMapSerializer implements Serializer<SparseBlockMap
 
         final int[] keys = (int[]) visitor.getObject("keys", int[].class, null);
         final byte[][] values = (byte[][]) visitor.getObject("values", byte[][].class, null);
-        if (keys == null || values == null) {
+        if (keys == null || values == null || keys.length != values.length) {
             return null;
         }
 

@@ -20,6 +20,11 @@ public final class P9 {
      */
     static final int HEADER_SIZE = 4 + 1 + 2;
 
+    /**
+     * Tag used when replying to a message too malformed to carry one.
+     */
+    static final short NOTAG = (short) 0xFFFF;
+
     static final byte MSG_TLERROR = 6; // only used in reply; RLERROR: response for any failed request for 9P2000.L
     static final byte MSG_TSTATFS = 8; // file system status request
     static final byte MSG_TLOPEN = 12;
@@ -134,6 +139,8 @@ public final class P9 {
     static final int ERRNO_EEXIST = 17;    // File exists
     static final int ERRNO_ENOTDIR = 20;   // Not a directory
     static final int ERRNO_EINVAL = 22;    // Invalid argument
+    static final int ERRNO_ENFILE = 23;    // Too many open files in system
+    static final int ERRNO_EMFILE = 24;    // Too many open files
     static final int ERRNO_ENOSPC = 28;    // No space left on device
     static final int ERRNO_ENOTEMPTY = 39; // Directory not empty
     static final int ERRNO_EPROTO = 71;    // Protocol error

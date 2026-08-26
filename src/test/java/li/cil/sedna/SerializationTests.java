@@ -3,26 +3,47 @@ package li.cil.sedna;
 import it.unimi.dsi.fastutil.bytes.ByteArrayFIFOQueue;
 import it.unimi.dsi.fastutil.ints.Int2LongArrayMap;
 import li.cil.ceres.BinarySerialization;
+import li.cil.ceres.api.DeserializationVisitor;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
+import li.cil.sedna.device.block.SparseBlockDevice.SparseBlockMap;
 import li.cil.sedna.device.memory.Memory;
 import li.cil.sedna.device.serial.UART16550A;
 import li.cil.sedna.device.virtio.VirtIOConsoleDevice;
 import li.cil.sedna.memory.SimpleMemoryMap;
 import li.cil.sedna.riscv.R5CPU;
+import li.cil.sedna.serialization.serializers.SparseBlockMapSerializer;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public final class SerializationTests {
     @BeforeAll
     public static void setup() {
         Sedna.initialize();
+    }
+
+    @Test
+    public void sparseBlockMapWithMismatchedKeysAndValuesIsRejected() {
+        final DeserializationVisitor visitor = mock(DeserializationVisitor.class);
+        when(visitor.exists("keys")).thenReturn(true);
+        when(visitor.exists("values")).thenReturn(true);
+        when(visitor.getObject(eq("keys"), any(), any())).thenReturn(new int[]{0, 1, 2});
+        when(visitor.getObject(eq("values"), any(), any())).thenReturn(new byte[][]{new byte[4]});
+
+        final SparseBlockMap into = new SparseBlockMap(4);
+
+        assertDoesNotThrow(() -> new SparseBlockMapSerializer().deserialize(visitor, SparseBlockMap.class, into),
+            "a save with fewer values than keys must be refused, not indexed past the end");
     }
 
     @Test
