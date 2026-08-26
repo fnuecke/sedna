@@ -584,7 +584,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
     @Override
     public int getSupportedSizes() {
         return (1 << Sizes.SIZE_8_LOG2) |
-                (1 << Sizes.SIZE_32_LOG2);
+            (1 << Sizes.SIZE_32_LOG2);
     }
 
     public final long load(final int offset, final int sizeLog2) {
@@ -622,7 +622,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                 return spec.virtQueueSizeMax;
             }
             case VIRTIO_MMIO_QUEUE_READY: {
-                return queues[queueSel].ready;
+                return queues[getQueueSel()].ready;
             }
             case VIRTIO_MMIO_INTERRUPT_STATUS: {
                 return interruptStatus;
@@ -671,11 +671,11 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                 // 2.6: Queue size is always a power of 2. 4.2.2.2: The driver MUST write a value
                 // to QueueSize which is less than or equal to the value presented by the device
                 // in QueueSizeMax.
-                if (intValue <= queues[queueSel].maxSize && Integer.bitCount(intValue) == 1) {
-                    queues[queueSel].num = intValue;
+                if (intValue <= queues[getQueueSel()].maxSize && Integer.bitCount(intValue) == 1) {
+                    queues[getQueueSel()].num = intValue;
                 }
             }
-            case VIRTIO_MMIO_QUEUE_READY -> queues[queueSel].ready = intValue != 0 ? 1 : 0;
+            case VIRTIO_MMIO_QUEUE_READY -> queues[getQueueSel()].ready = intValue != 0 ? 1 : 0;
             case VIRTIO_MMIO_QUEUE_NOTIFY -> {
                 // 3.1.1: Driver must not send buffer available notifications before DRIVER_OK.
                 if ((status & VIRTIO_STATUS_DRIVER_OK) == 0) {
@@ -738,17 +738,17 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
                 }
             }
             case VIRTIO_MMIO_QUEUE_DESC_LOW ->
-                    queues[queueSel].desc = (queues[queueSel].desc & ~0xFFFFFFFFL) | ((long) intValue & 0xFFFFFFFFL);
+                queues[getQueueSel()].desc = (queues[getQueueSel()].desc & ~0xFFFFFFFFL) | ((long) intValue & 0xFFFFFFFFL);
             case VIRTIO_MMIO_QUEUE_DESC_HIGH ->
-                    queues[queueSel].desc = (queues[queueSel].desc & 0xFFFFFFFFL) | ((long) intValue << 32);
+                queues[getQueueSel()].desc = (queues[getQueueSel()].desc & 0xFFFFFFFFL) | ((long) intValue << 32);
             case VIRTIO_MMIO_QUEUE_DRIVER_LOW ->
-                    queues[queueSel].driver = (queues[queueSel].driver & ~0xFFFFFFFFL) | ((long) intValue & 0xFFFFFFFFL);
+                queues[getQueueSel()].driver = (queues[getQueueSel()].driver & ~0xFFFFFFFFL) | ((long) intValue & 0xFFFFFFFFL);
             case VIRTIO_MMIO_QUEUE_DRIVER_HIGH ->
-                    queues[queueSel].driver = (queues[queueSel].driver & 0xFFFFFFFFL) | ((long) intValue << 32);
+                queues[getQueueSel()].driver = (queues[getQueueSel()].driver & 0xFFFFFFFFL) | ((long) intValue << 32);
             case VIRTIO_MMIO_QUEUE_DEVICE_LOW ->
-                    queues[queueSel].device = (queues[queueSel].device & ~0xFFFFFFFFL) | ((long) intValue & 0xFFFFFFFFL);
+                queues[getQueueSel()].device = (queues[getQueueSel()].device & ~0xFFFFFFFFL) | ((long) intValue & 0xFFFFFFFFL);
             case VIRTIO_MMIO_QUEUE_DEVICE_HIGH ->
-                    queues[queueSel].device = (queues[queueSel].device & 0xFFFFFFFFL) | ((long) intValue << 32);
+                queues[getQueueSel()].device = (queues[getQueueSel()].device & 0xFFFFFFFFL) | ((long) intValue << 32);
         }
     }
 
@@ -781,6 +781,10 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
     }
 
     // ------------------------------------------------------------- //
+
+    private int getQueueSel() {
+        return queueSel >= 0 && queueSel < queues.length ? queueSel : 0;
+    }
 
     private void updateInterrupts() {
         // 2.1.2: Do not send notifications before DRIVER_OK.

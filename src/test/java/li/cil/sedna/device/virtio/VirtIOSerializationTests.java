@@ -43,10 +43,10 @@ public final class VirtIOSerializationTests {
 
         TestDevice(final MemoryMap memoryMap, final int configSpaceSize) {
             super(memoryMap, VirtIODeviceSpec
-                    .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_CONSOLE)
-                    .queueCount(2)
-                    .configSpaceSize(configSpaceSize)
-                    .build());
+                .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_CONSOLE)
+                .queueCount(2)
+                .configSpaceSize(configSpaceSize)
+                .build());
         }
 
         void writeConfig(final int offset, final int value) {
@@ -65,8 +65,8 @@ public final class VirtIOSerializationTests {
         assertEquals(original.getStatus(), restored.getStatus());
         assertEquals(original.getNegotiatedFeatures(), restored.getNegotiatedFeatures());
         assertEquals(original.load(VIRTIO_MMIO_QUEUE_READY, Sizes.SIZE_32_LOG2),
-                restored.load(VIRTIO_MMIO_QUEUE_READY, Sizes.SIZE_32_LOG2),
-                "queue state must survive the round trip");
+            restored.load(VIRTIO_MMIO_QUEUE_READY, Sizes.SIZE_32_LOG2),
+            "queue state must survive the round trip");
     }
 
     @Test
@@ -115,17 +115,17 @@ public final class VirtIOSerializationTests {
         final ByteBuffer data = BinarySerialization.serialize(configuredDevice());
 
         assertEquals(EXPECTED_SERIALIZED_SIZE, data.remaining(),
-                "the serialized size of a VirtIO device changed, which means the savestate format changed");
+            "the serialized size of a VirtIO device changed, which means the savestate format changed");
 
         final byte[] bytes = new byte[data.remaining()];
         data.get(bytes);
         assertEquals(EXPECTED_SERIALIZED_DIGEST, toHex(MessageDigest.getInstance("SHA-256").digest(bytes)),
-                "the serialized bytes of a VirtIO device changed, which means the savestate format changed");
+            "the serialized bytes of a VirtIO device changed, which means the savestate format changed");
     }
 
     private static final int EXPECTED_SERIALIZED_SIZE = 138;
     private static final String EXPECTED_SERIALIZED_DIGEST =
-            "0ac96cab1712f9301396642e102723b6f012cc000e4b5824f2dc3c21bcc512cf";
+        "0ac96cab1712f9301396642e102723b6f012cc000e4b5824f2dc3c21bcc512cf";
 
     private static String toHex(final byte[] value) {
         final StringBuilder sb = new StringBuilder(value.length * 2);
@@ -135,6 +135,54 @@ public final class VirtIOSerializationTests {
         return sb.toString();
     }
 
+    @Test
+    public void restoredOutOfRangeQueueSelIsGuarded() {
+        final int offset = queueSelOffset();
+
+        final TestDevice original = configuredDevice();
+        original.store(VIRTIO_MMIO_QUEUE_SEL, 0, Sizes.SIZE_32_LOG2);
+        final byte[] bytes = toBytes(BinarySerialization.serialize(original));
+
+        bytes[offset] = (byte) 0x7F;
+        bytes[offset + 1] = (byte) 0xFF;
+        bytes[offset + 2] = (byte) 0xFF;
+        bytes[offset + 3] = (byte) 0xFF;
+
+        final TestDevice restored = configuredDevice();
+        BinarySerialization.deserialize(ByteBuffer.wrap(bytes), restored);
+
+        assertDoesNotThrow(() -> restored.load(VIRTIO_MMIO_QUEUE_READY, Sizes.SIZE_32_LOG2),
+            "an out of range queue selector from a save must not throw on the next MMIO access");
+    }
+
+    private static int queueSelOffset() {
+        final TestDevice zero = configuredDevice();
+        zero.store(VIRTIO_MMIO_QUEUE_SEL, 0, Sizes.SIZE_32_LOG2);
+        final TestDevice one = configuredDevice();
+        one.store(VIRTIO_MMIO_QUEUE_SEL, 1, Sizes.SIZE_32_LOG2);
+
+        final byte[] x = toBytes(BinarySerialization.serialize(zero));
+        final byte[] y = toBytes(BinarySerialization.serialize(one));
+        assertEquals(x.length, y.length, "the queue selector must be the only difference");
+
+        int diff = -1;
+        for (int i = 0; i < x.length; i++) {
+            if (x[i] != y[i]) {
+                assertEquals(-1, diff, "the queue selector must be the only difference");
+                diff = i;
+            }
+        }
+
+        assertTrue(diff >= 3, "expected to locate the queue selector in the serialized device");
+        return diff - 3; // Big endian int, so only its last byte differs between 0 and 1.
+    }
+
+    private static byte[] toBytes(final ByteBuffer data) {
+        final byte[] bytes = new byte[data.remaining()];
+        data.get(bytes);
+        return bytes;
+    }
+
     private static TestDevice configuredDevice() {
         final MemoryMap memoryMap = new SimpleMemoryMap();
         memoryMap.addDevice(PHYSICAL_MEMORY_START, Memory.create(1024 * 1024));
@@ -142,12 +190,12 @@ public final class VirtIOSerializationTests {
 
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE
-                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER, Sizes.SIZE_32_LOG2);
+            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_DRIVER_FEATURES_SEL, FEATURES_HIGH_SEL, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_DRIVER_FEATURES, VERSION_1_HIGH, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE
-                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
-                | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK, Sizes.SIZE_32_LOG2);
+            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
+            | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK, Sizes.SIZE_32_LOG2);
 
         // Give both queues distinct, non-default state so a layout change is likely to move bytes.
         for (int queue = 0; queue < 2; queue++) {
@@ -160,9 +208,9 @@ public final class VirtIOSerializationTests {
         }
 
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE
-                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
-                | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK
-                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER_OK, Sizes.SIZE_32_LOG2);
+            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
+            | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK
+            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER_OK, Sizes.SIZE_32_LOG2);
 
         return device;
     }
