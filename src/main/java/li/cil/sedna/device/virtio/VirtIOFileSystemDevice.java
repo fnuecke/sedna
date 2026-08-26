@@ -44,12 +44,12 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
 
     public VirtIOFileSystemDevice(final MemoryMap memoryMap, final String tag, final FileSystem fileSystem, final int queueSizeMax) {
         super(memoryMap, VirtIODeviceSpec
-                .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_9P_TRANSPORT)
-                .features(VIRTIO_9P_F_MOUNT_TAG)
-                .queueCount(1)
-                .queueSizeMax(queueSizeMax)
-                .configSpaceSize(2 + Math.min(tag.length(), 0xFFFF))
-                .build());
+            .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_9P_TRANSPORT)
+            .features(VIRTIO_9P_F_MOUNT_TAG)
+            .queueCount(1)
+            .queueSizeMax(queueSizeMax)
+            .configSpaceSize(2 + Math.min(tag.length(), 0xFFFF))
+            .build());
         this.tag = tag;
         this.server = new P9Server(fileSystem, files);
     }
@@ -126,6 +126,13 @@ public final class VirtIOFileSystemDevice extends AbstractVirtIODevice implement
         final int replyBytes = reply.remaining();
 
         chain.skip(chain.readableBytes());
+
+        if (chain.writableBytes() < replyBytes) {
+            // Guest posted a buffer too small for the reply.
+            chain.use();
+            return Math.max(1, requestBytes);
+        }
+
         chain.put(reply);
 
         chain.use();

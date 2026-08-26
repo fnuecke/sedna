@@ -43,6 +43,7 @@ public final class DescriptorChainTests {
     private static final int BYTES_PER_DESCRIPTOR = 4;
 
     private static final int MAX_CHAIN_LENGTH = 128;
+    private static final int MAX_CHAIN_BYTES = 1024 * 1024;
 
     private MemoryMap memoryMap;
     private TestDevice device;
@@ -50,10 +51,10 @@ public final class DescriptorChainTests {
     private static final class TestDevice extends AbstractVirtIODevice {
         TestDevice(final MemoryMap memoryMap) {
             super(memoryMap, VirtIODeviceSpec
-                    .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_CONSOLE)
-                    .queueCount(1)
-                    .configSpaceSize(0)
-                    .build());
+                .builder(VirtIODeviceType.VIRTIO_DEVICE_ID_CONSOLE)
+                .queueCount(1)
+                .configSpaceSize(0)
+                .build());
         }
 
         @Nullable
@@ -84,12 +85,12 @@ public final class DescriptorChainTests {
 
         for (int i = 0; i < chainLength * BYTES_PER_DESCRIPTOR; i++) {
             assertEquals((byte) i, chain.get(),
-                    String.format("byte %d of a %d-descriptor chain must be readable", i, chainLength));
+                String.format("byte %d of a %d-descriptor chain must be readable", i, chainLength));
         }
 
         assertEquals(0, chain.readableBytes());
         assertEquals(0, device.getStatus() & AbstractVirtIODevice.VIRTIO_STATUS_DEVICE_NEEDS_RESET,
-                "walking a legal chain must not put the device into an error state");
+            "walking a legal chain must not put the device into an error state");
     }
 
     @Test
@@ -102,9 +103,9 @@ public final class DescriptorChainTests {
         assertTrue(queue.hasNext());
 
         assertThrows(VirtIODeviceException.class, queue::next,
-                "a chain at or beyond the maximum length must be refused");
+            "a chain at or beyond the maximum length must be refused");
         assertTrue((device.getStatus() & AbstractVirtIODevice.VIRTIO_STATUS_DEVICE_NEEDS_RESET) != 0,
-                "refusing a chain must put the device into an error state");
+            "refusing a chain must put the device into an error state");
     }
 
     @Test
@@ -124,18 +125,77 @@ public final class DescriptorChainTests {
         assertFalse(queue.hasNext(), "only one chain was made available");
     }
 
+    @Test
+    public void descriptorWithHugeLengthIsRefused() throws Exception {
+        bringUpQueue();
+        writeReadOnlyChainWithLengths(0x7FFFFFFFL);
+
+        final VirtqueueIterator queue = device.queue();
+        assertNotNull(queue);
+        assertTrue(queue.hasNext());
+
+        assertThrows(VirtIODeviceException.class, queue::next,
+            "a descriptor claiming more than the maximum chain size must be refused");
+        assertTrue((device.getStatus() & AbstractVirtIODevice.VIRTIO_STATUS_DEVICE_NEEDS_RESET) != 0,
+            "refusing a chain must put the device into an error state");
+    }
+
+    @Test
+    public void descriptorWithNegativeSignedLengthIsRefused() throws Exception {
+        bringUpQueue();
+        writeReadOnlyChainWithLengths(0xFFFFFFFFL);
+
+        final VirtqueueIterator queue = device.queue();
+        assertNotNull(queue);
+        assertTrue(queue.hasNext());
+
+        assertThrows(VirtIODeviceException.class, queue::next,
+            "descriptor lengths must be treated as unsigned, not as a negative size");
+        assertTrue((device.getStatus() & AbstractVirtIODevice.VIRTIO_STATUS_DEVICE_NEEDS_RESET) != 0,
+            "refusing a chain must put the device into an error state");
+    }
+
+    @Test
+    public void chainExceedingMaxBytesIsRefused() throws Exception {
+        bringUpQueue();
+        writeReadOnlyChainWithLengths(MAX_CHAIN_BYTES, MAX_CHAIN_BYTES);
+
+        final VirtqueueIterator queue = device.queue();
+        assertNotNull(queue);
+        assertTrue(queue.hasNext());
+
+        assertThrows(VirtIODeviceException.class, queue::next,
+            "descriptor lengths must be summed without overflowing the maximum chain size");
+    }
+
+    @Test
+    public void largeButLegalChainIsAccepted() throws Exception {
+        final int length = 256 * 1024; // The largest chain any built-in device produces.
+        bringUpQueue();
+        writeReadOnlyChainWithLengths(length);
+
+        final VirtqueueIterator queue = device.queue();
+        assertNotNull(queue);
+        assertTrue(queue.hasNext());
+
+        final DescriptorChain chain = queue.next();
+        assertEquals(length, chain.readableBytes());
+        assertEquals(0, device.getStatus() & AbstractVirtIODevice.VIRTIO_STATUS_DEVICE_NEEDS_RESET,
+            "a chain within the maximum size must not put the device into an error state");
+    }
+
     private void bringUpQueue() {
         device.store(VIRTIO_MMIO_STATUS, 0, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE
-                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER, Sizes.SIZE_32_LOG2);
+            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER, Sizes.SIZE_32_LOG2);
 
         device.store(VIRTIO_MMIO_DRIVER_FEATURES_SEL, FEATURES_HIGH_SEL, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_DRIVER_FEATURES, VERSION_1_HIGH, Sizes.SIZE_32_LOG2);
 
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE
-                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
-                | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK, Sizes.SIZE_32_LOG2);
+            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
+            | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK, Sizes.SIZE_32_LOG2);
 
         device.store(VIRTIO_MMIO_QUEUE_SEL, 0, Sizes.SIZE_32_LOG2);
         device.store(VIRTIO_MMIO_QUEUE_NUM, QUEUE_SIZE, Sizes.SIZE_32_LOG2);
@@ -145,14 +205,29 @@ public final class DescriptorChainTests {
         device.store(VIRTIO_MMIO_QUEUE_READY, 1, Sizes.SIZE_32_LOG2);
 
         device.store(VIRTIO_MMIO_STATUS, AbstractVirtIODevice.VIRTIO_STATUS_ACKNOWLEDGE
-                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
-                | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK
-                | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER_OK, Sizes.SIZE_32_LOG2);
+            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER
+            | AbstractVirtIODevice.VIRTIO_STATUS_FEATURES_OK
+            | AbstractVirtIODevice.VIRTIO_STATUS_DRIVER_OK, Sizes.SIZE_32_LOG2);
     }
 
     private void storeAddress(final int lowRegister, final int highRegister, final long address) {
         device.store(lowRegister, (int) address, Sizes.SIZE_32_LOG2);
         device.store(highRegister, (int) (address >>> 32), Sizes.SIZE_32_LOG2);
+    }
+
+    private void writeReadOnlyChainWithLengths(final long... lengths) throws MemoryAccessException {
+        for (int i = 0; i < lengths.length; i++) {
+            final long descriptor = DESC + (long) i * 16;
+
+            memoryMap.store(descriptor, DATA, Sizes.SIZE_64_LOG2);
+            memoryMap.store(descriptor + 8, lengths[i], Sizes.SIZE_32_LOG2);
+            memoryMap.store(descriptor + 12, i < lengths.length - 1 ? VIRTQ_DESC_F_NEXT : 0, Sizes.SIZE_16_LOG2);
+            memoryMap.store(descriptor + 14, i + 1, Sizes.SIZE_16_LOG2);
+        }
+
+        memoryMap.store(AVAIL, 0, Sizes.SIZE_16_LOG2);
+        memoryMap.store(AVAIL + 4, 0, Sizes.SIZE_16_LOG2); // ring[0] = descriptor 0
+        memoryMap.store(AVAIL + 2, 1, Sizes.SIZE_16_LOG2); // idx, written last
     }
 
     private void writeReadOnlyChain(final int length) throws MemoryAccessException {

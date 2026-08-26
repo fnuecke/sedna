@@ -15,6 +15,7 @@ import java.util.NoSuchElementException;
 @Serialized
 final class SplitVirtqueue extends AbstractVirtqueue {
     private static final int VIRTQ_MAX_CHAIN_LENGTH = 128; // Max chain length because we don't trust drivers.
+    private static final int VIRTQ_MAX_CHAIN_BYTES = 1024 * 1024; // Max total chain length in bytes, for the same reason.
 
     private static final int VIRTQ_DESC_TABLE_STRIDE = 16;
     private static final int VIRTQ_DESC_ADDR = 0;
@@ -97,6 +98,10 @@ final class SplitVirtqueue extends AbstractVirtqueue {
 
     int getDescLength(final int i) throws MemoryAccessException {
         return (int) memoryMap.load(descIndexToAddress(i) + VIRTQ_DESC_LEN, Sizes.SIZE_32_LOG2);
+    }
+
+    long getDescLengthUnsigned(final int i) throws MemoryAccessException {
+        return getDescLength(i) & 0xFFFFFFFFL;
     }
 
     short getDescFlags(final int i) throws MemoryAccessException {
@@ -196,10 +201,10 @@ final class SplitVirtqueue extends AbstractVirtqueue {
             this.headDescIdx = headDescIdx;
 
             // Compute readable and writable byte counts.
-            int readableByteCount = 0, writableByteCount = 0;
+            long readableByteCount = 0, writableByteCount = 0;
             short descIdx = headDescIdx;
             short descFlags = getDescFlags(descIdx);
-            int descLength = getDescLength(descIdx);
+            long descLength = getDescLengthUnsigned(descIdx);
             int chainLength = 1;
 
             // Readable bytes preceding writable bytes.
@@ -210,6 +215,12 @@ final class SplitVirtqueue extends AbstractVirtqueue {
                 }
 
                 readableByteCount += descLength;
+
+                if (readableByteCount > VIRTQ_MAX_CHAIN_BYTES) {
+                    // Chain too large. Refuse before any implementation allocates for it.
+                    context.error(); // Set error state immediately in case this gets caught by implementation code.
+                    throw new VirtIODeviceException();
+                }
 
                 if ((descFlags & VIRTQ_DESC_F_NEXT) == 0) {
                     hasDesc = false;
@@ -224,7 +235,7 @@ final class SplitVirtqueue extends AbstractVirtqueue {
 
                 descIdx = getDescNext(descIdx);
                 descFlags = getDescFlags(descIdx);
-                descLength = getDescLength(descIdx);
+                descLength = getDescLengthUnsigned(descIdx);
 
                 chainLength++;
             }
@@ -240,6 +251,12 @@ final class SplitVirtqueue extends AbstractVirtqueue {
 
                     writableByteCount += descLength;
 
+                    if (writableByteCount > VIRTQ_MAX_CHAIN_BYTES) {
+                        // Chain too large. Refuse before any implementation allocates for it.
+                        context.error(); // Set error state immediately in case this gets caught by implementation code.
+                        throw new VirtIODeviceException();
+                    }
+
                     if ((descFlags & VIRTQ_DESC_F_NEXT) == 0) {
                         break;
                     }
@@ -252,14 +269,14 @@ final class SplitVirtqueue extends AbstractVirtqueue {
 
                     descIdx = getDescNext(descIdx);
                     descFlags = getDescFlags(descIdx);
-                    descLength = getDescLength(descIdx);
+                    descLength = getDescLengthUnsigned(descIdx);
 
                     chainLength++;
                 }
             }
 
-            this.readableByteCount = readableByteCount;
-            this.writableByteCount = writableByteCount;
+            this.readableByteCount = (int) readableByteCount;
+            this.writableByteCount = (int) writableByteCount;
 
             setDescriptor(headDescIdx);
         }
@@ -433,7 +450,7 @@ final class SplitVirtqueue extends AbstractVirtqueue {
         void setDescriptor(final short descIdx) throws MemoryAccessException {
             this.descIdx = descIdx;
             address = getDescAddress(descIdx);
-            length = getDescLength(descIdx);
+            length = (int) Math.min(getDescLengthUnsigned(descIdx), VIRTQ_MAX_CHAIN_BYTES);
             position = 0;
         }
 
