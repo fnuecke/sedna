@@ -14,6 +14,7 @@ import li.cil.sedna.device.serial.UART16550A;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -43,15 +44,15 @@ public final class Z80BoardTests {
 
         // Poll LSR for received data, echo it back, halt on a zero byte.
         load(0x0000,
-                0xDB, UART_PORT + 5, // loop: IN A,(LSR)
-                0xE6, 0x01,          //       AND 1
-                0x28, 0xFA,          //       JR Z, loop
-                0xDB, UART_PORT,     //       IN A,(RBR)
-                0xB7,                //       OR A
-                0x28, 0x04,          //       JR Z, done
-                0xD3, UART_PORT,     //       OUT (THR),A
-                0x18, 0xF1,          //       JR loop
-                0x76);               // done: HALT
+            0xDB, UART_PORT + 5, // loop: IN A,(LSR)
+            0xE6, 0x01,          //       AND 1
+            0x28, 0xFA,          //       JR Z, loop
+            0xDB, UART_PORT,     //       IN A,(RBR)
+            0xB7,                //       OR A
+            0x28, 0x04,          //       JR Z, done
+            0xD3, UART_PORT,     //       OUT (THR),A
+            0x18, 0xF1,          //       JR loop
+            0x76);               // done: HALT
 
         board.getCpu().reset(true, 0x0000);
         board.setRunning(true);
@@ -94,23 +95,23 @@ public final class Z80BoardTests {
 
         // Seek to track 1, read sector 4 (1-based register) into 0x8000.
         load(0x0000,
-                0xAF,                // XOR A
-                0xD3, FDC_PORT + 4,  // OUT (system),A  -- drive 0, side 0
-                0x3E, 0x01,          // LD A,1
-                0xD3, FDC_PORT + 3,  // OUT (data),A    -- seek target
-                0x3E, 0x10,          // LD A,0x10 (SEEK)
-                0xD3, FDC_PORT,      // OUT (command),A
-                0x3E, 0x04,          // LD A,4
-                0xD3, FDC_PORT + 2,  // OUT (sector),A
-                0x3E, 0x80,          // LD A,0x80 (READ SECTOR)
-                0xD3, FDC_PORT,      // OUT (command),A
-                0x21, 0x00, 0x80,    // LD HL,0x8000
-                0x06, SECTOR_SIZE,   // LD B,128
-                0xDB, FDC_PORT + 3,  // loop: IN A,(data)
-                0x77,                //       LD (HL),A
-                0x23,                //       INC HL
-                0x10, 0xFA,          //       DJNZ loop
-                0x76);               // HALT
+            0xAF,                // XOR A
+            0xD3, FDC_PORT + 4,  // OUT (system),A  -- drive 0, side 0
+            0x3E, 0x01,          // LD A,1
+            0xD3, FDC_PORT + 3,  // OUT (data),A    -- seek target
+            0x3E, 0x10,          // LD A,0x10 (SEEK)
+            0xD3, FDC_PORT,      // OUT (command),A
+            0x3E, 0x04,          // LD A,4
+            0xD3, FDC_PORT + 2,  // OUT (sector),A
+            0x3E, 0x80,          // LD A,0x80 (READ SECTOR)
+            0xD3, FDC_PORT,      // OUT (command),A
+            0x21, 0x00, 0x80,    // LD HL,0x8000
+            0x06, SECTOR_SIZE,   // LD B,128
+            0xDB, FDC_PORT + 3,  // loop: IN A,(data)
+            0x77,                //       LD (HL),A
+            0x23,                //       INC HL
+            0x10, 0xFA,          //       DJNZ loop
+            0x76);               // HALT
 
         board.getCpu().reset(true, 0x0000);
         board.setRunning(true);
@@ -156,7 +157,7 @@ public final class Z80BoardTests {
     }
 
     @Test
-    public void floppyStepCommandsSeekAndComplete() {
+    public void floppyStepCommandsSeekAndComplete() throws Exception {
         final WD1793 fdc = newFloppy();
 
         fdc.store(0, 0x40 | 0x10, Sizes.SIZE_8_LOG2); // STEP IN with update.
@@ -175,7 +176,7 @@ public final class Z80BoardTests {
     }
 
     @Test
-    public void floppySeekValidatesTarget() {
+    public void floppySeekValidatesTarget() throws Exception {
         final WD1793 fdc = newFloppy();
 
         fdc.store(3, TRACKS, Sizes.SIZE_8_LOG2); // Data register holds the (invalid) target.
@@ -186,7 +187,7 @@ public final class Z80BoardTests {
     }
 
     @Test
-    public void floppyForceInterruptWhenIdleReportsTrackZero() {
+    public void floppyForceInterruptWhenIdleReportsTrackZero() throws Exception {
         final WD1793 fdc = newFloppy();
 
         fdc.store(0, 0xD8, Sizes.SIZE_8_LOG2); // FORCE INTERRUPT with immediate IRQ, idle.
@@ -261,16 +262,16 @@ public final class Z80BoardTests {
     public void bootRomShadowsRamAtReset() throws MemoryAccessException {
         final FlashMemoryDevice rom = new FlashMemoryDevice(ROM_SIZE);
         loadRom(rom, 0x0000,
-                0x3E, 0xA5,          // LD A,0xA5
-                0x32, 0x00, 0x80,    // LD (0x8000),A
-                0x76);               // HALT
+            0x3E, 0xA5,          // LD A,0xA5
+            0x32, 0x00, 0x80,    // LD (0x8000),A
+            0x76);               // HALT
         board.setBootRom(rom);
 
         // The same addresses in RAM hold a program writing a different marker; it must not run.
         load(0x0000,
-                0x3E, 0x5A,          // LD A,0x5A
-                0x32, 0x00, 0x80,    // LD (0x8000),A
-                0x76);               // HALT
+            0x3E, 0x5A,          // LD A,0x5A
+            0x32, 0x00, 0x80,    // LD (0x8000),A
+            0x76);               // HALT
 
         run(0x0000);
 
@@ -281,7 +282,7 @@ public final class Z80BoardTests {
     public void clearingLatchUnmapsBootRom() throws MemoryAccessException {
         final FlashMemoryDevice rom = new FlashMemoryDevice(ROM_SIZE);
         loadRom(rom, 0x0000,
-                0xC3, 0x00, 0x80);   // JP 0x8000
+            0xC3, 0x00, 0x80);   // JP 0x8000
         board.setBootRom(rom);
         assertTrue(board.addPortDevice(LATCH_PORT, new BootRomLatch(board)));
 
@@ -289,13 +290,13 @@ public final class Z80BoardTests {
 
         // Runs above the ROM, so clearing the latch does not pull the code out from under it.
         load(0x8000,
-                0x3A, 0x00, 0x00,    // LD A,(0x0000)   -- boot ROM
-                0x32, 0x00, 0x81,    // LD (0x8100),A
-                0xAF,                // XOR A
-                0xD3, LATCH_PORT,    // OUT (LATCH),A   -- unmap
-                0x3A, 0x00, 0x00,    // LD A,(0x0000)   -- RAM
-                0x32, 0x01, 0x81,    // LD (0x8101),A
-                0x76);               // HALT
+            0x3A, 0x00, 0x00,    // LD A,(0x0000)   -- boot ROM
+            0x32, 0x00, 0x81,    // LD (0x8100),A
+            0xAF,                // XOR A
+            0xD3, LATCH_PORT,    // OUT (LATCH),A   -- unmap
+            0x3A, 0x00, 0x00,    // LD A,(0x0000)   -- RAM
+            0x32, 0x01, 0x81,    // LD (0x8101),A
+            0x76);               // HALT
 
         run(0x0000);
 
@@ -368,7 +369,7 @@ public final class Z80BoardTests {
         }
     }
 
-    private static WD1793 newFloppy() {
+    private static WD1793 newFloppy() throws IOException {
         final WD1793 fdc = new WD1793();
         fdc.setDisk(ByteBufferBlockDevice.create(SIDES * TRACKS * SECTORS * SECTOR_SIZE, false), SIDES, TRACKS, SECTORS, SECTOR_SIZE);
         return fdc;

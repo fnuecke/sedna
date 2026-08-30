@@ -10,6 +10,8 @@ import li.cil.sedna.api.device.MemoryMappedDevice;
  * @see Z80Board#setBootRom(MemoryMappedDevice)
  */
 public final class BootRomLatch implements MemoryMappedDevice {
+    public static final int LENGTH = 1;
+
     private final Z80Board board;
 
     public BootRomLatch(final Z80Board board) {
@@ -18,7 +20,7 @@ public final class BootRomLatch implements MemoryMappedDevice {
 
     @Override
     public int getLength() {
-        return 1;
+        return LENGTH;
     }
 
     @Override

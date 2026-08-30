@@ -2,6 +2,7 @@ package li.cil.sedna.riscv;
 
 import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Board;
+import li.cil.sedna.api.DeviceBus;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.*;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
@@ -32,6 +33,7 @@ import java.util.OptionalLong;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class R5Board implements Board {
+    private final transient DeviceBus deviceBus = new MemoryBus();
     private static final long SYSCON_ADDRESS = 0x01000000L;
     private static final long CLINT_ADDRESS = 0x02000000L;
     private static final long PLIC_ADDRESS = 0x0C000000L;
@@ -105,16 +107,24 @@ public final class R5Board implements Board {
     }
 
     @Override
+    public DeviceBus getDeviceBus() {
+        return deviceBus;
+    }
+
+    @Override
     public InterruptController getInterruptController() {
         return plic;
     }
 
     @Override
+    public int getInterruptCount() {
+        return R5PlatformLevelInterruptController.INTERRUPT_COUNT;
+    }
+
     public MemoryRangeAllocationStrategy getAllocationStrategy() {
         return allocationStrategy;
     }
 
-    @Override
     public boolean addDevice(final long address, final MemoryMappedDevice device) {
         if (device.getLength() == 0) {
             return false;
@@ -149,7 +159,6 @@ public final class R5Board implements Board {
         return true;
     }
 
-    @Override
     public OptionalLong addDevice(final MemoryMappedDevice device) {
         final OptionalLong address = allocationStrategy.findMemoryRange(device, MemoryRangeAllocationStrategy.getMemoryMapIntersectionProvider(memoryMap));
         if (address.isPresent() && addDevice(address.getAsLong(), device)) {
@@ -159,7 +168,6 @@ public final class R5Board implements Board {
         return OptionalLong.empty();
     }
 
-    @Override
     public void removeDevice(final MemoryMappedDevice device) {
         memoryMap.removeDevice(device);
         devices.remove(device);
@@ -175,17 +183,10 @@ public final class R5Board implements Board {
         cpu.invalidateCaches();
     }
 
-    @Override
-    public int getInterruptCount() {
-        return R5PlatformLevelInterruptController.INTERRUPT_COUNT;
-    }
-
-    @Override
     public long getDefaultProgramStart() {
         return R5MemoryRangeAllocationStrategy.PHYSICAL_MEMORY_FIRST;
     }
 
-    @Override
     public void setBootArguments(final String value) {
         if (value != null && value.length() > 64) {
             throw new IllegalArgumentException();
@@ -193,7 +194,6 @@ public final class R5Board implements Board {
         this.bootargs = value;
     }
 
-    @Override
     public void setStandardOutputDevice(@Nullable final MemoryMappedDevice device) {
         if (device != null && !devices.contains(device)) {
             throw new IllegalArgumentException();
@@ -383,5 +383,32 @@ public final class R5Board implements Board {
             }
         }
         return isa.toString();
+    }
+
+    private final class MemoryBus implements DeviceBus {
+        @Override
+        public MemoryMap getMemoryMap() {
+            return R5Board.this.getMemoryMap();
+        }
+
+        @Override
+        public MemoryRangeAllocationStrategy getAllocationStrategy() {
+            return R5Board.this.getAllocationStrategy();
+        }
+
+        @Override
+        public boolean addDevice(final long address, final MemoryMappedDevice device) {
+            return R5Board.this.addDevice(address, device);
+        }
+
+        @Override
+        public OptionalLong addDevice(final MemoryMappedDevice device) {
+            return R5Board.this.addDevice(device);
+        }
+
+        @Override
+        public void removeDevice(final MemoryMappedDevice device) {
+            R5Board.this.removeDevice(device);
+        }
     }
 }

@@ -12,4 +12,9 @@ import java.io.IOException;
  * invalid access.
  */
 public final class MemoryAccessException extends IOException {
+    @Override
+    public synchronized Throwable fillInStackTrace() {
+        // Keep it cheap, happens frequently when guest is testing the port bus on z80.
+        return this;
+    }
 }

@@ -1,40 +1,45 @@
 package li.cil.sedna.z80;
 
 import li.cil.ceres.api.Serialized;
+import li.cil.sedna.api.Board;
+import li.cil.sedna.api.DeviceBus;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.Resettable;
 import li.cil.sedna.api.device.Steppable;
-import li.cil.sedna.api.memory.MappedMemoryRange;
-import li.cil.sedna.api.memory.MemoryAccessException;
-import li.cil.sedna.api.memory.MemoryMap;
-import li.cil.sedna.api.memory.MemoryRange;
+import li.cil.sedna.api.memory.*;
+import li.cil.sedna.device.DeviceWindow;
+import li.cil.sedna.device.bus.DevicePortRegistry;
 import li.cil.sedna.memory.SimpleMemoryMap;
 
 import javax.annotation.Nullable;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 @Serialized
-public final class Z80Board implements Steppable, Resettable {
-    private static final int ADDRESS_SPACE_SIZE = 0x10000;
+public final class Z80Board implements Board {
+    static final int ADDRESS_SPACE_SIZE = 0x10000;
     private static final int PORT_SPACE_SIZE = 0x100;
+    private static final int INTERRUPT_COUNT = 32;
 
     /**
      * Port {@code FF} is never handed out: a device enumerator reports it as "not port-mapped", so
      * a device sitting there would be indistinguishable from an absent one.
      */
-    private static final int RESERVED_PORT = 0xFF;
+    static final int RESERVED_PORT = 0xFF;
 
     // ------------------------------------------------------------- //
 
+    private final transient MemoryRangeAllocationStrategy allocationStrategy = new Z80MemoryRangeAllocationStrategy();
+    private final transient MemoryRangeAllocationStrategy portAllocationStrategy = new Z80PortAllocationStrategy();
+
+    private final transient DeviceBus deviceBus = new MemoryBus();
+    private final transient DeviceBus portBus = new PortBus();
     private final transient ShadowingMemoryMap memoryMap = new ShadowingMemoryMap();
     private final transient MemoryMap portMap = new EightBitPortMap();
     private final transient List<MemoryMappedDevice> devices = new CopyOnWriteArrayList<>();
-    private final transient List<Resettable> resettableDevices = new CopyOnWriteArrayList<>();
     private final transient List<Steppable> steppableDevices = new CopyOnWriteArrayList<>();
+    private final transient List<Resettable> resettableDevices = new CopyOnWriteArrayList<>();
 
     private final Z80CPU cpu;
     private final Z80InterruptController interruptController;
@@ -51,24 +56,100 @@ public final class Z80Board implements Steppable, Resettable {
 
     // ------------------------------------------------------------- //
 
+    public boolean isRunning() {
+        return isRunning;
+    }
+
+    public void setRunning(final boolean value) {
+        isRunning = value;
+    }
+
+    public boolean isHalted() {
+        final Z80CPUBase cpu = (Z80CPUBase) this.cpu;
+        return cpu.isHalted() && !cpu.iff1 && !cpu.nmiRequested;
+    }
+
     public Z80CPU getCpu() {
         return cpu;
     }
 
+    @Override
     public MemoryMap getMemoryMap() {
         return memoryMap;
+    }
+
+    @Override
+    public DeviceBus getDeviceBus() {
+        return deviceBus;
+    }
+
+    @Override
+    public Z80InterruptController getInterruptController() {
+        return interruptController;
+    }
+
+    @Override
+    public int getInterruptCount() {
+        return INTERRUPT_COUNT;
+    }
+
+    public MemoryRangeAllocationStrategy getAllocationStrategy() {
+        return allocationStrategy;
     }
 
     public MemoryMap getPortMap() {
         return portMap;
     }
 
-    public Z80InterruptController getInterruptController() {
-        return interruptController;
+    public DeviceBus getPortBus() {
+        return portBus;
     }
 
     public List<MemoryMappedDevice> getDevices() {
         return Collections.unmodifiableList(devices);
+    }
+
+    public boolean addDevice(final long address, final MemoryMappedDevice device) {
+        return addDevice(memoryMap, address, device);
+    }
+
+    public OptionalLong addDevice(final MemoryMappedDevice device) {
+        final OptionalLong address = allocationStrategy.findMemoryRange(device,
+            MemoryRangeAllocationStrategy.getMemoryMapIntersectionProvider(memoryMap));
+        if (address.isEmpty() || !addDevice(address.getAsLong(), device)) {
+            return OptionalLong.empty();
+        }
+        return address;
+    }
+
+    public boolean addPortDevice(final int port, final MemoryMappedDevice device) {
+        if (port + portWidth(device) > RESERVED_PORT || devices.contains(mappedForm(device))) {
+            return false;
+        }
+        return addDevice(portMap, port, window(device));
+    }
+
+    public OptionalInt addPortDevice(final MemoryMappedDevice device) {
+        final OptionalLong port = portAllocationStrategy.findMemoryRange(device,
+            MemoryRangeAllocationStrategy.getMemoryMapIntersectionProvider(portMap));
+        if (port.isEmpty() || !addPortDevice((int) port.getAsLong(), device)) {
+            return OptionalInt.empty();
+        }
+        return OptionalInt.of((int) port.getAsLong());
+    }
+
+    public void removeDevice(final MemoryMappedDevice device) {
+        final MemoryMappedDevice mapped = mappedForm(device);
+        memoryMap.removeDevice(mapped);
+        portMap.removeDevice(mapped);
+        devices.remove(mapped);
+        if (mapped instanceof final Resettable resettable) {
+            resettableDevices.remove(resettable);
+        }
+        if (mapped instanceof final Steppable steppable) {
+            steppableDevices.remove(steppable);
+        }
+        cpu.invalidateCaches();
     }
 
     public void setBootRom(@Nullable final MemoryMappedDevice rom) {
@@ -92,43 +173,6 @@ public final class Z80Board implements Steppable, Resettable {
 
         isBootRomMapped = value;
         cpu.invalidateCaches();
-    }
-
-    public boolean addDevice(final int address, final MemoryMappedDevice device) {
-        return addDevice(memoryMap, address, device);
-    }
-
-    public boolean addPortDevice(final int port, final MemoryMappedDevice device) {
-        if (port + device.getLength() > RESERVED_PORT) {
-            return false;
-        }
-        return addDevice(portMap, port, device);
-    }
-
-    public void removeDevice(final MemoryMappedDevice device) {
-        memoryMap.removeDevice(device);
-        portMap.removeDevice(device);
-        devices.remove(device);
-        if (device instanceof final Resettable resettable) {
-            resettableDevices.remove(resettable);
-        }
-        if (device instanceof final Steppable steppable) {
-            steppableDevices.remove(steppable);
-        }
-        cpu.invalidateCaches();
-    }
-
-    public boolean isRunning() {
-        return isRunning;
-    }
-
-    public void setRunning(final boolean value) {
-        isRunning = value;
-    }
-
-    public boolean isHalted() {
-        final Z80CPUBase cpu = (Z80CPUBase) this.cpu;
-        return cpu.isHalted() && !cpu.iff1 && !cpu.nmiRequested;
     }
 
     @Override
@@ -155,8 +199,18 @@ public final class Z80Board implements Steppable, Resettable {
 
     // ------------------------------------------------------------- //
 
-    private boolean addDevice(final MemoryMap map, final int address, final MemoryMappedDevice device) {
-        if (device.getLength() == 0 || address < 0 || address + device.getLength() > ADDRESS_SPACE_SIZE) {
+    private static MemoryMappedDevice window(final MemoryMappedDevice device) {
+        final int width = portWidth(device);
+        return width == device.getLength() ? device : new DeviceWindow(device, width);
+    }
+
+    private static int portWidth(final MemoryMappedDevice device) {
+        return DevicePortRegistry.getWidth(device).orElseGet(device::getLength);
+    }
+
+    private boolean addDevice(final MemoryMap map, final long address, final MemoryMappedDevice device) {
+        final int length = Z80MemoryRangeAllocationStrategy.visibleLength(device);
+        if (length == 0 || address < 0 || address + length > ADDRESS_SPACE_SIZE) {
             return false;
         }
 
@@ -179,6 +233,70 @@ public final class Z80Board implements Steppable, Resettable {
         cpu.invalidateCaches();
 
         return true;
+    }
+
+    private MemoryMappedDevice mappedForm(final MemoryMappedDevice device) {
+        for (final MemoryMappedDevice candidate : devices) {
+            if (candidate instanceof final DeviceWindow window && window.getDevice() == device) {
+                return window;
+            }
+        }
+        return device;
+    }
+
+    private final class MemoryBus implements DeviceBus {
+        @Override
+        public MemoryMap getMemoryMap() {
+            return Z80Board.this.getMemoryMap();
+        }
+
+        @Override
+        public MemoryRangeAllocationStrategy getAllocationStrategy() {
+            return Z80Board.this.getAllocationStrategy();
+        }
+
+        @Override
+        public boolean addDevice(final long address, final MemoryMappedDevice device) {
+            return Z80Board.this.addDevice(address, device);
+        }
+
+        @Override
+        public OptionalLong addDevice(final MemoryMappedDevice device) {
+            return Z80Board.this.addDevice(device);
+        }
+
+        @Override
+        public void removeDevice(final MemoryMappedDevice device) {
+            Z80Board.this.removeDevice(device);
+        }
+    }
+
+    private final class PortBus implements DeviceBus {
+        @Override
+        public MemoryMap getMemoryMap() {
+            return portMap;
+        }
+
+        @Override
+        public MemoryRangeAllocationStrategy getAllocationStrategy() {
+            return portAllocationStrategy;
+        }
+
+        @Override
+        public boolean addDevice(final long address, final MemoryMappedDevice device) {
+            return addPortDevice((int) address, device);
+        }
+
+        @Override
+        public OptionalLong addDevice(final MemoryMappedDevice device) {
+            final OptionalInt port = addPortDevice(device);
+            return port.isPresent() ? OptionalLong.of(port.getAsInt()) : OptionalLong.empty();
+        }
+
+        @Override
+        public void removeDevice(final MemoryMappedDevice device) {
+            Z80Board.this.removeDevice(device);
+        }
     }
 
     private final class ShadowingMemoryMap implements MemoryMap {
@@ -221,14 +339,6 @@ public final class Z80Board implements Steppable, Resettable {
             return map.getMemoryRange(range);
         }
 
-        /**
-         * While the ROM is mapped, every address resolves to a single range covering the whole
-         * address space. The CPU caches one range for loads and stores alike, so handing out the
-         * range of a device that spans the shadowed region (64 KiB of RAM, typically) would
-         * let a later access below the ROM hit that cached range and see straight through the
-         * shadow. Steady state is unaffected: once the latch is cleared, ranges are the plain
-         * device ranges again.
-         */
         @Nullable
         @Override
         public MappedMemoryRange getMemoryRange(final long address) {
@@ -300,11 +410,7 @@ public final class Z80Board implements Steppable, Resettable {
         }
     }
 
-    /**
-     * Decodes only the low 8 bits of the port address on lookups; devices are mapped at their
-     * 8-bit port number.
-     */
-    private static final class EightBitPortMap implements MemoryMap {
+    private final class EightBitPortMap implements MemoryMap {
         private final SimpleMemoryMap map = new SimpleMemoryMap();
 
         @Override
@@ -319,7 +425,7 @@ public final class Z80Board implements Steppable, Resettable {
 
         @Override
         public Optional<MappedMemoryRange> getMemoryRange(final MemoryMappedDevice device) {
-            return map.getMemoryRange(device);
+            return map.getMemoryRange(mappedForm(device));
         }
 
         @Override

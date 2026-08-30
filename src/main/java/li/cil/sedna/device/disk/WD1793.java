@@ -73,6 +73,7 @@ public final class WD1793 implements MemoryMappedDevice, Resettable {
 
     private static final int LOST_DATA_TIMEOUT = 255;
 
+    public static final int LENGTH = 5;
     public static final int MAX_UNITS = 4;
 
     private int status, track, sector, data, system;
@@ -107,25 +108,55 @@ public final class WD1793 implements MemoryMappedDevice, Resettable {
         return disks[unit] != null;
     }
 
-    public void setDisk(final int unit, final BlockDevice disk, final int sides, final int tracks, final int sectorsPerTrack, final int sectorSize) {
+    public void setDisk(final int unit, final BlockDevice disk, final int sides, final int tracks, final int sectorsPerTrack, final int sectorSize) throws IOException {
         requireUnit(unit);
+        final BlockDevice oldBlock = disks[unit];
+
         disks[unit] = disk;
         unitSides[unit] = sides;
         unitTracks[unit] = tracks;
         unitSectorsPerTrack[unit] = sectorsPerTrack;
         unitSectorSize[unit] = sectorSize;
+
+        // Abort active transfer to avoid it bleeding into the new disk.
+        if (unit == drive && isBusy()) {
+            abortTransfer(S_LOST_DATA);
+        }
+
+        if (oldBlock != null) {
+            oldBlock.close();
+        }
     }
 
-    public void setDisk(final BlockDevice disk, final int sides, final int tracks, final int sectorsPerTrack, final int sectorSize) {
+    public void setDisk(final BlockDevice disk, final int sides, final int tracks, final int sectorsPerTrack, final int sectorSize) throws IOException {
         setDisk(0, disk, sides, tracks, sectorsPerTrack, sectorSize);
     }
 
-    public void removeDisk(final int unit) {
+    /**
+     * Removes the backing block device and closes the previous one.
+     * <p>
+     * <em>Important:</em> a machine this is attached to must not be running when this is being
+     * called, e.g. if the CPU is being run on a worker thread. Calling this will close the
+     * previously assigned block device, which might otherwise be read from the worker, which
+     * could cause out of bounds reads. In the worst case a JVM crash.
+     */
+    public void removeDisk(final int unit) throws IOException {
         requireUnit(unit);
+        final BlockDevice oldBlock = disks[unit];
+
         disks[unit] = null;
+
+        // Abort active transfer to avoid it bleeding into a new disk.
+        if (unit == drive && isBusy()) {
+            abortTransfer(S_LOST_DATA);
+        }
+
+        if (oldBlock != null) {
+            oldBlock.close();
+        }
     }
 
-    public void removeDisk() {
+    public void removeDisk() throws IOException {
         removeDisk(0);
     }
 
@@ -146,7 +177,7 @@ public final class WD1793 implements MemoryMappedDevice, Resettable {
 
     @Override
     public int getLength() {
-        return 5;
+        return LENGTH;
     }
 
     @Override

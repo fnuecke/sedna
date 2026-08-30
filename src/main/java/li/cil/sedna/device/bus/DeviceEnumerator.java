@@ -8,13 +8,13 @@ import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.bus.DeviceClass;
 import li.cil.sedna.api.device.bus.DeviceDescription;
 import li.cil.sedna.api.device.bus.InterruptVectorMap;
+import li.cil.sedna.api.memory.MappedMemoryRange;
 import li.cil.sedna.api.memory.MemoryMap;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Device discovery mechanism when a {@link li.cil.sedna.api.devicetree.DeviceTree} isn't an option.
@@ -46,6 +46,7 @@ public final class DeviceEnumerator implements MemoryMappedDevice {
     private final transient MemoryMap portMap;
     private final transient Collection<MemoryMappedDevice> devices;
     private final transient InterruptVectorMap vectors;
+    private transient List<Entry> entries;
 
     private int selected;
     private int nameIndex;
@@ -70,20 +71,24 @@ public final class DeviceEnumerator implements MemoryMappedDevice {
 
     @Override
     public long load(final int offset, final int sizeLog2) {
+        final Entry entry = selectedEntry();
         return switch (offset) {
             case REG_VERSION -> VERSION;
             case REG_SELECT -> selected;
-            case REG_COUNT -> Math.min(entries().size(), MAX_DEVICES);
-            case REG_CLASS -> describe().map(d -> d.deviceClass().value()).orElse(DeviceClass.UNKNOWN.value());
-            case REG_ATTRIBUTES -> describe().map(DeviceDescription::attributes).orElse(0);
-            case REG_PORT -> port();
-            case REG_INTERRUPT -> interrupt();
+            case REG_COUNT -> {
+                entries = null;
+                yield Math.min(entries().size(), MAX_DEVICES);
+            }
+            case REG_CLASS -> entry == null ? DeviceClass.UNKNOWN.value() : entry.deviceClass;
+            case REG_ATTRIBUTES -> entry == null ? 0 : entry.attributes;
+            case REG_PORT -> entry == null ? NONE : entry.port;
+            case REG_INTERRUPT -> entry == null ? InterruptVectorMap.NO_VECTOR : entry.vector;
             case REG_NAME -> {
-                final String name = describe().map(DeviceDescription::name).orElse("");
+                final String name = entry == null ? "" : entry.name;
                 yield nameIndex < name.length() ? name.charAt(nameIndex++) & 0xFF : 0;
             }
             case REG_ID -> {
-                final String id = describe().map(DeviceDescription::id).orElse("");
+                final String id = entry == null ? "" : entry.id;
                 yield idIndex < id.length() ? id.charAt(idIndex++) & 0xFF : 0;
             }
             default -> 0;
@@ -97,6 +102,7 @@ public final class DeviceEnumerator implements MemoryMappedDevice {
                 selected = (int) (value & 0xFF);
                 nameIndex = 0;
                 idIndex = 0;
+                entries = null;
             }
             case REG_NAME -> nameIndex = 0;
             case REG_ID -> idIndex = 0;
@@ -105,56 +111,58 @@ public final class DeviceEnumerator implements MemoryMappedDevice {
         }
     }
 
-    private record Entry(MemoryMappedDevice device, DeviceDescription description) {
+    private record Entry(int deviceClass, int attributes, String name, String id, int port, int vector) {
     }
 
     private List<Entry> entries() {
-        final List<Entry> entries = new ArrayList<>();
-        for (final DeviceDescription description : DeviceDescriptionRegistry.getDescriptions(this)) {
-            entries.add(new Entry(this, description));
+        List<Entry> result = entries;
+        if (result == null) {
+            result = entries = resolve();
         }
+        return result;
+    }
+
+    private List<Entry> resolve() {
+        final List<Entry> result = new ArrayList<>();
+        add(result, this, port(this));
         for (final MemoryMappedDevice device : devices) {
-            if (device == this || portMap.getMemoryRange(device).isEmpty()) {
+            if (device == this) {
                 continue;
             }
-            for (final DeviceDescription description : DeviceDescriptionRegistry.getDescriptions(device)) {
-                entries.add(new Entry(device, description));
+            final MappedMemoryRange range = portMap.getMemoryRange(device).orElse(null);
+            if (range != null) {
+                add(result, device, (int) (range.start & 0xFF));
             }
         }
-        return entries;
+        return result;
+    }
+
+    private void add(final List<Entry> result, final MemoryMappedDevice device, final int port) {
+        final int vector = vector(device);
+        for (final DeviceDescription description : DeviceDescriptionRegistry.getDescriptions(device)) {
+            result.add(new Entry(description.deviceClass().value(), description.attributes(),
+                description.name(), description.id(), port, vector));
+        }
+    }
+
+    private int port(final MemoryMappedDevice device) {
+        return portMap.getMemoryRange(device).map(range -> (int) (range.start & 0xFF)).orElse(NONE);
+    }
+
+    private int vector(final MemoryMappedDevice device) {
+        if (device instanceof final InterruptSource source) {
+            for (final Interrupt interrupt : source.getInterrupts()) {
+                if (interrupt.controller != null) {
+                    return vectors.getVector(interrupt.id);
+                }
+            }
+        }
+        return InterruptVectorMap.NO_VECTOR;
     }
 
     @Nullable
     private Entry selectedEntry() {
         final List<Entry> entries = entries();
         return selected >= 0 && selected < entries.size() ? entries.get(selected) : null;
-    }
-
-    private Optional<DeviceDescription> describe() {
-        final Entry entry = selectedEntry();
-        return entry == null ? Optional.empty() : Optional.of(entry.description());
-    }
-
-    private int interrupt() {
-        final Entry entry = selectedEntry();
-        if (entry == null || !(entry.device() instanceof final InterruptSource source)) {
-            return InterruptVectorMap.NO_VECTOR;
-        }
-        for (final Interrupt interrupt : source.getInterrupts()) {
-            if (interrupt.controller != null) {
-                return vectors.getVector(interrupt.id);
-            }
-        }
-        return InterruptVectorMap.NO_VECTOR;
-    }
-
-    private int port() {
-        final Entry entry = selectedEntry();
-        if (entry == null) {
-            return NONE;
-        }
-        return portMap.getMemoryRange(entry.device())
-            .map(range -> (int) (range.start & 0xFF))
-            .orElse(NONE);
     }
 }

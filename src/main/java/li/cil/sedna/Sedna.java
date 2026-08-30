@@ -13,6 +13,7 @@ import li.cil.sedna.device.DeviceWindow;
 import li.cil.sedna.device.block.SparseBlockDevice;
 import li.cil.sedna.device.bus.DeviceDescriptionRegistry;
 import li.cil.sedna.device.bus.DeviceEnumerator;
+import li.cil.sedna.device.bus.DevicePortRegistry;
 import li.cil.sedna.device.bus.provider.WD1793DescriptionProvider;
 import li.cil.sedna.device.disk.WD1793;
 import li.cil.sedna.device.flash.FlashMemoryDevice;
@@ -67,6 +68,11 @@ public final class Sedna {
             DeviceDescriptionProvider.of(new DeviceDescription(DeviceClass.BOOT_ROM, "BOOTRM")));
         DeviceDescriptionRegistry.putProvider(DeviceWindow.class,
             device -> DeviceDescriptionRegistry.getDescriptions(((DeviceWindow) device).getDevice()));
+
+        DevicePortRegistry.putWidth(DeviceEnumerator.class, DeviceEnumerator.LENGTH);
+        DevicePortRegistry.putWidth(UART16550A.class, 8);
+        DevicePortRegistry.putWidth(WD1793.class, WD1793.LENGTH);
+        DevicePortRegistry.putWidth(BootRomLatch.class, BootRomLatch.LENGTH);
 
         DeviceTreeRegistry.putProvider(FlashMemoryDevice.class, new FlashMemoryProvider());
         DeviceTreeRegistry.putProvider(GoldfishRTC.class, new GoldfishRTCProvider());

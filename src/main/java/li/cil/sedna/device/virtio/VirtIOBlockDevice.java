@@ -97,7 +97,7 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     private static final int MAX_SEGMENT_COUNT = 16;
 
     private static final ThreadLocal<ByteBuffer> REQUEST_HEADER_BUFFER = ThreadLocal.withInitial(() ->
-            ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN));
+        ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN));
     private static final ThreadLocal<byte[]> COPY_BUFFER = ThreadLocal.withInitial(() -> new byte[MAX_SEGMENT_SIZE * MAX_SEGMENT_COUNT]);
 
     private BlockDevice block;
@@ -121,14 +121,14 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
 
     public VirtIOBlockDevice(final MemoryMap memoryMap, final BlockDevice block, final int queueSizeMax) {
         super(memoryMap, VirtIODeviceSpec.builder(VirtIODeviceType.VIRTIO_DEVICE_ID_BLOCK_DEVICE)
-                .configSpaceSize(56)
-                .queueCount(1)
-                .queueSizeMax(queueSizeMax)
-                .features((block.isReadonly() ? VIRTIO_BLK_F_RO : 0) |
-                        VIRTIO_BLK_F_SIZE_MAX |
-                        VIRTIO_BLK_F_SEG_MAX |
-                        VIRTIO_BLK_F_FLUSH)
-                .build());
+            .configSpaceSize(56)
+            .queueCount(1)
+            .queueSizeMax(queueSizeMax)
+            .features((block.isReadonly() ? VIRTIO_BLK_F_RO : 0) |
+                VIRTIO_BLK_F_SIZE_MAX |
+                VIRTIO_BLK_F_SEG_MAX |
+                VIRTIO_BLK_F_FLUSH)
+            .build());
         this.block = block;
     }
 
@@ -139,6 +139,14 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
         maxBytesPerThousandCycles = value;
     }
 
+    /**
+     * Replaces the backing block device and closes the previous one.
+     * <p>
+     * <em>Important:</em> a machine this is attached to must not be running when this is being
+     * called, e.g. if the CPU is being run on a worker thread. Calling this will close the
+     * previously assigned block device, which might otherwise be read from the worker, which
+     * could cause out of bounds reads. In the worst case a JVM crash.
+     */
     public void setBlock(final BlockDevice block) throws IOException {
         final BlockDevice oldBlock = this.block;
         this.block = block;
