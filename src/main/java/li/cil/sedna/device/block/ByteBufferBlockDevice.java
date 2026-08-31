@@ -67,8 +67,7 @@ public class ByteBufferBlockDevice implements BlockDevice {
             throw new IllegalArgumentException();
         }
 
-        data.position((int) offset);
-        return new ByteBufferInputStream(data);
+        return new ByteBufferInputStream(data.duplicate().position((int) offset));
     }
 
     @Override
@@ -81,8 +80,7 @@ public class ByteBufferBlockDevice implements BlockDevice {
             throw new IllegalArgumentException();
         }
 
-        data.position((int) offset);
-        return new ByteBufferOutputStream(data);
+        return new ByteBufferOutputStream(data.duplicate().position((int) offset));
     }
 
     private static final class FileByteBufferBlockDevice extends ByteBufferBlockDevice {
