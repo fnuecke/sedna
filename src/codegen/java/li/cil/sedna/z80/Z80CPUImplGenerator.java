@@ -37,6 +37,7 @@ public final class Z80CPUImplGenerator {
         src.blank();
         src.line("package li.cil.sedna.z80;");
         src.blank();
+        src.line("import it.unimi.dsi.fastutil.longs.LongSet;");
         src.line("import li.cil.sedna.api.memory.MemoryMap;");
         src.line("import li.cil.sedna.utils.BitUtils;");
         src.line("import li.cil.sedna.z80.exception.Z80IllegalInstructionException;");
@@ -49,7 +50,7 @@ public final class Z80CPUImplGenerator {
 
         src.blank();
         src.line("@Override");
-        src.line("protected void interpretTrace(final boolean singleStep) {");
+        src.line("protected void interpretTrace(final boolean singleStep, final LongSet breakpoints) {");
         src.indent(() -> {
             src.line("long pc = this.pc & 0xFFFF;");
             src.line("int instOffset = (int) pc;");
@@ -57,6 +58,14 @@ public final class Z80CPUImplGenerator {
             src.indent(() -> {
                 src.line("for (; ; ) {");
                 src.indent(() -> {
+                    src.line("if (breakpoints != null && breakpoints.contains(pc)) {");
+                    src.indent(() -> {
+                        src.line("this.pc = pc;");
+                        src.line("debugInterface.handleBreakpoint(pc);");
+                        src.line("return;");
+                    });
+                    src.line("}");
+                    src.blank();
                     src.line("final int inst = fetch32((int) pc);");
                     src.line("bumpR(inst);");
                     src.blank();

@@ -440,8 +440,8 @@ public final class GDBStubTests {
         }
 
         @Override
-        public long[] getGeneralRegisters() {
-            return registers;
+        public int getGeneralRegisterCount() {
+            return REG_PC + 1;
         }
 
         @Nullable

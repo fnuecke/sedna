@@ -195,10 +195,8 @@ public abstract class R5CPUBase implements R5CPU {
     // ------------------------------------------------------------- //
     // Stepping
     private int cycleDebt; // Traces may lead to us running more cycles than given, remember to pay it back.
-
-    // The current step() call's cycle budget end: a backward jump may continue in-trace only while mcycle
-    // is below this, which ensures guest loops still yield (allowing interrupts e.g.).
     protected transient long cycleLimit;
+    private transient boolean debugStop;
 
     // ------------------------------------------------------------- //
     // Real time counter -- at least in RISC-V Linux 5.1 the mtime CSR is needed in add_device_randomness
@@ -321,6 +319,11 @@ public abstract class R5CPUBase implements R5CPU {
     }
 
     @Override
+    public long[] getGeneralRegisters() {
+        return x;
+    }
+
+    @Override
     public CPUDebugInterface getDebugInterface() {
         return debugInterface;
     }
@@ -349,6 +352,8 @@ public abstract class R5CPUBase implements R5CPU {
     }
 
     public void step(int cycles) {
+        debugStop = false;
+
         final int paidDebt = Math.min(cycles, cycleDebt);
         cycles -= paidDebt;
         cycleDebt -= paidDebt;
@@ -367,6 +372,10 @@ public abstract class R5CPUBase implements R5CPU {
             }
 
             interpret(false, false);
+
+            if (debugStop) {
+                return;
+            }
         }
 
         if (waitingForInterrupt && mcycle < cycleLimit) {
@@ -440,7 +449,7 @@ public abstract class R5CPUBase implements R5CPU {
                 // Chain straight into the next trace (a boot re-enters 2.5M times, a third of them
                 // after fewer than 8 instructions) unless we must yield: single-stepping, wfi to wait
                 // out, cycle budget exhausted, interrupts to raise.
-            } while (!(singleStep || waitingForInterrupt || mcycle >= cycleLimit || (mip.get() & mie) != 0));
+            } while (!(singleStep || waitingForInterrupt || debugStop || mcycle >= cycleLimit || (mip.get() & mie) != 0));
         } catch (final R5MemoryAccessException e) {
             raiseException(e.getType(), e.getAddress());
         }
@@ -1276,7 +1285,8 @@ public abstract class R5CPUBase implements R5CPU {
         if (debugInterface.breakpoints.isEmpty()) {
             fetchTLBBreakpoints[index] = null;
         } else {
-            final var subset = debugInterface.breakpoints.subSet(address, address + (1 << R5.PAGE_ADDRESS_SHIFT));
+            final long pageStart = address & ~R5.PAGE_ADDRESS_MASK;
+            final var subset = debugInterface.breakpoints.subSet(pageStart, pageStart + (1 << R5.PAGE_ADDRESS_SHIFT));
             if (subset.isEmpty()) {
                 fetchTLBBreakpoints[index] = null;
             } else {
@@ -3639,8 +3649,8 @@ public abstract class R5CPUBase implements R5CPU {
         }
 
         @Override
-        public long[] getGeneralRegisters() {
-            return x;
+        public int getGeneralRegisterCount() {
+            return REG_PC + 1;
         }
 
         @Nullable
@@ -3852,6 +3862,7 @@ public abstract class R5CPUBase implements R5CPU {
         }
 
         void handleBreakpoint(final long pc) {
+            debugStop = true;
             for (final LongConsumer listener : breakpointListeners) {
                 listener.accept(pc);
             }

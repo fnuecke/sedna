@@ -5,6 +5,7 @@
 
 package li.cil.sedna.z80;
 
+import it.unimi.dsi.fastutil.longs.LongSet;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.utils.BitUtils;
 import li.cil.sedna.z80.exception.Z80IllegalInstructionException;
@@ -15,11 +16,17 @@ final class Z80CPUImpl extends Z80CPUBase {
     }
 
     @Override
-    protected void interpretTrace(final boolean singleStep) {
+    protected void interpretTrace(final boolean singleStep, final LongSet breakpoints) {
         long pc = this.pc & 0xFFFF;
         int instOffset = (int) pc;
         try {
             for (; ; ) {
+                if (breakpoints != null && breakpoints.contains(pc)) {
+                    this.pc = pc;
+                    debugInterface.handleBreakpoint(pc);
+                    return;
+                }
+
                 final int inst = fetch32((int) pc);
                 bumpR(inst);
 

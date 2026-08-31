@@ -138,7 +138,7 @@ public final class Z80SingleStepTests {
             }
 
             final long cyclesBefore = cpu.cycles;
-            cpu.interpretTrace(true);
+            cpu.interpretTrace(true, null);
             final long cyclesTaken = cpu.cycles - cyclesBefore;
 
             final List<String> caseMismatches = new ArrayList<>();

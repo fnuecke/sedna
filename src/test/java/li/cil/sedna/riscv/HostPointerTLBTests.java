@@ -48,7 +48,7 @@ public final class HostPointerTLBTests {
 
         cpu.step(16);
 
-        assertEquals(42, cpu.getDebugInterface().getGeneralRegisters()[1]);
+        assertEquals(42, cpu.getGeneralRegisters()[1]);
     }
 
     private static long runStoreLoadProgram(final PhysicalMemory ram) throws MemoryAccessException {
@@ -65,7 +65,7 @@ public final class HostPointerTLBTests {
             throw new AssertionError(e);
         }
 
-        final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
+        final long[] registers = cpu.getGeneralRegisters();
         registers[1] = TEST_VALUE;
         registers[2] = dataAddress;
 
@@ -73,7 +73,7 @@ public final class HostPointerTLBTests {
 
         assertEquals(TEST_VALUE, memoryMap.load(dataAddress, Sizes.SIZE_64_LOG2),
                 "store must be visible through the memory map");
-        assertNotEquals(0, cpu.getDebugInterface().getGeneralRegisters()[3]);
-        return cpu.getDebugInterface().getGeneralRegisters()[3];
+        assertNotEquals(0, cpu.getGeneralRegisters()[3]);
+        return cpu.getGeneralRegisters()[3];
     }
 }

@@ -19,14 +19,15 @@ public interface CPUDebugInterface {
     void step();
 
     /**
-     * The integer registers, as a live array: writes to it are writes to the CPU.
+     * The number of registers a debugger expects in a bulk register transfer. These are the registers
+     * with ids {@code 0} to {@code getGeneralRegisterCount() - 1}, in that order.
      */
-    long[] getGeneralRegisters();
+    int getGeneralRegisterCount();
 
     /**
      * Describes the registers reachable via {@link #getRegister} and {@link #setRegister}, in the
      * format a debugger expects, or {@code null} if the CPU cannot describe itself. Debuggers that
-     * get no description are limited to {@link #getGeneralRegisters} and the program counter.
+     * get no description are limited to the registers covered by {@link #getGeneralRegisterCount}.
      * <p>
      * The array may be shared between CPUs, and must not be modified.
      */

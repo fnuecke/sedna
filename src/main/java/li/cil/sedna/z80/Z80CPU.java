@@ -1,5 +1,6 @@
 package li.cil.sedna.z80;
 
+import li.cil.sedna.api.debug.CPUDebugInterface;
 import li.cil.sedna.api.device.Resettable;
 import li.cil.sedna.api.device.Steppable;
 import li.cil.sedna.api.memory.MemoryMap;
@@ -39,4 +40,6 @@ public interface Z80CPU extends Steppable, Resettable {
     void lowerInterrupt();
 
     void raiseNMI();
+
+    CPUDebugInterface getDebugInterface();
 }

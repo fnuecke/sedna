@@ -87,7 +87,7 @@ public final class TLBSerializationTests {
     }
 
     private static long loadThroughAddressSpace(final R5CPU cpu, final long rootTable) {
-        final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
+        final long[] registers = cpu.getGeneralRegisters();
         registers[1] = Vm.satpSv39(rootTable);
         registers[2] = MSTATUS_TRANSLATE_DATA_AS_SUPERVISOR;
         registers[3] = VIRTUAL_ADDRESS;
@@ -102,7 +102,7 @@ public final class TLBSerializationTests {
     }
 
     private static long repeatLoad(final R5CPU cpu) {
-        final long[] registers = cpu.getDebugInterface().getGeneralRegisters();
+        final long[] registers = cpu.getGeneralRegisters();
         registers[3] = VIRTUAL_ADDRESS;
         registers[4] = 0;
 

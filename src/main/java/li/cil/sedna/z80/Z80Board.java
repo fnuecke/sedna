@@ -10,9 +10,11 @@ import li.cil.sedna.api.device.Steppable;
 import li.cil.sedna.api.memory.*;
 import li.cil.sedna.device.DeviceWindow;
 import li.cil.sedna.device.bus.DevicePortRegistry;
+import li.cil.sedna.gdbstub.GDBStub;
 import li.cil.sedna.memory.SimpleMemoryMap;
 
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -40,6 +42,7 @@ public final class Z80Board implements Board {
     private final transient List<MemoryMappedDevice> devices = new CopyOnWriteArrayList<>();
     private final transient List<Steppable> steppableDevices = new CopyOnWriteArrayList<>();
     private final transient List<Resettable> resettableDevices = new CopyOnWriteArrayList<>();
+    private transient GDBStub gdbStub;
 
     private final Z80CPU cpu;
     private final Z80InterruptController interruptController;
@@ -175,10 +178,31 @@ public final class Z80Board implements Board {
         cpu.invalidateCaches();
     }
 
+    public void enableGDB(final int port, final boolean waitForGdb) {
+        GDBStub gdbStub;
+        try {
+            gdbStub = GDBStub.createDefault(cpu.getDebugInterface(), port);
+            if (waitForGdb) {
+                gdbStub.waitForAttach();
+            }
+        } catch (final IOException e) {
+            e.printStackTrace();
+            gdbStub = null;
+        }
+        this.gdbStub = gdbStub;
+    }
+
     @Override
     public void step(final int cycles) {
         if (!isRunning) {
             return;
+        }
+
+        if (gdbStub != null) {
+            gdbStub.poll();
+            if (gdbStub.isHalted()) {
+                return;
+            }
         }
 
         for (final Steppable device : steppableDevices) {

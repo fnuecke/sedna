@@ -57,7 +57,7 @@ public final class Vm {
     }
 
     public long[] registers() {
-        return cpu.getDebugInterface().getGeneralRegisters();
+        return cpu.getGeneralRegisters();
     }
 
     public long programCounter() {

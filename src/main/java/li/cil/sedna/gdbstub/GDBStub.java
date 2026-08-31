@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
@@ -498,23 +497,45 @@ public final class GDBStub {
     }
 
     private void readGeneralRegisters() throws IOException {
+        final int count = cpu.getGeneralRegisterCount();
         try (final var s = new GDBPacketOutputStream(output);
              final var w = new BufferedWriter(new OutputStreamWriter(s, StandardCharsets.US_ASCII))) {
-            for (final long l : cpu.getGeneralRegisters()) {
-                HexUtils.put64(w, l);
+            for (int id = 0; id < count; id++) {
+                HexUtils.putRegister(w, cpu.getRegister(id), cpu.getRegisterSize(id));
             }
-            HexUtils.put64(w, cpu.getProgramCounter());
         }
     }
 
     private void writeGeneralRegisters(final ByteBuffer buf) {
-        final String regs = StandardCharsets.US_ASCII.decode(buf).toString();
-        final ByteBuffer regsRaw = ByteBuffer.wrap(HexFormat.of().parseHex(regs)).order(ByteOrder.LITTLE_ENDIAN);
-        final long[] xr = cpu.getGeneralRegisters();
-        for (int i = 0; i < xr.length; i++) {
-            xr[i] = regsRaw.getLong();
+        final byte[] raw;
+        try {
+            raw = HexFormat.of().parseHex(StandardCharsets.US_ASCII.decode(buf).toString());
+        } catch (final IllegalArgumentException e) { // Covers HexFormat's malformed-input errors.
+            sendPacket("E01");
+            return;
         }
-        cpu.setProgramCounter(regsRaw.getLong());
+
+        final int count = cpu.getGeneralRegisterCount();
+        int expected = 0;
+        for (int id = 0; id < count; id++) {
+            expected += cpu.getRegisterSize(id);
+        }
+        if (raw.length != expected) {
+            sendPacket("E01");
+            return;
+        }
+
+        int offset = 0;
+        for (int id = 0; id < count; id++) {
+            final int size = cpu.getRegisterSize(id);
+            long value = 0;
+            for (int i = 0; i < size; i++) {
+                value |= (raw[offset + i] & 0xFFL) << (i * 8);
+            }
+            cpu.setRegister(id, value);
+            offset += size;
+        }
+
         sendPacket("OK");
     }
 

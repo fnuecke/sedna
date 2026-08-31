@@ -1,7 +1,10 @@
 package li.cil.sedna.z80;
 
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import li.cil.ceres.api.Serialized;
 import li.cil.sedna.api.Sizes;
+import li.cil.sedna.api.debug.CPUDebugInterface;
 import li.cil.sedna.api.memory.MappedMemoryRange;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
@@ -9,6 +12,14 @@ import li.cil.sedna.instruction.InstructionDefinition.*;
 import li.cil.sedna.z80.exception.Z80IllegalInstructionException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import javax.annotation.Nullable;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.function.LongConsumer;
 
 /**
  * Zilog Z80 implementation.
@@ -68,11 +79,14 @@ public abstract class Z80CPUBase implements Z80CPU {
 
     protected long cycles; // T-states executed.
     private int cycleDebt;
+    private transient boolean debugStop;
 
     protected transient long cycleLimit;
     private transient int frequency = 4_000_000;
     private transient MappedMemoryRange cachedRange;
     private transient boolean im0WarningLogged;
+
+    protected final transient DebugInterface debugInterface = new DebugInterface();
 
     private final transient MemoryMap memoryMap;
     private final transient MemoryMap ioMap;
@@ -147,6 +161,11 @@ public abstract class Z80CPUBase implements Z80CPU {
     }
 
     @Override
+    public CPUDebugInterface getDebugInterface() {
+        return debugInterface;
+    }
+
+    @Override
     public void raiseInterrupt(final int data) {
         irqData = data & 0xFF;
         irqRequested = true;
@@ -164,6 +183,8 @@ public abstract class Z80CPUBase implements Z80CPU {
 
     @Override
     public void step(int cycles) {
+        debugStop = false;
+
         final int paidDebt = Math.min(cycles, cycleDebt);
         cycles -= paidDebt;
         cycleDebt -= paidDebt;
@@ -186,14 +207,20 @@ public abstract class Z80CPUBase implements Z80CPU {
 
             final boolean singleStep = eiDelay;
             eiDelay = false;
-            interpretTrace(singleStep);
+            interpretTrace(singleStep, debugInterface.breakpoints.isEmpty() ? null : debugInterface.breakpoints);
+
+            if (debugStop) {
+                eiDelay |= singleStep;
+                pc &= 0xFFFF;
+                return;
+            }
         }
 
         pc &= 0xFFFF;
         cycleDebt += (int) (this.cycles - limit);
     }
 
-    protected abstract void interpretTrace(final boolean singleStep);
+    protected abstract void interpretTrace(final boolean singleStep, final LongSet breakpoints);
 
     protected static Z80IllegalInstructionException illegalInstruction() {
         return new Z80IllegalInstructionException();
@@ -1596,5 +1623,202 @@ public abstract class Z80CPUBase implements Z80CPU {
             r[reg] = result;
         }
         cycles += 23;
+    }
+
+    // ------------------------------------------------------------- //
+    // Debugging
+
+    private static final int REG_AF = 0;
+    private static final int REG_BC = 1;
+    private static final int REG_DE = 2;
+    private static final int REG_HL = 3;
+    private static final int REG_SP = 4;
+    private static final int REG_PC = 5;
+    private static final int REG_IX = 6;
+    private static final int REG_IY = 7;
+    private static final int REG_AF2 = 8;
+    private static final int REG_BC2 = 9;
+    private static final int REG_DE2 = 10;
+    private static final int REG_HL2 = 11;
+    private static final int REG_IR = 12;
+    private static final int REG_IM = 13;
+    private static final int REG_IFF1 = 14;
+    private static final int REG_IFF2 = 15;
+
+    private static final class TargetDescription {
+        private static final String RESOURCE_PATH = "/gdb/target-z80.xml";
+
+        @Nullable
+        static final byte[] VALUE = load();
+
+        @Nullable
+        private static byte[] load() {
+            try (final InputStream stream = Z80CPUBase.class.getResourceAsStream(RESOURCE_PATH)) {
+                return stream != null ? stream.readAllBytes() : null;
+            } catch (final IOException e) {
+                LOGGER.warn("Failed loading GDB target description", e);
+                return null; // Debugger has to fall back to the general registers.
+            }
+        }
+    }
+
+    final class DebugInterface implements CPUDebugInterface {
+        private final Collection<LongConsumer> breakpointListeners = new ArrayList<>();
+        private final LongSet breakpoints = new LongOpenHashSet();
+
+        @Override
+        public long getProgramCounter() {
+            return pc & 0xFFFF;
+        }
+
+        @Override
+        public void setProgramCounter(final long value) {
+            pc = value & 0xFFFF;
+        }
+
+        @Override
+        public void step() {
+            if (nmiRequested) {
+                acceptNMI();
+            } else if (irqRequested && iff1 && !eiDelay) {
+                acceptIRQ();
+            }
+
+            if (halted) {
+                return;
+            }
+
+            eiDelay = false;
+            interpretTrace(true, null);
+            pc &= 0xFFFF;
+        }
+
+        @Override
+        public int getGeneralRegisterCount() {
+            return REG_IFF2 + 1;
+        }
+
+        @Nullable
+        @Override
+        public byte[] getTargetDescription() {
+            return TargetDescription.VALUE;
+        }
+
+        @Override
+        public int getRegisterSize(final int id) {
+            if (id >= REG_AF && id <= REG_IR) return 2;
+            if (id >= REG_IM && id <= REG_IFF2) return 1;
+            return 0;
+        }
+
+        @Override
+        public long getRegister(final int id) {
+            return switch (id) {
+                case REG_AF -> (r[A] << 8) | f;
+                case REG_BC -> getBC();
+                case REG_DE -> getDE();
+                case REG_HL -> getHL();
+                case REG_SP -> sp;
+                case REG_PC -> pc & 0xFFFF;
+                case REG_IX -> ixiy[0];
+                case REG_IY -> ixiy[1];
+                case REG_AF2 -> (r2[A] << 8) | f2;
+                case REG_BC2 -> (r2[B] << 8) | r2[C];
+                case REG_DE2 -> (r2[D] << 8) | r2[E];
+                case REG_HL2 -> (r2[H] << 8) | r2[L];
+                case REG_IR -> (i << 8) | rr;
+                case REG_IM -> im;
+                case REG_IFF1 -> iff1 ? 1 : 0;
+                case REG_IFF2 -> iff2 ? 1 : 0;
+                default -> 0;
+            };
+        }
+
+        @Override
+        public boolean setRegister(final int id, final long value) {
+            final int hi = (int) (value >>> 8) & 0xFF;
+            final int lo = (int) value & 0xFF;
+            switch (id) {
+                case REG_AF -> { r[A] = hi; f = lo; }
+                case REG_BC -> { r[B] = hi; r[C] = lo; }
+                case REG_DE -> { r[D] = hi; r[E] = lo; }
+                case REG_HL -> { r[H] = hi; r[L] = lo; }
+                case REG_SP -> sp = (int) value & 0xFFFF;
+                case REG_PC -> pc = value & 0xFFFF;
+                case REG_IX -> ixiy[0] = (int) value & 0xFFFF;
+                case REG_IY -> ixiy[1] = (int) value & 0xFFFF;
+                case REG_AF2 -> { r2[A] = hi; f2 = lo; }
+                case REG_BC2 -> { r2[B] = hi; r2[C] = lo; }
+                case REG_DE2 -> { r2[D] = hi; r2[E] = lo; }
+                case REG_HL2 -> { r2[H] = hi; r2[L] = lo; }
+                case REG_IR -> { i = hi; rr = lo; }
+                case REG_IM -> {
+                    if (lo > 2) {
+                        return false;
+                    }
+                    im = lo;
+                }
+                case REG_IFF1 -> iff1 = lo != 0;
+                case REG_IFF2 -> iff2 = lo != 0;
+                default -> {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public byte[] loadDebug(final long address, final int size) {
+            final byte[] data = new byte[size];
+            for (int offset = 0; offset < size; offset++) {
+                try {
+                    data[offset] = (byte) memoryMap.load((address + offset) & 0xFFFF, Sizes.SIZE_8_LOG2);
+                } catch (final MemoryAccessException e) {
+                    return Arrays.copyOf(data, offset); // Partial reads are okay.
+                }
+            }
+            return data;
+        }
+
+        @Override
+        public int storeDebug(final long address, final byte[] data) {
+            for (int offset = 0; offset < data.length; offset++) {
+                try {
+                    memoryMap.store((address + offset) & 0xFFFF, data[offset], Sizes.SIZE_8_LOG2);
+                } catch (final MemoryAccessException e) {
+                    return offset;
+                }
+            }
+            return data.length;
+        }
+
+        @Override
+        public void addBreakpointListener(final LongConsumer listener) {
+            if (!breakpointListeners.contains(listener)) {
+                breakpointListeners.add(listener);
+            }
+        }
+
+        @Override
+        public void removeBreakpointListener(final LongConsumer listener) {
+            breakpointListeners.remove(listener);
+        }
+
+        @Override
+        public void addBreakpoint(final long address) {
+            breakpoints.add(address & 0xFFFF);
+        }
+
+        @Override
+        public void removeBreakpoint(final long address) {
+            breakpoints.remove(address & 0xFFFF);
+        }
+
+        void handleBreakpoint(final long pc) {
+            debugStop = true;
+            for (final LongConsumer listener : breakpointListeners) {
+                listener.accept(pc);
+            }
+        }
     }
 }
