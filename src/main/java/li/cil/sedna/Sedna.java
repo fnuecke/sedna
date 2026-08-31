@@ -30,6 +30,7 @@ import li.cil.sedna.riscv.device.R5PlatformLevelInterruptController;
 import li.cil.sedna.riscv.devicetree.R5CoreLocalInterrupterProvider;
 import li.cil.sedna.riscv.devicetree.R5PlatformLevelInterruptControllerProvider;
 import li.cil.sedna.serialization.serializers.*;
+import li.cil.sedna.utils.BoundedByteArrayQueue;
 import li.cil.sedna.utils.FixedSizeByteBuffer;
 import li.cil.sedna.z80.BootRomLatch;
 import li.cil.sedna.z80.Z80CPU;
@@ -55,6 +56,7 @@ public final class Sedna {
         Ceres.putSerializer(FixedSizeByteBuffer.class, new FixedSizeByteBufferSerializer());
         Ceres.putSerializer(FileSystemFileMap.class, new FileSystemFileMapSerializer());
         Ceres.putSerializer(Int2LongArrayMap.class, new Int2LongArrayMapSerializer());
+        Ceres.putSerializer(BoundedByteArrayQueue.class, new BoundedByteArrayQueueSerializer());
         Ceres.putSerializer(R5CPU.class, new R5CPUSerializer());
         Ceres.putSerializer(SparseBlockDevice.SparseBlockMap.class, new SparseBlockMapSerializer());
         Ceres.putSerializer(Z80CPU.class, new Z80CPUSerializer());

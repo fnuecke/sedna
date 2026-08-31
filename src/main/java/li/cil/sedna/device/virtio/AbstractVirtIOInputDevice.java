@@ -1,13 +1,16 @@
 package li.cil.sedna.device.virtio;
 
+import li.cil.ceres.api.Serialized;
+import li.cil.sedna.api.device.Steppable;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.evdev.EvdevEvents;
+import li.cil.sedna.utils.BoundedByteArrayQueue;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-public abstract class AbstractVirtIOInputDevice extends AbstractVirtIODevice {
+public abstract class AbstractVirtIOInputDevice extends AbstractVirtIODevice implements Steppable {
     protected static final int VIRTIO_INPUT_CFG_SELECT_UNSET = 0x00;
     protected static final int VIRTIO_INPUT_CFG_SELECT_ID_NAME = 0x01;
     protected static final int VIRTIO_INPUT_CFG_SELECT_ID_SERIAL = 0x02;
@@ -38,9 +41,13 @@ public abstract class AbstractVirtIOInputDevice extends AbstractVirtIODevice {
     private static final int VIRTQ_EVENT = 0;
     private static final int VIRTQ_STATUS = 1;
 
+    private static final int MAX_PENDING_EVENT_BYTES = 64 * Long.BYTES;
+
     private static final ThreadLocal<ByteBuffer> eventBuffer = new ThreadLocal<>();
 
     private DescriptorChain event;
+    @Serialized
+    private final BoundedByteArrayQueue pendingEvents = new BoundedByteArrayQueue(MAX_PENDING_EVENT_BYTES);
 
     protected AbstractVirtIOInputDevice(final MemoryMap memoryMap) {
         this(memoryMap, VirtIODeviceSpec.DEFAULT_QUEUE_SIZE_MAX);
@@ -48,10 +55,33 @@ public abstract class AbstractVirtIOInputDevice extends AbstractVirtIODevice {
 
     protected AbstractVirtIOInputDevice(final MemoryMap memoryMap, final int queueSizeMax) {
         super(memoryMap, VirtIODeviceSpec.builder(VirtIODeviceType.VIRTIO_DEVICE_ID_INPUT_DEVICE)
-                .configSpaceSize(256)
-                .queueCount(2)
-                .queueSizeMax(queueSizeMax)
-                .build());
+            .configSpaceSize(256)
+            .queueCount(2)
+            .queueSizeMax(queueSizeMax)
+            .build());
+    }
+
+    @Override
+    public void reset() {
+        super.reset();
+        event = null;
+    }
+
+    @Override
+    public final void step(final int cycles) {
+        if (pendingEvents.isEmpty()) {
+            return;
+        }
+
+        byte[] group;
+        while ((group = pendingEvents.poll()) != null) {
+            final ByteBuffer buffer = ByteBuffer.wrap(group);
+            while (buffer.hasRemaining()) {
+                final long packedEvent = buffer.getLong();
+                // Opposite of packEvent()
+                writeEvent((int) (packedEvent >>> 48) & 0xFFFF, (int) (packedEvent >>> 32) & 0xFFFF, (int) packedEvent);
+            }
+        }
     }
 
     /**
@@ -81,55 +111,38 @@ public abstract class AbstractVirtIOInputDevice extends AbstractVirtIODevice {
     }
 
     /**
-     * Calling this enqueues an event with the specified values into the event queue.
+     * Enqueues an event with the specified values for delivery to the guest.
+     * <p>
+     * May be called from any thread. When the pending queue is full the event is dropped.
      *
-     * @param type  the {@code type} field of the status event.
-     * @param code  the {@code code} field of the status event.
-     * @param value the {@code value} field of the status event.
+     * @param type  the {@code type} field of the event.
+     * @param code  the {@code code} field of the event.
+     * @param value the {@code value} field of the event.
      */
     protected final void putEvent(final int type, final int code, final int value) {
-        if ((getStatus() & VIRTIO_STATUS_FAILED) != 0) {
-            return;
-        }
-
-        try {
-            // 5.8.6.1: These buffers [in the eventq] MUST be device-writable [...]
-            event = validateWriteOnlyDescriptorChain(VIRTQ_EVENT, event);
-            if (event != null) {
-                // 5.8.6.1: [eventq buffers] MUST be at least the size of struct virtio_input_event.
-                if (event.writableBytes() < 8) {
-                    error();
-                    return;
-                }
-
-                // VirtIO Input Events look like this:
-                // struct virtio_input_event {
-                //     le16 type;
-                //     le16 code;
-                //     le32 value;
-                // };
-                final ByteBuffer buffer = getTempBuffer();
-                buffer.putShort((short) type);
-                buffer.putShort((short) code);
-                buffer.putInt(value);
-
-                buffer.flip();
-                event.put(buffer);
-                event.use();
-            }
-        } catch (final VirtIODeviceException | MemoryAccessException e) {
-            error();
-        }
+        putEvents(packEvent(type, code, value));
     }
 
     /**
-     * Calling this enqueues an {@link EvdevEvents#EV_SYN} event into the event queue.
+     * Enqueues a group of packed events for delivery to the guest.
      * <p>
-     * These events are used to separate different events and should be called to finish
-     * and event, e.g. after a key press or after writing all axis data.
+     * The group is delivered without other events interleaving with it, so events belonging
+     * together, e.g. a key press and its {@link EvdevEvents#EV_SYN}, should be enqueued as
+     * one group. May be called from any thread. When the pending queue is full the group
+     * is dropped.
+     *
+     * @param events events packed via {@link #packEvent}.
      */
-    protected final void putSyn() {
-        putEvent(EvdevEvents.EV_SYN, 0, 0);
+    protected final void putEvents(final long... events) {
+        final ByteBuffer group = ByteBuffer.allocate(events.length * Long.BYTES);
+        for (final long event : events) {
+            group.putLong(event);
+        }
+        pendingEvents.offer(group.array());
+    }
+
+    protected static long packEvent(final int type, final int code, final int value) {
+        return ((long) (type & 0xFFFF) << 48) | ((long) (code & 0xFFFF) << 32) | (value & 0xFFFFFFFFL);
     }
 
     @Override
@@ -185,6 +198,41 @@ public abstract class AbstractVirtIOInputDevice extends AbstractVirtIODevice {
             config.clear();
             final int size = generateConfigUnion(select, subsel, union);
             config.put(VIRTIO_INPUT_CFG_SIZE_OFFSET, (byte) size);
+        }
+    }
+
+    private void writeEvent(final int type, final int code, final int value) {
+        if ((getStatus() & (VIRTIO_STATUS_FAILED | VIRTIO_STATUS_DEVICE_NEEDS_RESET)) != 0) {
+            return;
+        }
+
+        try {
+            // 5.8.6.1: These buffers [in the eventq] MUST be device-writable [...]
+            event = validateWriteOnlyDescriptorChain(VIRTQ_EVENT, event);
+            if (event != null) {
+                // 5.8.6.1: [eventq buffers] MUST be at least the size of struct virtio_input_event.
+                if (event.writableBytes() < 8) {
+                    error();
+                    return;
+                }
+
+                // VirtIO Input Events look like this:
+                // struct virtio_input_event {
+                //     le16 type;
+                //     le16 code;
+                //     le32 value;
+                // };
+                final ByteBuffer buffer = getTempBuffer();
+                buffer.putShort((short) type);
+                buffer.putShort((short) code);
+                buffer.putInt(value);
+
+                buffer.flip();
+                event.put(buffer);
+                event.use();
+            }
+        } catch (final VirtIODeviceException | MemoryAccessException e) {
+            error();
         }
     }
 

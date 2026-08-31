@@ -19,8 +19,9 @@ public final class VirtIOKeyboardDevice extends AbstractVirtIOInputDevice {
     }
 
     public void sendKeyEvent(final int keycode, final boolean isDown) {
-        putEvent(EvdevEvents.EV_KEY, keycode, isDown ? 1 : 0);
-        putSyn();
+        putEvents(
+            packEvent(EvdevEvents.EV_KEY, keycode, isDown ? 1 : 0),
+            packEvent(EvdevEvents.EV_SYN, 0, 0));
     }
 
     @Override

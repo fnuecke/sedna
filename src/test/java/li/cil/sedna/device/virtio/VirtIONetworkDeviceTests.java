@@ -8,6 +8,8 @@ import li.cil.sedna.memory.SimpleMemoryMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.CompletableFuture;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 public final class VirtIONetworkDeviceTests {
@@ -16,6 +18,7 @@ public final class VirtIONetworkDeviceTests {
     private static final int VIRTIO_MMIO_QUEUE_SEL = 0x030;
     private static final int VIRTIO_MMIO_QUEUE_NUM = 0x038;
     private static final int VIRTIO_MMIO_QUEUE_READY = 0x044;
+    private static final int VIRTIO_MMIO_QUEUE_NOTIFY = 0x050;
     private static final int VIRTIO_MMIO_STATUS = 0x070;
     private static final int VIRTIO_MMIO_QUEUE_DESC_LOW = 0x080;
     private static final int VIRTIO_MMIO_QUEUE_DESC_HIGH = 0x084;
@@ -61,6 +64,8 @@ public final class VirtIONetworkDeviceTests {
         final int payload = 64;
         writeTransmitChain(HEADER_SIZE + payload);
 
+        notifyTransmit();
+        device.step(1);
         final byte[] packet = device.readEthernetFrame();
 
         assertNotNull(packet, "a well formed frame must be transmitted");
@@ -75,25 +80,88 @@ public final class VirtIONetworkDeviceTests {
     public void frameShorterThanHeaderIsDropped() throws Exception {
         writeTransmitChain(HEADER_SIZE - 1);
 
-        assertNull(assertDoesNotThrow(() -> device.readEthernetFrame()),
+        notifyTransmit();
+        assertDoesNotThrow(() -> device.step(1),
                 "a chain too short to hold a header must be dropped, not overrun");
+        assertNull(device.readEthernetFrame());
     }
 
     @Test
     public void oversizedFrameIsDropped() throws Exception {
         writeTransmitChain(HEADER_SIZE + 64 * 1024);
 
-        assertNull(assertDoesNotThrow(() -> device.readEthernetFrame()),
+        notifyTransmit();
+        assertDoesNotThrow(() -> device.step(1),
                 "a frame larger than the maximum frame size must be dropped");
+        assertNull(device.readEthernetFrame());
     }
 
     @Test
     public void undersizedReceiveBufferIsDropped() throws Exception {
         writeReceiveChain(HEADER_SIZE);
 
-        assertDoesNotThrow(() -> device.writeEthernetFrame(new byte[64]),
+        device.writeEthernetFrame(new byte[64]);
+        assertDoesNotThrow(() -> device.step(1),
                 "a receive buffer too small for the frame must be dropped, not overrun");
         assertFalse(hasDeviceFailed(), "an undersized receive buffer must not fail the device");
+    }
+
+    @Test
+    public void transmittedFrameIsVisibleToOtherThread() throws Exception {
+        writeTransmitChain(HEADER_SIZE + 64);
+
+        notifyTransmit();
+        device.step(1);
+
+        final byte[] packet = CompletableFuture.supplyAsync(device::readEthernetFrame).get();
+        assertNotNull(packet, "a transmitted frame must be readable from another thread");
+        assertEquals(64, packet.length);
+    }
+
+    @Test
+    public void queuedFramesSurviveSerialization() throws Exception {
+        writeTransmitChain(HEADER_SIZE + 64);
+        notifyTransmit();
+        device.step(1);
+        device.writeEthernetFrame(new byte[]{1, 2, 3, 4});
+
+        final java.nio.ByteBuffer serialized = li.cil.ceres.BinarySerialization.serialize(device);
+        final VirtIONetworkDevice restored = new VirtIONetworkDevice(memoryMap);
+        li.cil.ceres.BinarySerialization.deserialize(serialized, restored);
+
+        final byte[] transmitted = restored.readEthernetFrame();
+        assertNotNull(transmitted, "a transmitted frame must survive serialization");
+        assertEquals(64, transmitted.length);
+
+        writeReceiveChain(HEADER_SIZE + 64);
+        restored.step(1);
+        final int usedIdx = (int) memoryMap.load(usedOf(VIRTQ_RECEIVE) + 2, Sizes.SIZE_16_LOG2) & 0xFFFF;
+        assertEquals(1, usedIdx, "a received frame must survive serialization and be delivered");
+    }
+
+    @Test
+    public void malformedFrameDoesNotStallSubsequentFrames() throws Exception {
+        writeTransmitChains(HEADER_SIZE - 1, HEADER_SIZE + 64);
+
+        notifyTransmit();
+        device.step(1);
+
+        final byte[] packet = device.readEthernetFrame();
+        assertNotNull(packet, "a malformed frame must not stall frames queued behind it");
+        assertEquals(64, packet.length);
+        assertNull(device.readEthernetFrame());
+    }
+
+    @Test
+    public void frameFromOtherThreadIsDeliveredToGuest() throws Exception {
+        writeReceiveChain(HEADER_SIZE + 64);
+
+        CompletableFuture.runAsync(() -> device.writeEthernetFrame(new byte[]{1, 2, 3, 4})).get();
+        device.step(1);
+
+        assertFalse(hasDeviceFailed());
+        final int usedIdx = (int) memoryMap.load(usedOf(VIRTQ_RECEIVE) + 2, Sizes.SIZE_16_LOG2) & 0xFFFF;
+        assertEquals(1, usedIdx, "the frame must have been written to the guest's receive queue");
     }
 
     // --------------------------------------------------------------------- //
@@ -150,6 +218,30 @@ public final class VirtIONetworkDeviceTests {
     private void storeAddress(final int lowRegister, final int highRegister, final long address) {
         device.store(lowRegister, (int) address, Sizes.SIZE_32_LOG2);
         device.store(highRegister, (int) (address >>> 32), Sizes.SIZE_32_LOG2);
+    }
+
+    private void notifyTransmit() {
+        device.store(VIRTIO_MMIO_QUEUE_NOTIFY, VIRTQ_TRANSMIT, Sizes.SIZE_32_LOG2);
+    }
+
+    private void writeTransmitChains(final int... lengths) throws MemoryAccessException {
+        for (int i = 0; i < lengths.length; i++) {
+            final long buffer = dataOf(VIRTQ_TRANSMIT) + (long) i * 0x4000;
+            for (int j = 0; j < lengths[i]; j++) {
+                memoryMap.store(buffer + j, (byte) j, Sizes.SIZE_8_LOG2);
+            }
+
+            final long descriptor = descOf(VIRTQ_TRANSMIT) + (long) i * 16;
+            memoryMap.store(descriptor, buffer, Sizes.SIZE_64_LOG2);
+            memoryMap.store(descriptor + 8, lengths[i], Sizes.SIZE_32_LOG2);
+            memoryMap.store(descriptor + 12, 0, Sizes.SIZE_16_LOG2);
+            memoryMap.store(descriptor + 14, 0, Sizes.SIZE_16_LOG2);
+
+            memoryMap.store(availOf(VIRTQ_TRANSMIT) + 4 + (long) i * 2, i, Sizes.SIZE_16_LOG2);
+        }
+
+        memoryMap.store(availOf(VIRTQ_TRANSMIT), 0, Sizes.SIZE_16_LOG2);
+        memoryMap.store(availOf(VIRTQ_TRANSMIT) + 2, lengths.length, Sizes.SIZE_16_LOG2); // idx, written last
     }
 
     private void writeTransmitChain(final int length) throws MemoryAccessException {

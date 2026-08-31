@@ -1,11 +1,13 @@
 package li.cil.sedna.device.virtio;
 
 import li.cil.ceres.api.Serialized;
+import li.cil.sedna.api.device.Steppable;
 import li.cil.sedna.api.memory.MemoryMap;
+import li.cil.sedna.utils.BoundedByteArrayQueue;
 
 import javax.annotation.Nullable;
 
-public final class VirtIONetworkDevice extends AbstractVirtIODevice {
+public final class VirtIONetworkDevice extends AbstractVirtIODevice implements Steppable {
     private static final long VIRTIO_NET_F_CSUM = 1L << 0; // Device handles packets with partial checksum. This "checksum offload" is a common feature on modern network cards.
     private static final long VIRTIO_NET_F_GUEST_CSUM = 1L << 1; // Driver handles packets with partial checksum.
     private static final long VIRTIO_NET_F_CTRL_GUEST_OFFLOADS = 1L << 2; // Control channel offloads reconfiguration support.
@@ -89,14 +91,21 @@ public final class VirtIONetworkDevice extends AbstractVirtIODevice {
             2;  // le16 num_buffers;
     // };
 
-    private static final int MAX_FRAME_SIZE = 14 + 4 + 9000;
-
     private static final int VIRTQ_RECEIVE = 0; // receiveq1
     private static final int VIRTQ_TRANSMIT = 1; // transmitq1
     private static final int VIRTQ_CONTROL = 2; // controlq
 
+    private static final int MAX_FRAME_SIZE = 14 + 4 + 9000;
+    private static final int MAX_QUEUED_BYTES = 32 * 1024;
+
     @Serialized
     private byte[] mac = new byte[6];
+    @Serialized
+    private boolean transmitPending;
+    @Serialized
+    private final BoundedByteArrayQueue receiveQueue = new BoundedByteArrayQueue(MAX_QUEUED_BYTES);
+    @Serialized
+    private final BoundedByteArrayQueue transmitQueue = new BoundedByteArrayQueue(MAX_QUEUED_BYTES);
 
     public VirtIONetworkDevice(final MemoryMap memoryMap) {
         this(memoryMap, VirtIODeviceSpec.DEFAULT_QUEUE_SIZE_MAX);
@@ -126,48 +135,97 @@ public final class VirtIONetworkDevice extends AbstractVirtIODevice {
 
     @Nullable
     public byte[] readEthernetFrame() {
+        return transmitQueue.poll();
+    }
+
+    public void writeEthernetFrame(final byte[] packet) {
+        receiveQueue.offer(packet);
+    }
+
+    @Override
+    public void reset() {
+        super.reset();
+        transmitPending = false;
+    }
+
+    @Override
+    public void step(final int cycles) {
         if (hasDeviceFailed()) {
-            return null;
+            return;
         }
 
+        byte[] packet;
+        while ((packet = receiveQueue.poll()) != null) {
+            writeFrameToGuest(packet);
+        }
+
+        if (transmitPending) {
+            while (transmitQueue.byteSize() <= MAX_QUEUED_BYTES - MAX_FRAME_SIZE) {
+                packet = readFrameFromGuest();
+                if (packet == null) {
+                    transmitPending = false;
+                    break;
+                }
+                transmitQueue.offer(packet);
+            }
+        }
+    }
+
+    @Override
+    protected void initializeConfig() {
+        setConfigValue(VIRTIO_NETWORK_CFG_MAC_OFFSET, mac);
+    }
+
+    @Override
+    protected void handleFeaturesNegotiated() {
+        setQueueNotifications(VIRTQ_RECEIVE, false);
+    }
+
+    @Override
+    protected void handleQueueNotification(final int queueIndex) {
+        if (queueIndex == VIRTQ_TRANSMIT) {
+            transmitPending = true;
+        }
+    }
+
+    @Nullable
+    private byte[] readFrameFromGuest() {
         try {
-            final DescriptorChain transmit = validateReadOnlyDescriptorChain(VIRTQ_TRANSMIT, null);
-            if (transmit == null) {
-                return null;
+            for (; ; ) {
+                final DescriptorChain transmit = validateReadOnlyDescriptorChain(VIRTQ_TRANSMIT, null);
+                if (transmit == null) {
+                    return null;
+                }
+
+                if (transmit.readableBytes() < HEADER_SIZE) {
+                    transmit.use(); // Malformed frame, drop it.
+                    continue;
+                }
+
+                // We completely ignore the header. We don't have any flags that would require us checking it.
+                for (int i = 0; i < HEADER_SIZE; i++) {
+                    transmit.get();
+                }
+
+                if (transmit.readableBytes() > MAX_FRAME_SIZE) {
+                    transmit.use(); // Oversized frame, drop it.
+                    continue;
+                }
+
+                final byte[] packet = new byte[transmit.readableBytes()];
+                transmit.get(packet, 0, packet.length);
+
+                transmit.use();
+
+                return packet;
             }
-
-            if (transmit.readableBytes() < HEADER_SIZE) {
-                transmit.use(); // Malformed frame, drop it.
-                return null;
-            }
-
-            // We completely ignore the header. We don't have any flags that would require us checking it.
-            for (int i = 0; i < HEADER_SIZE; i++) {
-                transmit.get();
-            }
-
-            if (transmit.readableBytes() > MAX_FRAME_SIZE) {
-                transmit.use(); // Oversized frame, drop it.
-                return null;
-            }
-
-            final byte[] packet = new byte[transmit.readableBytes()];
-            transmit.get(packet, 0, packet.length);
-
-            transmit.use();
-
-            return packet;
         } catch (final Throwable e) {
             error();
             return null;
         }
     }
 
-    public void writeEthernetFrame(final byte[] packet) {
-        if (hasDeviceFailed()) {
-            return;
-        }
-
+    private void writeFrameToGuest(final byte[] packet) {
         try {
             final DescriptorChain receive = validateWriteOnlyDescriptorChain(VIRTQ_RECEIVE, null);
             if (receive == null) {
@@ -191,18 +249,7 @@ public final class VirtIONetworkDevice extends AbstractVirtIODevice {
         }
     }
 
-    @Override
-    protected void initializeConfig() {
-        setConfigValue(VIRTIO_NETWORK_CFG_MAC_OFFSET, mac);
-    }
-
-    @Override
-    protected void handleFeaturesNegotiated() {
-        setQueueNotifications(VIRTQ_RECEIVE, false);
-        setQueueNotifications(VIRTQ_TRANSMIT, false);
-    }
-
     private boolean hasDeviceFailed() {
-        return (getStatus() & VIRTIO_STATUS_FAILED) != 0;
+        return (getStatus() & (VIRTIO_STATUS_FAILED | VIRTIO_STATUS_DEVICE_NEEDS_RESET)) != 0;
     }
 }
