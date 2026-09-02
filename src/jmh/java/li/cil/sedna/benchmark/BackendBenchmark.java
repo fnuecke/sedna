@@ -34,7 +34,7 @@ public class BackendBenchmark {
         codeStart = vm.usableStart();
         final long dataAddress = codeStart + CODE_SIZE;
 
-        vm.registers()[1] = dataAddress;
+        vm.setRegister(1, dataAddress);
         vm.store64(dataAddress, 0x0123456789ABCDEFL);
 
         vm.fill(codeStart, CODE_SIZE, switch (instruction) {

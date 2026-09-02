@@ -58,7 +58,7 @@ public class MmioBenchmark {
 
     @Benchmark
     public long access() {
-        vm.registers()[1] = address;
+        vm.setRegister(1, address);
         vm.setProgramCounter(codeStart);
         cpu.step(INSTRUCTIONS);
         return cpu.getInstructionsRetired();

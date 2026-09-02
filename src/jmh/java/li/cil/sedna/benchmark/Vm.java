@@ -172,8 +172,8 @@ public final class Vm implements AutoCloseable {
         memoryMap.addDevice(address, device);
     }
 
-    public long[] registers() {
-        return cpu.getDebugInterface().getGeneralRegisters();
+    public void setRegister(final int index, final long value) {
+        cpu.getDebugInterface().setRegister(index, value);
     }
 
     public void setProgramCounter(final long pc) {
@@ -244,17 +244,17 @@ public final class Vm implements AutoCloseable {
     }
 
     public void writeCSR(final int csr, final long value) {
-        registers()[31] = value;
+        setRegister(31, value);
         execute(R5Assembler.csrrw(0, csr, 31));
     }
 
     public void setCSRBits(final int csr, final long mask) {
-        registers()[31] = mask;
+        setRegister(31, mask);
         execute(R5Assembler.csrrs(0, csr, 31));
     }
 
     public void clearCSRBits(final int csr, final long mask) {
-        registers()[31] = mask;
+        setRegister(31, mask);
         execute(R5Assembler.csrrc(0, csr, 31));
     }
 

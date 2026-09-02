@@ -47,8 +47,8 @@ public class LoopBenchmark {
 
     @Benchmark
     public long run() {
-        vm.registers()[5] = iterations;
-        vm.registers()[6] = 0;
+        vm.setRegister(5, iterations);
+        vm.setRegister(6, 0);
         vm.setProgramCounter(loopStart);
         cpu.step(INSTRUCTIONS);
         return cpu.getInstructionsRetired();

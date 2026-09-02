@@ -67,7 +67,7 @@ public class ContextSwitchBenchmark {
         vm.execute(R5Assembler.ECALL);
         vm.enterSupervisor(codeStart);
 
-        vm.registers()[1] = chainHead;
+        vm.setRegister(1, chainHead);
         vm.setProgramCounter(codeStart);
         cpu.step(INSTRUCTIONS);
         return cpu.getInstructionsRetired();

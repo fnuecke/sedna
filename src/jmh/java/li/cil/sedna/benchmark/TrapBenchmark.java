@@ -38,7 +38,7 @@ public class TrapBenchmark {
         vm.fill(codeStart, Vm.PAGE_SIZE, trapInstruction());
         vm.setProgramCounter(codeStart);
 
-        vm.registers()[1] = UNMAPPED_ADDRESS;
+        vm.setRegister(1, UNMAPPED_ADDRESS);
     }
 
     private int trapInstruction() {

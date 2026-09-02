@@ -60,7 +60,7 @@ public class MemoryBenchmark {
 
     @Benchmark
     public long chase() {
-        vm.registers()[1] = chainHead;
+        vm.setRegister(1, chainHead);
         vm.setProgramCounter(codeStart);
         cpu.step(INSTRUCTIONS);
         return cpu.getInstructionsRetired();

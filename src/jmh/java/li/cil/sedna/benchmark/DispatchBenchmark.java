@@ -39,25 +39,24 @@ public class DispatchBenchmark {
 
         // x1 addresses the data word loads, stores and atomics operate on. Keeping every access on
         // one page means this measures the instruction, not the memory subsystem.
-        vm.registers()[1] = dataAddress;
+        vm.setRegister(1, dataAddress);
         vm.store64(dataAddress, 0x0123456789ABCDEFL);
 
         // Floating point instructions trap while mstatus.FS is Off, so turn the FPU on.
         vm.setCSRBits(R5CSR.MSTATUS, (long) R5.FS_INITIAL << R5.STATUS_FS_SHIFT);
 
-        final long[] registers = vm.registers();
-        registers[3] = 0x0123456789ABCDEFL;
-        registers[4] = 0x7EDCBA9876543210L;
+        vm.setRegister(3, 0x0123456789ABCDEFL);
+        vm.setRegister(4, 0x7EDCBA9876543210L);
 
-        registers[5] = Double.doubleToRawLongBits(1.5);
+        vm.setRegister(5, Double.doubleToRawLongBits(1.5));
         vm.execute(R5Assembler.fmvDX(3, 5));
-        registers[5] = Double.doubleToRawLongBits(2.25);
+        vm.setRegister(5, Double.doubleToRawLongBits(2.25));
         vm.execute(R5Assembler.fmvDX(4, 5));
-        registers[5] = Double.doubleToRawLongBits(0.75);
+        vm.setRegister(5, Double.doubleToRawLongBits(0.75));
         vm.execute(R5Assembler.fmvDX(5, 5));
-        registers[6] = Float.floatToRawIntBits(1.5f) & 0xFFFFFFFFL;
+        vm.setRegister(6, Float.floatToRawIntBits(1.5f) & 0xFFFFFFFFL);
         vm.execute(R5Assembler.fmvWX(6, 6));
-        registers[7] = Float.floatToRawIntBits(2.25f) & 0xFFFFFFFFL;
+        vm.setRegister(7, Float.floatToRawIntBits(2.25f) & 0xFFFFFFFFL);
         vm.execute(R5Assembler.fmvWX(7, 7));
 
         // c_mv copies x5 to x6; x5 still holds the last staging value, which is non-zero.
