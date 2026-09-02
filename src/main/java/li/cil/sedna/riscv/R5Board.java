@@ -46,6 +46,7 @@ public final class R5Board implements Board {
     private final MemoryMap memoryMap;
     private final RealTimeCounter rtc;
     private final FlashMemoryDevice flash;
+    private long firmwareSize;
     private final List<MemoryMappedDevice> devices = new CopyOnWriteArrayList<>();
     private final List<Steppable> steppableDevices = new CopyOnWriteArrayList<>();
     private MemoryMappedDevice standardOutputDevice;
@@ -194,6 +195,13 @@ public final class R5Board implements Board {
         this.bootargs = value;
     }
 
+    public void setFirmwareSize(final long value) {
+        if (value < 0) {
+            throw new IllegalArgumentException();
+        }
+        this.firmwareSize = value;
+    }
+
     public void setStandardOutputDevice(@Nullable final MemoryMappedDevice device) {
         if (device != null && !devices.contains(device)) {
             throw new IllegalArgumentException();
@@ -259,7 +267,7 @@ public final class R5Board implements Board {
     public void initialize(final long programStart) throws IllegalStateException, MemoryAccessException {
         isRestarting = false;
 
-        final FlattenedDeviceTree fdt = buildDeviceTree().flatten();
+        final FlattenedDeviceTree fdt = buildDeviceTree(programStart).flatten();
         final byte[] dtb = fdt.toDTB();
 
         OptionalLong fdtAddress = OptionalLong.empty();
@@ -320,7 +328,7 @@ public final class R5Board implements Board {
         data.putLong(programStart);
     }
 
-    private DeviceTree buildDeviceTree() {
+    private DeviceTree buildDeviceTree(final long programStart) {
         final DeviceTree root = DeviceTreeRegistry.create(memoryMap);
         root
                 .addProp(DevicePropertyNames.NUM_ADDRESS_CELLS, 2)
@@ -370,6 +378,15 @@ public final class R5Board implements Board {
         if (bootargs != null) {
             root.putChild("chosen", chosen -> chosen
                     .addProp("bootargs", bootargs));
+        }
+
+        if (firmwareSize > 0) {
+            root.putChild("reserved-memory", reserved -> reserved
+                    .addProp(DevicePropertyNames.NUM_ADDRESS_CELLS, 2)
+                    .addProp(DevicePropertyNames.NUM_SIZE_CELLS, 2)
+                    .addProp(DevicePropertyNames.RANGES)
+                    .putChild("firmware", programStart, firmware -> firmware
+                            .addProp(DevicePropertyNames.REG, programStart, firmwareSize)));
         }
 
         return root;
