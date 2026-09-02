@@ -1,7 +1,7 @@
 plugins {
     java
-    id("com.vanniktech.maven.publish") version "0.34.0"
-    id("me.champeau.jmh") version "0.7.2"
+    alias(libs.plugins.mavenPublish)
+    alias(libs.plugins.jmh)
 }
 
 val semver: String by project
@@ -32,26 +32,26 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.google.code.findbugs:jsr305:3.0.2")
-    testCompileOnly("com.google.code.findbugs:jsr305:3.0.2")
+    compileOnly(libs.jsr305)
+    testCompileOnly(libs.jsr305)
 
-    implementation("commons-io:commons-io:2.11.0")
-    implementation("it.unimi.dsi:fastutil:8.5.6")
-    implementation("org.apache.commons:commons-lang3:3.12.0")
-    implementation("org.apache.logging.log4j:log4j-api:2.15.0")
+    implementation(libs.commons.io)
+    implementation(libs.fastutil)
+    implementation(libs.commons.lang3)
+    implementation(libs.log4j.api)
 
-    implementation("li.cil.ceres:ceres:0.0.6")
+    implementation(libs.ceres)
 
-    codegen.implementationConfigurationName("org.ow2.asm:asm:9.10.1")
-    codegen.compileOnlyConfigurationName("com.google.code.findbugs:jsr305:3.0.2")
+    codegen.implementationConfigurationName(libs.asm)
+    codegen.compileOnlyConfigurationName(libs.jsr305)
 
     testImplementation(codegen.output)
-    testImplementation("li.cil.ceres:ceres-json:0.0.1")
-    testImplementation("org.ow2.asm:asm:9.10.1")
-    testImplementation("org.mockito:mockito-core:4.1.0")
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.2")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.2")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.8.2")
+    testImplementation(libs.ceres.json)
+    testImplementation(libs.asm)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.junit.api)
+    testRuntimeOnly(libs.junit.engine)
+    testRuntimeOnly(libs.junit.launcher)
 }
 
 tasks.withType<AbstractArchiveTask>().configureEach {

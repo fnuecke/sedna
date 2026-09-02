@@ -1,0 +1,34 @@
+[versions]
+ceres = "0.0.6"
+ceres-json = "0.0.1"
+
+asm = "9.10.1"
+commons-io = "2.11.0"
+commons-lang3 = "3.12.0"
+fastutil = "8.5.6"
+jsr305 = "3.0.2"
+log4j = "2.15.0"
+
+junit = "5.8.2"
+junit-platform = "1.8.2"
+mockito = "4.1.0"
+
+[plugins]
+mavenPublish = { id = "com.vanniktech.maven.publish", version = "0.34.0" }
+jmh = { id = "me.champeau.jmh", version = "0.7.2" }
+
+[libraries]
+ceres = { group = "li.cil.ceres", name = "ceres", version.ref = "ceres" }
+ceres-json = { group = "li.cil.ceres", name = "ceres-json", version.ref = "ceres-json" }
+
+asm = { group = "org.ow2.asm", name = "asm", version.ref = "asm" }
+commons-io = { group = "commons-io", name = "commons-io", version.ref = "commons-io" }
+commons-lang3 = { group = "org.apache.commons", name = "commons-lang3", version.ref = "commons-lang3" }
+fastutil = { group = "it.unimi.dsi", name = "fastutil", version.ref = "fastutil" }
+jsr305 = { group = "com.google.code.findbugs", name = "jsr305", version.ref = "jsr305" }
+log4j-api = { group = "org.apache.logging.log4j", name = "log4j-api", version.ref = "log4j" }
+
+junit-api = { group = "org.junit.jupiter", name = "junit-jupiter-api", version.ref = "junit" }
+junit-engine = { group = "org.junit.jupiter", name = "junit-jupiter-engine", version.ref = "junit" }
+junit-launcher = { group = "org.junit.platform", name = "junit-platform-launcher", version.ref = "junit-platform" }
+mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
