@@ -584,6 +584,7 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
     @Override
     public int getSupportedSizes() {
         return (1 << Sizes.SIZE_8_LOG2) |
+            (1 << Sizes.SIZE_16_LOG2) |
             (1 << Sizes.SIZE_32_LOG2);
     }
 

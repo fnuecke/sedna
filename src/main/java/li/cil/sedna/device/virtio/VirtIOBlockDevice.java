@@ -1,6 +1,7 @@
 package li.cil.sedna.device.virtio;
 
 import li.cil.ceres.api.Serialized;
+import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.BlockDevice;
 import li.cil.sedna.api.device.Steppable;
 import li.cil.sedna.api.memory.MemoryAccessException;
@@ -96,6 +97,12 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
     private static final int MAX_SEGMENT_SIZE = 32 * VIRTIO_BLK_SECTOR_SIZE;
     private static final int MAX_SEGMENT_COUNT = 16;
 
+    // Linux auto-compute needs a decent minimum size or its int division goes zero.
+    // At 16 * 63 = 1008 bytes we make sure small devices still show up with at least one cylinder.
+    private static final int GEOMETRY_HEADS = 16;
+    private static final int GEOMETRY_SECTORS = 63;
+    private static final int GEOMETRY_MAX_CYLINDERS = 16383;
+
     private static final ThreadLocal<ByteBuffer> REQUEST_HEADER_BUFFER = ThreadLocal.withInitial(() ->
         ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN));
     private static final ThreadLocal<byte[]> COPY_BUFFER = ThreadLocal.withInitial(() -> new byte[MAX_SEGMENT_SIZE * MAX_SEGMENT_COUNT]);
@@ -127,6 +134,7 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
             .features((block.isReadonly() ? VIRTIO_BLK_F_RO : 0) |
                 VIRTIO_BLK_F_SIZE_MAX |
                 VIRTIO_BLK_F_SEG_MAX |
+                VIRTIO_BLK_F_GEOMETRY |
                 VIRTIO_BLK_F_FLUSH)
             .build());
         this.block = block;
@@ -232,16 +240,27 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
         // };
         switch (offset) {
             case VIRTIO_BLK_CFG_CAPACITY_OFFSET -> {
-                return (int) (capacityToSectorCount(block.getCapacity()) & 0xFFFFFFFFL);
+                return (int) (capacityToTotalSectorCount(block.getCapacity()) & 0xFFFFFFFFL);
             }
             case VIRTIO_BLK_CFG_CAPACITYH_OFFSET -> {
-                return (int) (capacityToSectorCount(block.getCapacity()) >>> 32);
+                return (int) (capacityToTotalSectorCount(block.getCapacity()) >>> 32);
             }
             case VIRTIO_BLK_CFG_SIZE_MAX_OFFSET -> {
                 return MAX_SEGMENT_SIZE;
             }
             case VIRTIO_BLK_CFG_SEG_MAX_OFFSET -> {
                 return MAX_SEGMENT_COUNT;
+            }
+            // Drivers *may* read this one as separate fields.
+            case VIRTIO_BLK_CFG_GEOMETRY_CYLINDERS_OFFSET,
+                 VIRTIO_BLK_CFG_GEOMETRY_CYLINDERS_OFFSET + 1,
+                 VIRTIO_BLK_CFG_GEOMETRY_HEADS_OFFSET,
+                 VIRTIO_BLK_CFG_GEOMETRY_SECTORS_OFFSET -> {
+                final int geometry = getGeometryCylinders()
+                    | (GEOMETRY_HEADS << 16)
+                    | (GEOMETRY_SECTORS << 24);
+                final int shift = (offset - VIRTIO_BLK_CFG_GEOMETRY_CYLINDERS_OFFSET) * Byte.SIZE;
+                return (int) ((geometry >>> shift) & maskForSize(sizeLog2));
             }
         }
         return super.loadConfig(offset, sizeLog2);
@@ -417,7 +436,21 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
         return processedBytes;
     }
 
-    private static long capacityToSectorCount(final long capacity) {
+    private int getGeometryCylinders() {
+        final long totalSectors = capacityToTotalSectorCount(block.getCapacity());
+        if (totalSectors <= 0) {
+            return 0;
+        }
+
+        final long cylinders = totalSectors / (GEOMETRY_HEADS * GEOMETRY_SECTORS);
+        return Math.clamp(cylinders, 1, GEOMETRY_MAX_CYLINDERS);
+    }
+
+    private static long maskForSize(final int sizeLog2) {
+        return sizeLog2 >= Sizes.SIZE_64_LOG2 ? -1L : (1L << (Byte.SIZE << sizeLog2)) - 1;
+    }
+
+    private static long capacityToTotalSectorCount(final long capacity) {
         // We may lose some bytes here, but that's better than claiming there are
         // more bytes than there actually are.
         return capacity / VIRTIO_BLK_SECTOR_SIZE;
