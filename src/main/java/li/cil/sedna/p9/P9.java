@@ -10,7 +10,6 @@ package li.cil.sedna.p9;
  *     <li>http://9p.io/magic/man2html/5</li>
  * </ul>
  */
-@SuppressWarnings("PointlessBitwiseExpression")
 public final class P9 {
     public static final int MAX_MESSAGE_SIZE = 8 * 1024;
     public static final String VERSION = "9P2000.L";
