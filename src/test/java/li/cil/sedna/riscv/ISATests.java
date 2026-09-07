@@ -23,11 +23,11 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.*;
 
 public final class ISATests {
-    private static final Logger LOGGER = LogManager.getLogger();
+    private static final Logger LOGGER = LogManager.getLogger(ISATests.class);
 
     private static final String[] TEST_FILTERS = {
-            "rv32.*",
-            "rv64.*"
+        "rv32.*",
+        "rv64.*"
     };
 
     private static final long PHYSICAL_MEMORY_START = 0x80000000L;
@@ -38,55 +38,55 @@ public final class ISATests {
         final File[] testFiles = new File("src/test/data/riscv-tests").listFiles();
         assertNotNull(testFiles);
         return Arrays.stream(testFiles)
-                .filter(File::isFile)
-                .map(file -> {
-                    final String filter = getMatchingFilter(file);
-                    if (filter == null) {
-                        LOGGER.info("No filter matches file [{}], skipping.", file.getName());
-                        return null;
+            .filter(File::isFile)
+            .map(file -> {
+                final String filter = getMatchingFilter(file);
+                if (filter == null) {
+                    LOGGER.info("No filter matches file [{}], skipping.", file.getName());
+                    return null;
+                }
+
+                return DynamicTest.dynamicTest(file.getName(), file.toURI(), () -> {
+                    LOGGER.info("Running test for file [{}].", file.getName());
+
+                    final ELF elf = ELFParser.parse(file);
+
+                    final long toHostAddress = getToHostAddress(elf);
+
+                    final MemoryMap memoryMap = new SimpleMemoryMap();
+                    final R5CPU cpu = R5CPU.create(memoryMap);
+                    final HostTargetInterface htif = new HostTargetInterface();
+
+                    // RAM block below and potentially up to HTIF.
+                    if (PHYSICAL_MEMORY_START < toHostAddress) {
+                        final long end = Math.min(PHYSICAL_MEMORY_START + PHYSICAL_MEMORY_LENGTH, toHostAddress);
+                        memoryMap.addDevice(PHYSICAL_MEMORY_START, Memory.create((int) (end - PHYSICAL_MEMORY_START)));
                     }
 
-                    return DynamicTest.dynamicTest(file.getName(), file.toURI(), () -> {
-                        LOGGER.info("Running test for file [{}].", file.getName());
+                    // RAM block above and potentially starting from HTIF.
+                    if (PHYSICAL_MEMORY_START + PHYSICAL_MEMORY_LENGTH > toHostAddress + htif.getLength()) {
+                        final long start = Math.max(PHYSICAL_MEMORY_START, toHostAddress + htif.getLength());
+                        memoryMap.addDevice(start, Memory.create((int) (PHYSICAL_MEMORY_START + PHYSICAL_MEMORY_LENGTH - start)));
+                    }
 
-                        final ELF elf = ELFParser.parse(file);
+                    loadProgramSegments(elf, memoryMap, toHostAddress, htif.getLength());
 
-                        final long toHostAddress = getToHostAddress(elf);
+                    memoryMap.addDevice(toHostAddress, htif);
 
-                        final MemoryMap memoryMap = new SimpleMemoryMap();
-                        final R5CPU cpu = R5CPU.create(memoryMap);
-                        final HostTargetInterface htif = new HostTargetInterface();
+                    cpu.reset(true, elf.entryPoint);
+                    if (file.getName().startsWith("rv32")) {
+                        cpu.setXLEN(R5.XLEN_32);
+                    }
 
-                        // RAM block below and potentially up to HTIF.
-                        if (PHYSICAL_MEMORY_START < toHostAddress) {
-                            final long end = Math.min(PHYSICAL_MEMORY_START + PHYSICAL_MEMORY_LENGTH, toHostAddress);
-                            memoryMap.addDevice(PHYSICAL_MEMORY_START, Memory.create((int) (end - PHYSICAL_MEMORY_START)));
+                    assertThrows(TestSuccessful.class, () -> {
+                        for (int i = 0; i < 1_000_000; i++) {
+                            cpu.step(1_000);
                         }
-
-                        // RAM block above and potentially starting from HTIF.
-                        if (PHYSICAL_MEMORY_START + PHYSICAL_MEMORY_LENGTH > toHostAddress + htif.getLength()) {
-                            final long start = Math.max(PHYSICAL_MEMORY_START, toHostAddress + htif.getLength());
-                            memoryMap.addDevice(start, Memory.create((int) (PHYSICAL_MEMORY_START + PHYSICAL_MEMORY_LENGTH - start)));
-                        }
-
-                        loadProgramSegments(elf, memoryMap, toHostAddress, htif.getLength());
-
-                        memoryMap.addDevice(toHostAddress, htif);
-
-                        cpu.reset(true, elf.entryPoint);
-                        if (file.getName().startsWith("rv32")) {
-                            cpu.setXLEN(R5.XLEN_32);
-                        }
-
-                        assertThrows(TestSuccessful.class, () -> {
-                            for (int i = 0; i < 1_000_000; i++) {
-                                cpu.step(1_000);
-                            }
-                        });
                     });
-                })
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+                });
+            })
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
     }
 
     private long getToHostAddress(final ELF elf) {
@@ -146,7 +146,7 @@ public final class ISATests {
         @Override
         public long load(final int offset, final int sizeLog2) {
             assert sizeLog2 == Sizes.SIZE_32_LOG2 ||
-                    sizeLog2 == Sizes.SIZE_64_LOG2;
+                sizeLog2 == Sizes.SIZE_64_LOG2;
             switch (offset) {
                 case 0x00: {
                     return toHost;
@@ -169,7 +169,7 @@ public final class ISATests {
         @Override
         public void store(final int offset, final long value, final int sizeLog2) {
             assert sizeLog2 == Sizes.SIZE_32_LOG2 ||
-                    sizeLog2 == Sizes.SIZE_64_LOG2;
+                sizeLog2 == Sizes.SIZE_64_LOG2;
             switch (offset) {
                 case 0x00: {
                     if (sizeLog2 == Sizes.SIZE_32_LOG2) {
