@@ -25,4 +25,5 @@ public final class VirtIODeviceType {
     public static final int VIRTIO_DEVICE_ID_PSTORE_DEVICE = 22;
     public static final int VIRTIO_DEVICE_ID_IOMMU_DEVICE = 23;
     public static final int VIRTIO_DEVICE_ID_MEMORY_DEVICE = 24;
+    public static final int VIRTIO_DEVICE_ID_SOUND_DEVICE = 25;
 }

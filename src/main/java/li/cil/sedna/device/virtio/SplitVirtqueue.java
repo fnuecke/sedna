@@ -339,10 +339,10 @@ final class SplitVirtqueue extends AbstractVirtqueue {
                 final int skip = Math.min(count, remaining);
                 count -= skip;
                 if (readableBytes() > 0) {
-                    assert readableBytes() <= skip;
+                    assert skip <= readableBytes();
                     readByteCount += skip;
                 } else {
-                    assert writableBytes() <= skip;
+                    assert skip <= writableBytes();
                     writtenByteCount += skip;
                 }
                 position += skip;
