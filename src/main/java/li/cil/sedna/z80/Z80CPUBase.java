@@ -166,6 +166,11 @@ public abstract class Z80CPUBase implements Z80CPU {
     }
 
     @Override
+    public long getTime() {
+        return cycles;
+    }
+
+    @Override
     public void raiseInterrupt(final int data) {
         irqData = data & 0xFF;
         irqRequested = true;
@@ -304,9 +309,9 @@ public abstract class Z80CPUBase implements Z80CPU {
 
     protected final int fetch32(final int address) {
         return load8(address)
-                | (load8(address + 1) << 8)
-                | (load8(address + 2) << 16)
-                | (load8(address + 3) << 24);
+            | (load8(address + 1) << 8)
+            | (load8(address + 2) << 16)
+            | (load8(address + 3) << 24);
     }
 
     private int load8(int address) {
@@ -498,9 +503,9 @@ public abstract class Z80CPUBase implements Z80CPU {
         final int a = r[A];
         final int result = a + value + carry;
         f = szxy(result & 0xFF)
-                | ((a ^ value ^ result) & FLAG_H)
-                | ((((~(a ^ value)) & (a ^ result) & 0x80) != 0) ? FLAG_P : 0)
-                | ((result >>> 8) & FLAG_C);
+            | ((a ^ value ^ result) & FLAG_H)
+            | ((((~(a ^ value)) & (a ^ result) & 0x80) != 0) ? FLAG_P : 0)
+            | ((result >>> 8) & FLAG_C);
         r[A] = result & 0xFF;
     }
 
@@ -508,10 +513,10 @@ public abstract class Z80CPUBase implements Z80CPU {
         final int a = r[A];
         final int result = a - value - carry;
         f = szxy(result & 0xFF)
-                | ((a ^ value ^ result) & FLAG_H)
-                | (((a ^ value) & (a ^ result) & 0x80) != 0 ? FLAG_P : 0)
-                | FLAG_N
-                | ((result >>> 8) & FLAG_C);
+            | ((a ^ value ^ result) & FLAG_H)
+            | (((a ^ value) & (a ^ result) & 0x80) != 0 ? FLAG_P : 0)
+            | FLAG_N
+            | ((result >>> 8) & FLAG_C);
         r[A] = result & 0xFF;
     }
 
@@ -520,30 +525,30 @@ public abstract class Z80CPUBase implements Z80CPU {
         final int result = a - value;
         // X/Y come from the operand, not the result.
         f = ((result & 0xFF) == 0 ? FLAG_Z : 0)
-                | (result & FLAG_S)
-                | (value & (FLAG_Y | FLAG_X))
-                | ((a ^ value ^ result) & FLAG_H)
-                | (((a ^ value) & (a ^ result) & 0x80) != 0 ? FLAG_P : 0)
-                | FLAG_N
-                | ((result >>> 8) & FLAG_C);
+            | (result & FLAG_S)
+            | (value & (FLAG_Y | FLAG_X))
+            | ((a ^ value ^ result) & FLAG_H)
+            | (((a ^ value) & (a ^ result) & 0x80) != 0 ? FLAG_P : 0)
+            | FLAG_N
+            | ((result >>> 8) & FLAG_C);
     }
 
     private int inc8(final int value) {
         final int result = (value + 1) & 0xFF;
         f = (f & FLAG_C)
-                | szxy(result)
-                | ((result & 0x0F) == 0 ? FLAG_H : 0)
-                | (result == 0x80 ? FLAG_P : 0);
+            | szxy(result)
+            | ((result & 0x0F) == 0 ? FLAG_H : 0)
+            | (result == 0x80 ? FLAG_P : 0);
         return result;
     }
 
     private int dec8(final int value) {
         final int result = (value - 1) & 0xFF;
         f = (f & FLAG_C)
-                | szxy(result)
-                | ((value & 0x0F) == 0 ? FLAG_H : 0)
-                | (result == 0x7F ? FLAG_P : 0)
-                | FLAG_N;
+            | szxy(result)
+            | ((value & 0x0F) == 0 ? FLAG_H : 0)
+            | (result == 0x7F ? FLAG_P : 0)
+            | FLAG_N;
         return result;
     }
 
@@ -551,9 +556,9 @@ public abstract class Z80CPUBase implements Z80CPU {
         final int result = lhs + value;
         memptr = (lhs + 1) & 0xFFFF;
         f = (f & (FLAG_S | FLAG_Z | FLAG_P))
-                | (((lhs ^ value ^ result) >>> 8) & FLAG_H)
-                | ((result >>> 8) & (FLAG_Y | FLAG_X))
-                | ((result >>> 16) & FLAG_C);
+            | (((lhs ^ value ^ result) >>> 8) & FLAG_H)
+            | ((result >>> 8) & (FLAG_Y | FLAG_X))
+            | ((result >>> 16) & FLAG_C);
         return result & 0xFFFF;
     }
 
@@ -563,10 +568,10 @@ public abstract class Z80CPUBase implements Z80CPU {
         final int result = hl + value + carry;
         memptr = (hl + 1) & 0xFFFF;
         f = ((result & 0xFFFF) == 0 ? FLAG_Z : 0)
-                | ((result >>> 8) & (FLAG_S | FLAG_Y | FLAG_X))
-                | (((hl ^ value ^ result) >>> 8) & FLAG_H)
-                | ((((~(hl ^ value)) & (hl ^ result) & 0x8000) != 0) ? FLAG_P : 0)
-                | ((result >>> 16) & FLAG_C);
+            | ((result >>> 8) & (FLAG_S | FLAG_Y | FLAG_X))
+            | (((hl ^ value ^ result) >>> 8) & FLAG_H)
+            | ((((~(hl ^ value)) & (hl ^ result) & 0x8000) != 0) ? FLAG_P : 0)
+            | ((result >>> 16) & FLAG_C);
         setHL(result & 0xFFFF);
     }
 
@@ -576,11 +581,11 @@ public abstract class Z80CPUBase implements Z80CPU {
         final int result = hl - value - carry;
         memptr = (hl + 1) & 0xFFFF;
         f = ((result & 0xFFFF) == 0 ? FLAG_Z : 0)
-                | ((result >>> 8) & (FLAG_S | FLAG_Y | FLAG_X))
-                | (((hl ^ value ^ result) >>> 8) & FLAG_H)
-                | ((((hl ^ value) & (hl ^ result) & 0x8000) != 0) ? FLAG_P : 0)
-                | FLAG_N
-                | ((result >>> 16) & FLAG_C);
+            | ((result >>> 8) & (FLAG_S | FLAG_Y | FLAG_X))
+            | (((hl ^ value ^ result) >>> 8) & FLAG_H)
+            | ((((hl ^ value) & (hl ^ result) & 0x8000) != 0) ? FLAG_P : 0)
+            | FLAG_N
+            | ((result >>> 16) & FLAG_C);
         setHL(result & 0xFFFF);
     }
 
@@ -628,10 +633,10 @@ public abstract class Z80CPUBase implements Z80CPU {
     private void bitTest(final int b, final int value, final int xySource) {
         final int masked = value & (1 << b);
         f = (f & FLAG_C)
-                | FLAG_H
-                | (masked == 0 ? (FLAG_Z | FLAG_P) : 0)
-                | (masked & FLAG_S)
-                | (xySource & (FLAG_Y | FLAG_X));
+            | FLAG_H
+            | (masked == 0 ? (FLAG_Z | FLAG_P) : 0)
+            | (masked & FLAG_S)
+            | (xySource & (FLAG_Y | FLAG_X));
     }
 
     // ------------------------------------------------------------- //
@@ -1267,9 +1272,9 @@ public abstract class Z80CPUBase implements Z80CPU {
         setBC(bc);
         final int undoc = (r[A] + value) & 0xFF;
         f = (f & (FLAG_S | FLAG_Z | FLAG_C))
-                | (bc != 0 ? FLAG_P : 0)
-                | ((undoc & 0x02) != 0 ? FLAG_Y : 0)
-                | (undoc & FLAG_X);
+            | (bc != 0 ? FLAG_P : 0)
+            | ((undoc & 0x02) != 0 ? FLAG_Y : 0)
+            | (undoc & FLAG_X);
         cycles += 16;
         if (rep != 0 && bc != 0) {
             f = (f & ~(FLAG_Y | FLAG_X)) | ((int) (pc >>> 8) & (FLAG_Y | FLAG_X));
@@ -1294,13 +1299,13 @@ public abstract class Z80CPUBase implements Z80CPU {
         setBC(bc);
         final int undoc = (result - (halfBorrow != 0 ? 1 : 0)) & 0xFF;
         f = (f & FLAG_C)
-                | (result == 0 ? FLAG_Z : 0)
-                | (result & FLAG_S)
-                | halfBorrow
-                | (bc != 0 ? FLAG_P : 0)
-                | FLAG_N
-                | ((undoc & 0x02) != 0 ? FLAG_Y : 0)
-                | (undoc & FLAG_X);
+            | (result == 0 ? FLAG_Z : 0)
+            | (result & FLAG_S)
+            | halfBorrow
+            | (bc != 0 ? FLAG_P : 0)
+            | FLAG_N
+            | ((undoc & 0x02) != 0 ? FLAG_Y : 0)
+            | (undoc & FLAG_X);
         memptr = (memptr + step) & 0xFFFF;
         cycles += 16;
         if (rep != 0 && bc != 0 && result != 0) {
@@ -1327,9 +1332,9 @@ public abstract class Z80CPUBase implements Z80CPU {
         memptr = (bc + step) & 0xFFFF;
         final int k = value + ((r[C] + step) & 0xFF);
         f = szxy(b)
-                | ((value & 0x80) != 0 ? FLAG_N : 0)
-                | (k > 0xFF ? (FLAG_H | FLAG_C) : 0)
-                | parity((k & 7) ^ b);
+            | ((value & 0x80) != 0 ? FLAG_N : 0)
+            | (k > 0xFF ? (FLAG_H | FLAG_C) : 0)
+            | parity((k & 7) ^ b);
         cycles += 16;
         if (rep != 0 && b != 0) {
             applyRepeatInOutFlags(value, b, pc);
@@ -1353,9 +1358,9 @@ public abstract class Z80CPUBase implements Z80CPU {
         memptr = (getBC() + step) & 0xFFFF;
         final int k = value + r[L];
         f = szxy(b)
-                | ((value & 0x80) != 0 ? FLAG_N : 0)
-                | (k > 0xFF ? (FLAG_H | FLAG_C) : 0)
-                | parity((k & 7) ^ b);
+            | ((value & 0x80) != 0 ? FLAG_N : 0)
+            | (k > 0xFF ? (FLAG_H | FLAG_C) : 0)
+            | parity((k & 7) ^ b);
         cycles += 16;
         if (rep != 0 && b != 0) {
             applyRepeatInOutFlags(value, b, pc);

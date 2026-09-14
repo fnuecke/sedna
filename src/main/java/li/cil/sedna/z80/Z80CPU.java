@@ -3,6 +3,7 @@ package li.cil.sedna.z80;
 import li.cil.sedna.api.debug.CPUDebugInterface;
 import li.cil.sedna.api.device.Resettable;
 import li.cil.sedna.api.device.Steppable;
+import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.api.memory.MemoryMap;
 
 /**
@@ -10,7 +11,7 @@ import li.cil.sedna.api.memory.MemoryMap;
  * <p>
  * {@link Steppable#step(int)} cycles are T-states.
  */
-public interface Z80CPU extends Steppable, Resettable {
+public interface Z80CPU extends Steppable, Resettable, RealTimeCounter {
     static Z80CPU create(final MemoryMap memoryMap, final MemoryMap ioMap) {
         return new Z80CPUImpl(memoryMap, ioMap);
     }
@@ -18,8 +19,6 @@ public interface Z80CPU extends Steppable, Resettable {
     void reset(boolean hard, int pc);
 
     void invalidateCaches();
-
-    int getFrequency();
 
     void setFrequency(int value);
 
