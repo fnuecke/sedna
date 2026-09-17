@@ -25,6 +25,8 @@ import static java.util.Collections.singleton;
 @SuppressWarnings("PointlessBitwiseExpression")
 @Serialized
 public final class UART16550A implements Resettable, Steppable, MemoryMappedDevice, SerialDevice, InterruptSource {
+    public static final int CLOCK_FREQUENCY = 1843200; // in Hz
+
     private static final int UART_RBR_OFFSET = 0; // Receive buffer register (Read-only)
     private static final int UART_THR_OFFSET = 0; // Transmitter holding register (Write-only)
     private static final int UART_IER_OFFSET = 1; // Interrupt enable register (Read-write)
@@ -145,6 +147,28 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
         return interrupt;
     }
 
+    public int getBaudDivisor() {
+        synchronized (lock) {
+            return dl & 0xFFFF;
+        }
+    }
+
+    public int getBaudRate() {
+        synchronized (lock) {
+            final int divisor = dl & 0xFFFF;
+            return divisor == 0 ? 0 : CLOCK_FREQUENCY / (16 * divisor);
+        }
+    }
+
+    public void setBaudRate(final int baudRate) {
+        if (baudRate <= 0) {
+            throw new IllegalArgumentException("Baud rate must be positive: " + baudRate);
+        }
+        synchronized (lock) {
+            dl = (short) Math.clamp(CLOCK_FREQUENCY / (16L * baudRate), 1, 0xFFFF);
+        }
+    }
+
     @Override
     public int read() {
         synchronized (lock) {
@@ -218,6 +242,14 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
             lsr |= UART_LSR_DR;
 
             timeoutInterruptPending = true; // Not correct, but good enough.
+            interruptUpdatePending = true;
+        }
+    }
+
+    public void putFrameError(final byte value) {
+        synchronized (lock) {
+            putByte(value);
+            lsr |= UART_LSR_FE;
             interruptUpdatePending = true;
         }
     }
@@ -335,8 +367,8 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
             case UART_LSR_OFFSET -> {
                 synchronized (lock) {
                     final byte result = lsr;
-                    if ((lsr & (UART_LSR_BI | UART_LSR_OE)) != 0) {
-                        lsr &= ~(UART_LSR_BI | UART_LSR_OE);
+                    if ((lsr & UART_LSR_IRQ_MASK) != 0) {
+                        lsr &= ~UART_LSR_IRQ_MASK;
                         updateInterrupts();
                     }
                     return result;

@@ -10,10 +10,18 @@ import java.nio.charset.StandardCharsets;
 import static org.junit.jupiter.api.Assertions.*;
 
 public final class UART16550ATests {
+    private static final int UART_RBR_OFFSET = 0;
     private static final int UART_THR_OFFSET = 0;
+    private static final int UART_DLL_OFFSET = 0;
+    private static final int UART_DLM_OFFSET = 1;
     private static final int UART_FCR_OFFSET = 2;
+    private static final int UART_LCR_OFFSET = 3;
+    private static final int UART_LSR_OFFSET = 5;
 
     private static final int UART_FCR_FE = 1 << 0;
+    private static final int UART_LCR_DLAB = 1 << 7;
+    private static final int UART_LSR_OE = 1 << 1;
+    private static final int UART_LSR_FE = 1 << 3;
 
     private UART16550A uart;
 
@@ -54,7 +62,7 @@ public final class UART16550ATests {
 
         final byte[] dst = new byte[8];
         assertEquals(4, uart.read(dst, 0, dst.length),
-                "a high byte must not truncate the batch either");
+            "a high byte must not truncate the batch either");
         assertArrayEquals(new byte[]{0x00, (byte) 0x80, (byte) 0xFF, 0x41, 0, 0, 0, 0}, dst);
     }
 
@@ -99,6 +107,45 @@ public final class UART16550ATests {
         assertEquals('q', uart.read(), "and leaves the data in place");
     }
 
+    @Test
+    public void programmedBaudRateIsVisibleToBothSides() {
+        uart.setBaudRate(9600);
+
+        assertEquals(9600, uart.getBaudRate());
+        assertEquals(UART16550A.CLOCK_FREQUENCY / (16 * 9600), readDivisor());
+    }
+
+    @Test
+    public void guestProgrammedDivisorDecidesTheBaudRate() {
+        guestWritesDivisor(1);
+        assertEquals(UART16550A.CLOCK_FREQUENCY / 16, uart.getBaudRate());
+
+        guestWritesDivisor(96);
+        assertEquals(1200, uart.getBaudRate());
+    }
+
+    @Test
+    public void framingErrorDeliversTheByteAndFlagsIt() {
+        enableFifo();
+        uart.putFrameError((byte) 'x');
+
+        assertNotEquals(0, readLineStatus() & UART_LSR_FE, "the guest is told not to trust it");
+        assertEquals('x', uart.load(UART_RBR_OFFSET, Sizes.SIZE_8_LOG2) & 0xFF,
+            "the byte still arrives, corrupt as it is");
+        assertEquals(0, readLineStatus() & UART_LSR_FE, "reading the status clears it");
+    }
+
+    @Test
+    public void overrunIsFlaggedWhenTheGuestFallsBehind() {
+        enableFifo();
+        for (int i = 0; i < 17; i++) {
+            uart.putByte((byte) i);
+        }
+
+        assertNotEquals(0, readLineStatus() & UART_LSR_OE, "the 16 byte fifo took no more");
+        assertEquals(0, readLineStatus() & UART_LSR_OE, "reading the status clears it");
+    }
+
     // ------------------------------------------------------------- //
 
     private void enableFifo() {
@@ -109,6 +156,25 @@ public final class UART16550ATests {
         for (final byte value : values) {
             uart.store(UART_THR_OFFSET, value, Sizes.SIZE_8_LOG2);
         }
+    }
+
+    private int readLineStatus() {
+        return (int) uart.load(UART_LSR_OFFSET, Sizes.SIZE_8_LOG2) & 0xFF;
+    }
+
+    private int readDivisor() {
+        uart.store(UART_LCR_OFFSET, UART_LCR_DLAB, Sizes.SIZE_8_LOG2);
+        final int low = (int) uart.load(UART_DLL_OFFSET, Sizes.SIZE_8_LOG2) & 0xFF;
+        final int high = (int) uart.load(UART_DLM_OFFSET, Sizes.SIZE_8_LOG2) & 0xFF;
+        uart.store(UART_LCR_OFFSET, 0, Sizes.SIZE_8_LOG2);
+        return (high << 8) | low;
+    }
+
+    private void guestWritesDivisor(final int divisor) {
+        uart.store(UART_LCR_OFFSET, UART_LCR_DLAB, Sizes.SIZE_8_LOG2);
+        uart.store(UART_DLL_OFFSET, divisor & 0xFF, Sizes.SIZE_8_LOG2);
+        uart.store(UART_DLM_OFFSET, (divisor >>> 8) & 0xFF, Sizes.SIZE_8_LOG2);
+        uart.store(UART_LCR_OFFSET, 0, Sizes.SIZE_8_LOG2);
     }
 
     private static String asString(final ByteBuffer buffer) {
