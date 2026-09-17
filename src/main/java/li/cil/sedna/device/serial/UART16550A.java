@@ -265,27 +265,29 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
 
     @Override
     public void reset() {
-        rbr = 0;
-        thr = 0;
-        ier = 0;
-        iir = (byte) UART_IIR_NO_INTERRUPT;
-        fcr = 0;
-        lcr = 0;
-        mcr = (byte) UART_MCR_AO2;
-        lsr = (byte) (UART_LSR_THRE | UART_LSR_TEMT);
-        msr = (byte) (UART_MSR_CTS | UART_MSR_DCD | UART_MSR_DSR);
-        scr = 0;
-        dl = UART_DL_12;
+        synchronized (lock) {
+            rbr = 0;
+            thr = 0;
+            ier = 0;
+            iir = (byte) UART_IIR_NO_INTERRUPT;
+            fcr = 0;
+            lcr = 0;
+            mcr = (byte) UART_MCR_AO2;
+            lsr = (byte) (UART_LSR_THRE | UART_LSR_TEMT);
+            msr = (byte) (UART_MSR_CTS | UART_MSR_DCD | UART_MSR_DSR);
+            scr = 0;
+            dl = UART_DL_12;
 
-        triggerLevel = 1;
+            triggerLevel = 1;
 
-        receiveFifo.clear();
-        transmitFifo.clear();
+            receiveFifo.clear();
+            transmitFifo.clear();
 
-        interruptUpdatePending = false;
-        transmitInterruptPending = false;
-        timeoutInterruptPending = false;
-        interrupt.lowerInterrupt();
+            interruptUpdatePending = false;
+            transmitInterruptPending = false;
+            timeoutInterruptPending = false;
+            interrupt.lowerInterrupt();
+        }
     }
 
     @Override
@@ -406,7 +408,9 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
             // case UART_DLL_OFFSET:
             case UART_THR_OFFSET -> {
                 if ((lcr & UART_LCR_DLAB) != 0) { // UART_DLL
-                    dl = (short) ((dl & 0xFF00) | (value & 0x00FF));
+                    synchronized (lock) {
+                        dl = (short) ((dl & 0xFF00) | (value & 0x00FF));
+                    }
                 } else { // UART_RBR
                     synchronized (lock) {
                         thr = (byte) value;
@@ -428,7 +432,9 @@ public final class UART16550A implements Resettable, Steppable, MemoryMappedDevi
             // case UART_DLM_OFFSET:
             case UART_IER_OFFSET -> {
                 if ((lcr & UART_LCR_DLAB) != 0) { // UART_DLM
-                    dl = (short) ((value << 8) | (dl & 0x00FF));
+                    synchronized (lock) {
+                        dl = (short) ((value << 8) | (dl & 0x00FF));
+                    }
                 } else { // UART_IER
                     synchronized (lock) {
                         final int changes = ier ^ (byte) value;
