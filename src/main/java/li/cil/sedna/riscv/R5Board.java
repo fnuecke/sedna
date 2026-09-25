@@ -313,10 +313,10 @@ public final class R5Board implements Board {
         // 0x0000  auipc t0, 0 ; x5 = pc
         data.putInt(auipc | rd_t0);
 
-        // 0x0004  ld a1, 8(t0) ; a1 = *(t0 + 8) = fdtAddress
+        // 0x0004  ld a1, 16(t0) ; a1 = *(t0 + 0x10) = fdtAddress
         data.putInt(ld | rd_a1 | rs1_t0 | imm_fdtAddressOffset);
 
-        // 0x0008  ld t0, 12(t0) ; t0 = *(t0 + 12) = programStart
+        // 0x0008  ld t0, 24(t0) ; t0 = *(t0 + 0x18) = programStart
         data.putInt(ld | rd_t0 | rs1_t0 | imm_programStartOffset);
 
         // 0x000C  jalr t0 ; jump to firmware
