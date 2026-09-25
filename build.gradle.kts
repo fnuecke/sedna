@@ -4,7 +4,7 @@ plugins {
     alias(libs.plugins.jmh)
 }
 
-val semver: String by project
+val semver = providers.gradleProperty("semver").get()
 val packageGroup = "li.cil.sedna"
 
 fun getGitRef(): String {
@@ -19,7 +19,7 @@ group = packageGroup
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
-val codegen by sourceSets.creating {
+val codegen = sourceSets.create("codegen") {
     compileClasspath += sourceSets.main.get().output
     runtimeClasspath += sourceSets.main.get().output
 }
