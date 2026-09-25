@@ -76,6 +76,8 @@ public final class DeviceEnumerator implements MemoryMappedDevice {
             case REG_VERSION -> VERSION;
             case REG_SELECT -> selected;
             case REG_COUNT -> {
+                nameIndex = 0;
+                idIndex = 0;
                 entries = null;
                 yield Math.min(entries().size(), MAX_DEVICES);
             }
