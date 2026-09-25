@@ -64,17 +64,6 @@ public interface MemoryMap {
     MappedMemoryRange getMemoryRange(final long address);
 
     /**
-     * Marks a location in memory dirty.
-     * <p>
-     * This may be called by systems in parallel to performing actual store operations
-     * directly on {@link MemoryMappedDevice}s.
-     *
-     * @param range  the memory range in which data has changed.
-     * @param offset the offset inside that memory range at which data has changed.
-     */
-    void setDirty(final MemoryRange range, final int offset);
-
-    /**
      * Reads a value from the specified physical address.
      * <p>
      * When performing many operations on an address range that is known to be occupied by

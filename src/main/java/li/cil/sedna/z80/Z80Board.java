@@ -371,11 +371,6 @@ public final class Z80Board implements Board {
         }
 
         @Override
-        public void setDirty(final MemoryRange range, final int offset) {
-            map.setDirty(range, offset);
-        }
-
-        @Override
         public long load(final long address, final int sizeLog2) throws MemoryAccessException {
             final MappedMemoryRange shadowed = shadowing(address);
             if (shadowed == null) {
@@ -460,11 +455,6 @@ public final class Z80Board implements Board {
         @Override
         public MappedMemoryRange getMemoryRange(final long address) {
             return map.getMemoryRange(address & 0xFF);
-        }
-
-        @Override
-        public void setDirty(final MemoryRange range, final int offset) {
-            map.setDirty(range, offset);
         }
 
         @Override

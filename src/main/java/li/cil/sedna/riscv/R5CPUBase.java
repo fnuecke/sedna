@@ -1347,9 +1347,7 @@ public abstract class R5CPUBase implements R5CPU {
         try {
             if (range.device.supportsFetch()) {
                 installTLB(storeTLBHash, storeTLBToOffset, storeTLBDevice, storeTLBHostDelta, address, dataTLBTag, physicalAddress, range);
-                final int offset = (int) (physicalAddress - range.start);
-                range.device.store(offset, value, sizeLog2);
-                physicalMemory.setDirty(range, offset);
+                range.device.store((int) (physicalAddress - range.start), value, sizeLog2);
             } else {
                 updateMMIOTLB(mmioEntry, address, dataTLBTag, physicalAddress, range);
                 range.device.store((int) (physicalAddress - range.start), value, sizeLog2);

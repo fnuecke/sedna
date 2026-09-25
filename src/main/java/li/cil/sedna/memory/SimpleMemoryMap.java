@@ -89,11 +89,6 @@ public final class SimpleMemoryMap implements MemoryMap {
     }
 
     @Override
-    public void setDirty(final MemoryRange range, final int offset) {
-        // todo implement tracking dirty bits; really need this if we want to add a frame buffer.
-    }
-
-    @Override
     public long load(final long address, final int sizeLog2) throws MemoryAccessException {
         final MappedMemoryRange range = getMemoryRange(address);
         if (range != null && (range.device.getSupportedSizes() & (1 << sizeLog2)) != 0) {
