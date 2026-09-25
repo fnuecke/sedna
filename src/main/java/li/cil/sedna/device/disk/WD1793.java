@@ -476,7 +476,7 @@ public final class WD1793 implements MemoryMappedDevice, Resettable {
 
     private boolean loadSector() {
         final BlockDevice disk = getDisk();
-        if (disk == null || sector >= sectorsPerTrack()) {
+        if (disk == null || sector >= sectorsPerTrack() || sectorOffset() + sectorSize() > disk.getCapacity()) {
             return false;
         }
         try (final InputStream stream = disk.getInputStream(sectorOffset())) {
@@ -492,7 +492,7 @@ public final class WD1793 implements MemoryMappedDevice, Resettable {
 
     private boolean storeSector() {
         final BlockDevice disk = getDisk();
-        if (disk == null || sector >= sectorsPerTrack()) {
+        if (disk == null || sector >= sectorsPerTrack() || sectorOffset() + sectorSize() > disk.getCapacity()) {
             return false;
         }
         try (final OutputStream stream = disk.getOutputStream(sectorOffset())) {
