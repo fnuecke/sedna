@@ -168,6 +168,7 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
             final int word = contextOffset >>> 2;
             if (word < sourceWords) {
                 enabled[context * sourceWords + word] = intValue;
+                updateInterrupts();
             }
         } else if (offset >= PLIC_CONTEXT_BASE && offset < PLIC_CONTEXT_BASE + PLIC_CONTEXT_COUNT * PLIC_CONTEXT_STRIDE) {
             // base + 0x200000: Priority threshold for context 0
