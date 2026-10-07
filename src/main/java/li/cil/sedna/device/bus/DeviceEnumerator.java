@@ -86,8 +86,8 @@ public final class DeviceEnumerator implements MemoryMappedDevice {
             case REG_PORT -> entry == null ? NONE : entry.port;
             case REG_INTERRUPT -> entry == null ? InterruptVectorMap.NO_VECTOR : entry.vector;
             case REG_NAME -> {
-                final String name = entry == null ? "" : entry.name;
-                yield nameIndex < name.length() ? name.charAt(nameIndex++) & 0xFF : 0;
+                final String names = entry == null ? "" : entry.names;
+                yield nameIndex < names.length() ? names.charAt(nameIndex++) & 0xFF : 0;
             }
             case REG_ID -> {
                 final String id = entry == null ? "" : entry.id;
@@ -113,7 +113,7 @@ public final class DeviceEnumerator implements MemoryMappedDevice {
         }
     }
 
-    private record Entry(int deviceClass, int attributes, String name, String id, int port, int vector) {
+    private record Entry(int deviceClass, int attributes, String names, String id, int port, int vector) {
     }
 
     private List<Entry> entries() {
@@ -143,7 +143,7 @@ public final class DeviceEnumerator implements MemoryMappedDevice {
         final int vector = vector(device);
         for (final DeviceDescription description : DeviceDescriptionRegistry.getDescriptions(device)) {
             result.add(new Entry(description.deviceClass().value(), description.attributes(),
-                description.name(), description.id(), port, vector));
+                String.join("\0", description.names()), description.id(), port, vector));
         }
     }
 

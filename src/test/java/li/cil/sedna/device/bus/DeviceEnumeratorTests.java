@@ -6,6 +6,8 @@ import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.MemoryMappedDevice;
 import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.device.bus.DeviceClass;
+import li.cil.sedna.api.device.bus.DeviceDescription;
+import li.cil.sedna.api.device.bus.DeviceDescriptionProvider;
 import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.device.DeviceWindow;
 import li.cil.sedna.device.disk.WD1793;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -140,6 +143,22 @@ public final class DeviceEnumeratorTests {
     }
 
     @Test
+    public void nameStreamListsAliasesAfterTheName() {
+        DeviceDescriptionRegistry.putProvider(AliasedDevice.class, DeviceDescriptionProvider.of(
+            new DeviceDescription(DeviceClass.CHARACTER, List.of("LAMP", "left", "oc2:lamp"), "", 0)));
+        assertTrue(board.addPortDevice(0x70, new AliasedDevice()));
+
+        select(3);
+        assertEquals("LAMP\0left\0oc2:lamp\0\0", readNames());
+    }
+
+    @Test
+    public void nameStreamOfADeviceWithoutAliasesEndsAfterItsName() {
+        select(1);
+        assertEquals("UART\0\0", readNames());
+    }
+
+    @Test
     public void selectionSurvivesSerialization() {
         select(2);
         read(REG_NAME);
@@ -196,9 +215,38 @@ public final class DeviceEnumeratorTests {
         return name.toString();
     }
 
+    private String readNames() {
+        enumerator.store(REG_NAME, 0, Sizes.SIZE_8_LOG2);
+        final StringBuilder names = new StringBuilder();
+        for (int value = read(REG_NAME); value != 0; value = read(REG_NAME)) {
+            do {
+                names.append((char) value);
+                value = read(REG_NAME);
+            } while (value != 0);
+            names.append('\0');
+        }
+        return names.append('\0').toString();
+    }
+
     private void load(final int address, final int... program) throws MemoryAccessException {
         for (int i = 0; i < program.length; i++) {
             memory.store(address + i, program[i], Sizes.SIZE_8_LOG2);
+        }
+    }
+
+    private static final class AliasedDevice implements MemoryMappedDevice {
+        @Override
+        public int getLength() {
+            return 1;
+        }
+
+        @Override
+        public long load(final int offset, final int sizeLog2) {
+            return 0;
+        }
+
+        @Override
+        public void store(final int offset, final long value, final int sizeLog2) {
         }
     }
 
