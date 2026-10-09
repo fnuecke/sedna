@@ -59,6 +59,8 @@ public final class R5Board implements Board {
     @Serialized
     private final R5PlatformLevelInterruptController plic;
     @Serialized
+    private final R5SystemController syscon;
+    @Serialized
     private String bootargs;
     @Serialized
     private boolean isRunning;
@@ -72,6 +74,7 @@ public final class R5Board implements Board {
         flash = new FlashMemoryDevice(FLASH_SIZE);
         clint = new R5CoreLocalInterrupter(rtc);
         plic = new R5PlatformLevelInterruptController();
+        syscon = new R5SystemController();
 
         steppableDevices.add(cpu);
 
@@ -80,7 +83,7 @@ public final class R5Board implements Board {
         plic.setHart(cpu);
 
         // Map devices to memory.
-        addDevice(SYSCON_ADDRESS, new R5SystemController());
+        addDevice(SYSCON_ADDRESS, syscon);
         addDevice(CLINT_ADDRESS, clint);
         addDevice(PLIC_ADDRESS, plic);
         addDevice(FLASH_ADDRESS, flash);
@@ -100,6 +103,10 @@ public final class R5Board implements Board {
 
     public R5CPU getCpu() {
         return cpu;
+    }
+
+    public R5SystemController getSystemController() {
+        return syscon;
     }
 
     @Override

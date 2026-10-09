@@ -28,7 +28,7 @@ public final class SystemControllerProvider implements DeviceTreeProvider {
     public void visit(final DeviceTree node, final MemoryMap memoryMap, final Device device) {
         final int handle = node.getPHandle(device);
         node
-                .addProp(DevicePropertyNames.COMPATIBLE, "syscon")
+                .addProp(DevicePropertyNames.COMPATIBLE, "sedna,syscon", "syscon")
                 .addProp(DevicePropertyNames.PHANDLE, handle);
 
         final DeviceTree soc = node.find("/soc");
