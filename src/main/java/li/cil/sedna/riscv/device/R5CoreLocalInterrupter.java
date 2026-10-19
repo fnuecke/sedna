@@ -9,6 +9,7 @@ import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.InterruptController;
 import li.cil.sedna.api.device.InterruptSource;
 import li.cil.sedna.api.device.MemoryMappedDevice;
+import li.cil.sedna.api.device.Resettable;
 import li.cil.sedna.api.device.Steppable;
 import li.cil.sedna.api.device.rtc.RealTimeCounter;
 import li.cil.sedna.riscv.R5;
@@ -21,7 +22,7 @@ import java.util.stream.Stream;
  * <p>
  * See: https://github.com/riscv/riscv-isa-sim/blob/master/riscv/clint.cc
  */
-public final class R5CoreLocalInterrupter implements Steppable, InterruptSource, MemoryMappedDevice {
+public final class R5CoreLocalInterrupter implements Steppable, InterruptSource, MemoryMappedDevice, Resettable {
     private static final int CLINT_SIP_BASE = 0x0000;
     private static final int CLINT_TIMECMP_BASE = 0x4000;
     private static final int CLINT_TIME_BASE = 0xBFF8;
@@ -59,6 +60,15 @@ public final class R5CoreLocalInterrupter implements Steppable, InterruptSource,
     @Override
     public Iterable<Interrupt> getInterrupts() {
         return Stream.concat(msips.values().stream(), mtips.values().stream()).collect(Collectors.toList());
+    }
+
+    @Override
+    public void reset() {
+        for (final int id : mtimecmps.keySet().toIntArray()) {
+            mtimecmps.put(id, -1);
+        }
+        msips.values().forEach(Interrupt::lowerInterrupt);
+        mtips.values().forEach(Interrupt::lowerInterrupt);
     }
 
     @Override

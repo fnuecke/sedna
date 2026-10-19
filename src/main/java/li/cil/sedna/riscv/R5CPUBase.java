@@ -267,6 +267,10 @@ public abstract class R5CPUBase implements R5CPU {
 
         if (hard) {
             Arrays.fill(x, 0);
+            Arrays.fill(f, 0);
+            fflags.value = 0;
+            frm = 0;
+            fs = 0;
 
             reservation_set = -1;
 

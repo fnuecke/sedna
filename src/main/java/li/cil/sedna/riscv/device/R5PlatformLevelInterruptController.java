@@ -6,6 +6,7 @@ import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.InterruptController;
 import li.cil.sedna.api.device.InterruptSource;
 import li.cil.sedna.api.device.MemoryMappedDevice;
+import li.cil.sedna.api.device.Resettable;
 import li.cil.sedna.riscv.R5;
 
 import java.util.Arrays;
@@ -19,7 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * See: https://github.com/riscv/opensbi/blob/master/lib/utils/irqchip/plic.c
  */
 @Serialized
-public class R5PlatformLevelInterruptController implements MemoryMappedDevice, InterruptController, InterruptSource {
+public class R5PlatformLevelInterruptController implements MemoryMappedDevice, InterruptController, InterruptSource, Resettable {
     public static final int INTERRUPT_COUNT = 31;
 
     private static final int PLIC_PRIORITY_BASE = 0x000004;
@@ -221,6 +222,17 @@ public class R5PlatformLevelInterruptController implements MemoryMappedDevice, I
     @Override
     public Iterable<Interrupt> getInterrupts() {
         return Arrays.asList(interruptByContext);
+    }
+
+    @Override
+    public void reset() {
+        Arrays.fill(priorityBySource, 0);
+        Arrays.fill(thresholdByContext, 0);
+        Arrays.fill(enabled, 0);
+        for (final AtomicInteger word : claimed) {
+            word.set(0);
+        }
+        updateInterrupts();
     }
 
     private boolean hasPending(final int context) {

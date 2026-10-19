@@ -126,7 +126,7 @@ public final class R5Board implements Board {
 
     @Override
     public int getInterruptCount() {
-        return R5PlatformLevelInterruptController.INTERRUPT_COUNT;
+        return R5PlatformLevelInterruptController.INTERRUPT_COUNT + 1; // Source 0 is reserved.
     }
 
     public MemoryRangeAllocationStrategy getAllocationStrategy() {
