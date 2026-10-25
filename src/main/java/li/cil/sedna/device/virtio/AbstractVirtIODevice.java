@@ -373,6 +373,13 @@ public abstract class AbstractVirtIODevice implements MemoryMappedDevice, Interr
     }
 
     /**
+     * Whether a config change was signaled that the driver has not acknowledged yet.
+     */
+    protected final boolean isConfigChangePending() {
+        return (interruptStatus & VIRTIO_IRQ_CONFIGURATION_CHANGE_MASK) != 0;
+    }
+
+    /**
      * Call this to signal that the config space of the device has changed.
      */
     protected final void notifyConfigChanged() {

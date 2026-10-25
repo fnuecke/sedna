@@ -156,9 +156,27 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
      * could cause out of bounds reads. In the worst case a JVM crash.
      */
     public void setBlock(final BlockDevice block) throws IOException {
+        setBlock(block, true);
+    }
+
+    /**
+     * Replaces the backing block device and closes the previous one.
+     * <p>
+     * Pass {@code notify = false} when calling this after a load, i.e. when the guest is expected
+     * to already track the block device being attached. This ensures guest state and restored
+     * device state stay in sync and we don't generate what would look like spurious resets.
+     * <p>
+     * <em>Important:</em> a machine this is attached to must not be running when this is being
+     * called, e.g. if the CPU is being run on a worker thread. Calling this will close the
+     * previously assigned block device, which might otherwise be read from the worker, which
+     * could cause out of bounds reads. In the worst case a JVM crash.
+     */
+    public void setBlock(final BlockDevice block, final boolean notify) throws IOException {
         final BlockDevice oldBlock = this.block;
         this.block = block;
-        notifyConfigChanged();
+        if (notify) {
+            notifyConfigChanged();
+        }
 
         if (oldBlock != null) {
             oldBlock.close();
@@ -319,6 +337,18 @@ public final class VirtIOBlockDevice extends AbstractVirtIODevice implements Ste
         final int type = header.getInt();
         header.getInt(); // reserved
         final long sector = header.getLong();
+
+        // Fail requests while media change was not acknowledged. Avoids applying changes meant
+        // for the old one to the new one.
+        if (isConfigChangePending()) {
+            chain.skip(chain.readableBytes());
+            if (chain.writableBytes() > 0) {
+                chain.skip(chain.writableBytes() - 1);
+                chain.put((byte) VIRTIO_BLK_S_IOERR);
+            }
+            chain.use();
+            return processedBytes;
+        }
 
         switch (type) {
             case VIRTIO_BLK_T_IN: {
