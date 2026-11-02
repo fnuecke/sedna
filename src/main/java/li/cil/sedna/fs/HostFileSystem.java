@@ -4,7 +4,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -153,7 +155,11 @@ public final class HostFileSystem implements FileSystem {
 
     @Override
     public void rename(final Path oldPath, final Path newPath) throws IOException {
-        Files.move(toHost(oldPath), toHost(newPath));
+        try {
+            Files.move(toHost(oldPath), toHost(newPath), StandardCopyOption.ATOMIC_MOVE);
+        } catch (final AtomicMoveNotSupportedException e) {
+            Files.move(toHost(oldPath), toHost(newPath), StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     private java.nio.file.Path toHost(final Path path) {
