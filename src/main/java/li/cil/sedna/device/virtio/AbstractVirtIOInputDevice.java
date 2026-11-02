@@ -48,6 +48,8 @@ public abstract class AbstractVirtIOInputDevice extends AbstractVirtIODevice imp
     private DescriptorChain event;
     @Serialized
     private final BoundedByteArrayQueue pendingEvents = new BoundedByteArrayQueue(MAX_PENDING_EVENT_BYTES);
+    @Serialized
+    private int pendingEventPosition; // Of the first pending group, which waits for buffers from the driver.
 
     protected AbstractVirtIOInputDevice(final MemoryMap memoryMap) {
         this(memoryMap, VirtIODeviceSpec.DEFAULT_QUEUE_SIZE_MAX);
@@ -65,6 +67,8 @@ public abstract class AbstractVirtIOInputDevice extends AbstractVirtIODevice imp
     public void reset() {
         super.reset();
         event = null;
+        pendingEvents.clear();
+        pendingEventPosition = 0;
     }
 
     @Override
@@ -74,13 +78,20 @@ public abstract class AbstractVirtIOInputDevice extends AbstractVirtIODevice imp
         }
 
         byte[] group;
-        while ((group = pendingEvents.poll()) != null) {
+        while ((group = pendingEvents.peek()) != null) {
             final ByteBuffer buffer = ByteBuffer.wrap(group);
+            buffer.position(pendingEventPosition);
             while (buffer.hasRemaining()) {
-                final long packedEvent = buffer.getLong();
+                final long packedEvent = buffer.getLong(buffer.position());
                 // Opposite of packEvent()
-                writeEvent((int) (packedEvent >>> 48) & 0xFFFF, (int) (packedEvent >>> 32) & 0xFFFF, (int) packedEvent);
+                if (!writeEvent((int) (packedEvent >>> 48) & 0xFFFF, (int) (packedEvent >>> 32) & 0xFFFF, (int) packedEvent)) {
+                    pendingEventPosition = buffer.position();
+                    return;
+                }
+                buffer.position(buffer.position() + Long.BYTES);
             }
+            pendingEvents.poll();
+            pendingEventPosition = 0;
         }
     }
 
@@ -201,38 +212,43 @@ public abstract class AbstractVirtIOInputDevice extends AbstractVirtIODevice imp
         }
     }
 
-    private void writeEvent(final int type, final int code, final int value) {
+    private boolean writeEvent(final int type, final int code, final int value) {
         if ((getStatus() & (VIRTIO_STATUS_FAILED | VIRTIO_STATUS_DEVICE_NEEDS_RESET)) != 0) {
-            return;
+            return false;
         }
 
         try {
             // 5.8.6.1: These buffers [in the eventq] MUST be device-writable [...]
             event = validateWriteOnlyDescriptorChain(VIRTQ_EVENT, event);
-            if (event != null) {
-                // 5.8.6.1: [eventq buffers] MUST be at least the size of struct virtio_input_event.
-                if (event.writableBytes() < 8) {
-                    error();
-                    return;
-                }
-
-                // VirtIO Input Events look like this:
-                // struct virtio_input_event {
-                //     le16 type;
-                //     le16 code;
-                //     le32 value;
-                // };
-                final ByteBuffer buffer = getTempBuffer();
-                buffer.putShort((short) type);
-                buffer.putShort((short) code);
-                buffer.putInt(value);
-
-                buffer.flip();
-                event.put(buffer);
-                event.use();
+            if (event == null) {
+                return false;
             }
+
+            // 5.8.6.1: [eventq buffers] MUST be at least the size of struct virtio_input_event.
+            if (event.writableBytes() < 8) {
+                error();
+                return false;
+            }
+
+            // VirtIO Input Events look like this:
+            // struct virtio_input_event {
+            //     le16 type;
+            //     le16 code;
+            //     le32 value;
+            // };
+            final ByteBuffer buffer = getTempBuffer();
+            buffer.putShort((short) type);
+            buffer.putShort((short) code);
+            buffer.putInt(value);
+
+            buffer.flip();
+            event.put(buffer);
+            event.use();
+
+            return true;
         } catch (final VirtIODeviceException | MemoryAccessException e) {
             error();
+            return false;
         }
     }
 

@@ -23,6 +23,11 @@ public final class BoundedByteArrayQueue {
     }
 
     @Nullable
+    public byte[] peek() {
+        return queue.peek();
+    }
+
+    @Nullable
     public byte[] poll() {
         final byte[] value = queue.poll();
         if (value != null) {

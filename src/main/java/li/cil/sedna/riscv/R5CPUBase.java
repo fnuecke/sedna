@@ -796,12 +796,14 @@ public abstract class R5CPUBase implements R5CPU {
             case R5CSR.SSTATUS -> {
                 final long supervisorStatusMask = getSupervisorStatusMask();
                 setStatus((mstatus & ~supervisorStatusMask) | (value & supervisorStatusMask));
+                return hasPendingInterrupts();
             }
             // 0x102: sedeleg, Supervisor exception delegation register.
             // 0x103: sideleg, Supervisor interrupt delegation register.
             case R5CSR.SIE -> {
                 final long mask = mideleg; // Can only set stuff that's delegated to S mode.
                 mie = (mie & ~mask) | (value & mask);
+                return hasPendingInterrupts();
             }
             case R5CSR.STVEC -> {
                 if ((value & 0b11) < 2) { // Don't allow reserved modes.
@@ -877,7 +879,10 @@ public abstract class R5CPUBase implements R5CPU {
             // 0x280: vsatp, Virtual supervisor address translation and protection
 
             // Machine Trap Setup
-            case R5CSR.MSTATUS -> setStatus(value & MSTATUS_MASK);
+            case R5CSR.MSTATUS -> {
+                setStatus(value & MSTATUS_MASK);
+                return hasPendingInterrupts();
+            }
             case R5CSR.MISA -> {
                 // We do not support changing feature sets dynamically.
             }
@@ -892,6 +897,7 @@ public abstract class R5CPUBase implements R5CPU {
             case R5CSR.MIE -> {
                 final int mask = R5.MEIP_MASK | R5.MTIP_MASK | R5.MSIP_MASK | R5.SEIP_MASK | R5.STIP_MASK | R5.SSIP_MASK;
                 mie = (mie & ~mask) | (value & mask);
+                return hasPendingInterrupts();
             }
             case R5CSR.MTVEC -> {
                 if ((value & 0b11) < 2) { // Don't allow reserved modes.
@@ -987,6 +993,10 @@ public abstract class R5CPUBase implements R5CPU {
                 throw new R5IllegalInstructionException();
             }
         }
+    }
+
+    private boolean hasPendingInterrupts() {
+        return (mip.get() & mie) != 0;
     }
 
     // ------------------------------------------------------------- //
