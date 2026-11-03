@@ -30,6 +30,8 @@ public interface R5CPU extends Steppable, Resettable, RealTimeCounter, Interrupt
 
     long getInstructionsRetired();
 
+    boolean isHalted();
+
     long[] getGeneralRegisters();
 
     CPUDebugInterface getDebugInterface();

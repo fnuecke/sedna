@@ -140,6 +140,7 @@ public abstract class R5CPUBase implements R5CPU {
     // Misc. state
     private int priv; // Current privilege level.
     private boolean waitingForInterrupt;
+    private boolean halted; // Unrecoverable trap, see raiseException. Cleared by reset.
 
     // ------------------------------------------------------------- //
     // Memory access
@@ -251,6 +252,7 @@ public abstract class R5CPUBase implements R5CPU {
     public void reset(final boolean hard, final long pc) {
         this.pc = pc;
         waitingForInterrupt = false;
+        halted = false;
 
         // Volume 2, 3.3 Reset
         priv = R5.PRIVILEGE_M;
@@ -323,6 +325,11 @@ public abstract class R5CPUBase implements R5CPU {
     }
 
     @Override
+    public boolean isHalted() {
+        return halted;
+    }
+
+    @Override
     public long[] getGeneralRegisters() {
         return x;
     }
@@ -362,14 +369,14 @@ public abstract class R5CPUBase implements R5CPU {
         cycles -= paidDebt;
         cycleDebt -= paidDebt;
 
-        if (waitingForInterrupt) {
+        if (waitingForInterrupt || halted) {
             mcycle += cycles;
             return;
         }
 
         final long cycleLimit = mcycle + cycles;
         this.cycleLimit = cycleLimit;
-        while (!waitingForInterrupt && mcycle < cycleLimit) {
+        while (!waitingForInterrupt && !halted && mcycle < cycleLimit) {
             final long pending = mip.get() & mie;
             if (pending != 0) {
                 raiseInterrupt(pending);
@@ -382,7 +389,7 @@ public abstract class R5CPUBase implements R5CPU {
             }
         }
 
-        if (waitingForInterrupt && mcycle < cycleLimit) {
+        if ((waitingForInterrupt || halted) && mcycle < cycleLimit) {
             mcycle = cycleLimit;
         }
 
@@ -453,7 +460,7 @@ public abstract class R5CPUBase implements R5CPU {
                 // Chain straight into the next trace (a boot re-enters 2.5M times, a third of them
                 // after fewer than 8 instructions) unless we must yield: single-stepping, wfi to wait
                 // out, cycle budget exhausted, interrupts to raise.
-            } while (!(singleStep || waitingForInterrupt || debugStop || mcycle >= cycleLimit || (mip.get() & mie) != 0));
+            } while (!(singleStep || waitingForInterrupt || halted || debugStop || mcycle >= cycleLimit || (mip.get() & mie) != 0));
         } catch (final R5MemoryAccessException e) {
             raiseException(e.getType(), e.getAddress());
         }
@@ -1092,6 +1099,9 @@ public abstract class R5CPUBase implements R5CPU {
         final long cause = exception & ~interruptMask;
         final long deleg = async ? mideleg : medeleg;
 
+        final long raisingPC = pc;
+        final int raisingPriv = priv;
+
         // xPIE holds the interrupt-enable bit of the *target* mode from before the trap; the
         // interrupted mode's privilege goes into xPP. Note we can get here even for interrupts
         // whose global enable is off: an M level interrupt raised while in S mode is taken
@@ -1136,6 +1146,12 @@ public abstract class R5CPUBase implements R5CPU {
                 pc = vec;
                 break;
             }
+        }
+
+        // If we're still on the same instruction after the interrupt, we'd just look forever.
+        // Just halt instead to avoid burning host cycles.
+        if (!async && raisingPriv == R5.PRIVILEGE_M && pc == raisingPC) {
+            halted = true;
         }
     }
 
